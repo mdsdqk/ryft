@@ -6,4 +6,22 @@ dist/
 #Docs
 .scratch/
 docs/.local
+docs/design/references/*
+!docs/design/references/.gitkeep
+docs/design/.scratch
 
+#Secrets — never commit
+.env
+.env.*
+!.env.example
+
+#Generated images (cf-image-generator)
+out.jpg
+*.out.jpg
+
+#Python
+__pycache__/
+*.pyc
+
+#Agentic
+.impeccable/*
