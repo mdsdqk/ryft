@@ -1,0 +1,9 @@
+#Node
+node_modules/
+dist/
+.eslintcache
+
+#Docs
+.scratch/
+docs/.local
+
