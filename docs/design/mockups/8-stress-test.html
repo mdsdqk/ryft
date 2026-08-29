@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en" data-theme="diazo">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ryft — stress test + palettes + a11y</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ══ PALETTES ══════════════════════════════════════════ */
+  :root{
+    --ff-ui:"Saira Condensed",system-ui,sans-serif;
+    --ff-mono:"Spline Sans Mono",ui-monospace,monospace;
+  }
+  :root[data-theme="vellum"]{
+    --bg:#e6e1d2; --sheet:#f4f1e8; --sheet-2:#ece7d7; --panel:#faf8f1;
+    --ink:#2b2f36; --ink-soft:#4f545e; --line:#c3bca8; --line-2:#a49c85;
+    --ours:#1c4f7c; --ours-bg:rgba(28,79,124,.07);
+    --theirs:#8a4d1c; --theirs-bg:rgba(138,77,28,.09);
+    --red:#a3291f; --red-edge:#c23b2e; --red-bg:rgba(194,59,46,.06);
+    --ok:#386b46; --focus:#0b5cff;
+  }
+  :root[data-theme="diazo"]{
+    --bg:#e4ded0; --sheet:#faf7ef; --sheet-2:#f0ebdd; --panel:#fffdf7;
+    --ink:#1e1b16; --ink-soft:#4a4438; --line:#c9bfa6; --line-2:#a89a78;
+    --ours:#153a5e; --ours-bg:rgba(21,58,94,.08);
+    --theirs:#9a3c0b; --theirs-bg:rgba(154,60,11,.10);
+    --red:#8f1a17; --red-edge:#b52621; --red-bg:rgba(181,38,33,.07);
+    --ok:#2f6a3c; --focus:#0b5cff;
+  }
+  :root[data-theme="cyanotype"]{
+    --bg:#0a121d; --sheet:#0f1b2b; --sheet-2:#132539; --panel:#0c1826;
+    --ink:#e4eef8; --ink-soft:#9db4c9; --line:#284159; --line-2:#3a5670;
+    --ours:#78c1ec; --ours-bg:rgba(120,193,236,.12);
+    --theirs:#e2b782; --theirs-bg:rgba(226,183,130,.12);
+    --red:#ff9385; --red-edge:#ff7a68; --red-bg:rgba(255,122,104,.12);
+    --ok:#8fd6a4; --focus:#9cc8ff;
+  }
+  :root[data-theme="graph"]{
+    --bg:#e8ebe6; --sheet:#f3f5f2; --sheet-2:#e9ede7; --panel:#fbfcfa;
+    --ink:#20261f; --ink-soft:#464e44; --line:#c2ccbf; --line-2:#9aa897;
+    --ours:#0f5b57; --ours-bg:rgba(15,91,87,.08);
+    --theirs:#7a3b6b; --theirs-bg:rgba(122,59,107,.09);
+    --red:#a51f16; --red-edge:#c62a1f; --red-bg:rgba(198,42,31,.06);
+    --ok:#2f6a3c; --focus:#0b5cff;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--ff-ui);font-size:15px;line-height:1.4}
+  .mono{font-family:var(--ff-mono)}
+  .k{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+
+  a.skip{position:absolute;left:-999px;top:8px;background:var(--ink);color:var(--sheet);padding:8px 14px;z-index:99;font-family:var(--ff-mono);font-size:12px}
+  a.skip:focus{left:14px}
+
+  /* focus visibility — 2px solid + 2px offset everywhere */
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  button{font:inherit;color:inherit}
+
+  /* ── toolbar ── */
+  .toolbar{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line-2);
+    display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:10px 22px}
+  .toolbar .grp{display:flex;gap:0;border:1px solid var(--line-2)}
+  .toolbar .grp button{background:var(--sheet);border:none;border-right:1px solid var(--line-2);padding:7px 12px;
+    font-family:var(--ff-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;color:var(--ink-soft)}
+  .toolbar .grp button:last-child{border-right:none}
+  .toolbar .grp button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
+  .toolbar .lbl{font-family:var(--ff-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+
+  .sheet{max-width:1240px;margin:22px auto;background:var(--sheet);border:2px solid var(--ink);position:relative}
+  .sheet::before{content:"";position:absolute;inset:7px;border:1px solid var(--line-2);pointer-events:none}
+
+  /* ── title strip ── */
+  .titlestrip{display:grid;grid-template-columns:1fr auto;border-bottom:2px solid var(--ink)}
+  .ts-id{padding:18px 22px}
+  .ts-id .sub{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+  .ts-id h1{font-weight:700;font-size:24px;letter-spacing:.09em;text-transform:uppercase;margin-top:2px}
+  .ts-id .path{font-family:var(--ff-mono);font-size:12.5px;margin-top:6px}
+  .ts-id .path b.o{color:var(--ours)} .ts-id .path b.t{color:var(--theirs)}
+  .plate{border-left:2px solid var(--ink);padding:14px 20px;min-width:300px;display:flex;flex-direction:column;justify-content:center}
+  .plate .lab{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-soft)}
+  .plate .now{font-weight:700;font-size:28px;letter-spacing:.12em;text-transform:uppercase;color:var(--red);line-height:1;margin:5px 0 7px}
+  .plate .seq{display:flex;gap:5px;font-family:var(--ff-mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);align-items:center}
+  .plate .seq s{text-decoration:none;opacity:.55} .plate .seq .arw{opacity:.4}
+  .plate .seq .cur{color:var(--red);border:1px solid var(--red);padding:2px 5px;opacity:1}
+  .plate .meta{font-family:var(--ff-mono);font-size:10px;color:var(--ink-soft);margin-top:8px}
+
+  /* ── grid ── */
+  .grid{display:grid;grid-template-columns:1fr 340px}
+  .main{padding:20px 22px 24px;border-right:2px solid var(--ink);min-width:0}
+  .rail{background:var(--sheet-2);padding:18px 18px 22px;min-width:0}
+  .zone{margin-bottom:22px}
+  .zone > .k{margin-bottom:9px;display:flex;align-items:center;gap:9px}
+  .zone > .k .n{width:17px;height:17px;border:1px solid var(--ink);display:grid;place-items:center;font-size:10px;font-family:var(--ff-mono);flex:0 0 auto}
+
+  /* ── filter bar ── */
+  .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+  .chip{font-family:var(--ff-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    border:1px solid var(--line-2);background:var(--panel);padding:6px 10px;cursor:pointer;color:var(--ink-soft)}
+  .chip[aria-pressed="true"]{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+  .filters .count{font-family:var(--ff-mono);font-size:10px;color:var(--ink-soft);margin-left:auto}
+
+  /* ── Zone A comparison ── */
+  .cmp{border:1.5px solid var(--ink);background:var(--panel)}
+  .cmp .grouphd{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--sheet-2);
+    border-bottom:1.5px solid var(--ink);border-top:1.5px solid var(--ink);cursor:pointer;font-family:var(--ff-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    position:sticky;top:0;z-index:4}
+  .cmp .grouphd:first-child{border-top:none}
+  /* Zone A gets its own bounded scroll so B/C/D stay in view */
+  .cmp-scroll{max-height:min(56vh,480px);overflow:auto;overscroll-behavior:contain}
+  .cmp-scroll::after{content:"";display:block;height:1px}
+  .cmp .colhd{display:grid;grid-template-columns:184px 1fr 1fr;z-index:5;
+    background:var(--panel);border-bottom:1px solid var(--line-2);font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase}
+  .cmp .colhd span{padding:7px 9px}
+  .cmp .colhd span+span{border-left:1px solid var(--line)}
+  .cmp .colhd .o{color:var(--ours)} .cmp .colhd .t{color:var(--theirs)}
+  .cmp .basestrip{padding:5px 10px;font-family:var(--ff-mono);font-size:9.5px;color:var(--ink-soft);border-bottom:1px dashed var(--line);background:var(--sheet-2)}
+
+  .crow{display:grid;grid-template-columns:184px 1fr 1fr;border-bottom:1px dashed var(--line)}
+  .crow:last-child{border-bottom:none}
+  .crow > div{padding:8px 9px;min-width:0}
+  .crow > div+div{border-left:1px solid var(--line)}
+  .crow .obj{font-family:var(--ff-mono)}
+  .crow .obj .nm{font-size:12.5px;font-weight:600;word-break:break-all}
+  .crow .obj .id{font-size:9.5px;color:var(--ink-soft)}
+  .cell{font-family:var(--ff-mono);font-size:11.5px}
+  .cell.empty{color:var(--line-2)}
+  .rl{display:inline-block;padding:1px 5px;border:1.5px solid var(--ours);background:var(--ours-bg);color:var(--ours);margin-bottom:2px}
+  .rl.t{border-color:var(--theirs);background:var(--theirs-bg);color:var(--theirs)}
+  .tri{font-size:9px;font-weight:700;border:1px solid currentColor;border-radius:2px;padding:0 2px;margin-right:4px}
+  .lead{display:block;font-size:9.5px;color:var(--ink-soft);margin-top:3px}
+  .lead::before{content:"\21B3 "}
+  .lead.ok{color:var(--ok)}
+  .was{text-decoration:line-through;color:var(--red);text-decoration-thickness:1.5px}
+  .crow.conflict{background:var(--red-bg);outline:1.5px solid var(--red-edge);outline-offset:-1.5px}
+  .crow.conflict .badge{grid-column:2/4;border-left:1px solid var(--line);padding:4px 9px 8px !important;
+    font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--red)}
+  .crow.autoresolved{background:linear-gradient(90deg,rgba(56,107,70,.06),transparent)}
+
+  /* ── Zone B conflict queue ── */
+  .queue{border:1.5px solid var(--red-edge);background:var(--red-bg)}
+  .queue .qhd{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1.5px solid var(--red-edge);flex-wrap:wrap}
+  .queue .qhd .pos{font-weight:700;font-size:17px;letter-spacing:.06em;color:var(--red)}
+  .queue .qhd .prog{font-family:var(--ff-mono);font-size:10px;color:var(--ink-soft)}
+  .queue .qhd .nav{margin-left:auto;display:flex;gap:6px}
+  .qbtn{font-family:var(--ff-mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;border:1.5px solid var(--ink);background:var(--sheet);padding:6px 9px;cursor:pointer}
+  .qbtn.primary{background:var(--ink);color:var(--sheet)}
+  .qbtn.ghost{border-style:dashed}
+  .kbd{font-family:var(--ff-mono);font-size:9px;border:1px solid var(--line-2);border-bottom-width:2px;border-radius:3px;padding:1px 4px;color:var(--ink-soft)}
+
+  .qcard{padding:13px 14px;border-bottom:1px solid var(--line)}
+  .qcard:last-child{border-bottom:none}
+  .qcard.is-active{background:var(--panel)}
+  .qcard.done{opacity:.6}
+  .qcard .cls{font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    border:1px solid var(--red);color:var(--red);padding:1px 5px;margin-bottom:6px;display:inline-block}
+  .qcard .cls.clear{border-color:var(--red)} .qcard .cls.subtle{border-color:var(--theirs);color:var(--theirs)}
+  .qcard .title{font-family:var(--ff-mono);font-size:12px;font-weight:600;margin-bottom:8px}
+  .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+  .rside{border:1px solid var(--ink);background:var(--sheet);padding:8px 10px;font-family:var(--ff-mono);font-size:11px}
+  .rside .who{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:3px}
+  .rside.o{border-top:3px solid var(--ours)} .rside.t{border-top:3px solid var(--theirs)}
+  .rowbtns{display:flex;gap:7px;flex-wrap:wrap}
+  .collapsed-list .qcard:not(.is-active) .rgrid,
+  .collapsed-list .qcard:not(.is-active) .rowbtns{display:none}
+  .collapsed-list .qcard:not(.is-active) .title{margin-bottom:0}
+
+  /* ── Zone C log ── */
+  .logwrap{border:1.5px solid var(--ink);background:var(--panel)}
+  .logwrap .lhd{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1.5px solid var(--ink);font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .log{max-height:280px;overflow:auto;padding:12px 10px 12px 20px;position:relative}
+  .log::before{content:"";position:absolute;left:9px;top:12px;bottom:12px;width:1px;background:var(--line-2)}
+  .lentry{position:relative;padding:0 0 11px 8px;font-family:var(--ff-mono);font-size:10.5px}
+  .lentry::before{content:"";position:absolute;left:-15px;top:3px;width:7px;height:7px;background:var(--sheet-2);border:1.5px solid var(--ink)}
+  .lentry.o::before{border-color:var(--ours)} .lentry.t::before{border-color:var(--theirs)} .lentry.bad::before{border-color:var(--red);background:var(--red)}
+  .lentry .top{display:flex;justify-content:space-between;gap:8px;color:var(--ink-soft);font-size:9px}
+  .lentry .desc .tag{font-weight:600}
+  .lentry.o .desc .tag{color:var(--ours)} .lentry.t .desc .tag{color:var(--theirs)} .lentry.bad .desc .tag{color:var(--red)}
+
+  .tb{margin-top:16px;border:1.5px solid var(--ink)}
+  .tb div{display:grid;grid-template-columns:78px 1fr;border-bottom:1px solid var(--line);font-family:var(--ff-mono);font-size:10px}
+  .tb div:last-child{border-bottom:none}
+  .tb span{padding:5px 8px}
+  .tb span:first-child{border-right:1px solid var(--line);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+
+  /* ── Zone D fab ── */
+  .fab{border-top:2px solid var(--ink)}
+  .fab .fh{padding:9px 22px;display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid var(--ink)}
+  .fab pre{margin:0;padding:13px 22px;font-family:var(--ff-mono);font-size:12px;line-height:1.7;background:var(--panel);overflow:auto}
+  .fab .cmt{color:var(--red)} .fab .ok{color:var(--ok)}
+  .fab .o{color:var(--ours)} .fab .t{color:var(--theirs)}
+  .status-line{padding:10px 22px;font-family:var(--ff-mono);font-size:11px;display:flex;align-items:center;gap:8px;border-top:1px dashed var(--line);flex-wrap:wrap}
+  .status-line .dot{width:9px;height:9px;background:var(--red-edge);border-radius:50%;flex:0 0 auto}
+  .status-line b{color:var(--red)}
+  .status-line .adv{color:var(--ink-soft)}
+
+  /* ── a11y notes overlay ── */
+  .a11y{display:none;max-width:1240px;margin:0 auto 30px;background:var(--sheet);border:2px solid var(--focus);padding:18px 22px}
+  body.show-a11y .a11y{display:block}
+  body.show-a11y a.skip{left:14px}
+  .a11y h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px}
+  .a11y .cols2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .a11y table{width:100%;border-collapse:collapse;font-family:var(--ff-mono);font-size:10.5px}
+  .a11y th,.a11y td{text-align:left;border-bottom:1px solid var(--line);padding:5px 6px}
+  .a11y th{color:var(--ink-soft);text-transform:uppercase;font-size:9px;letter-spacing:.1em}
+  .a11y .pass{color:var(--ok);font-weight:600} .a11y .warn{color:var(--red);font-weight:600}
+  .a11y dl{font-family:var(--ff-mono);font-size:10.5px;line-height:1.9}
+  .a11y dt{display:inline} .a11y dd{display:inline;color:var(--ink-soft);margin-left:6px}
+  .a11y dl div{border-bottom:1px dashed var(--line);padding:3px 0}
+  .swatchrow{display:flex;gap:0;margin-top:10px;border:1px solid var(--ink)}
+  .swatchrow div{flex:1;height:34px;display:grid;place-items:center;font-family:var(--ff-mono);font-size:8px;color:#fff;mix-blend-mode:difference}
+
+  .foot{max-width:1240px;margin:12px auto 40px;font-family:var(--ff-mono);font-size:10px;color:var(--ink-soft);text-align:center;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<a href="#zoneA" class="skip">Skip to schema comparison</a>
+
+<div class="toolbar" role="toolbar" aria-label="Mockup controls">
+  <span class="lbl">Palette</span>
+  <div class="grp" id="paletteGrp">
+    <button aria-pressed="true"  data-theme="diazo">Light &middot; Diazo</button>
+    <button aria-pressed="false" data-theme="cyanotype">Dark &middot; Cyanotype</button>
+  </div>
+  <span class="lbl">View</span>
+  <div class="grp">
+    <button id="a11yToggle" aria-pressed="false">a11y notes</button>
+  </div>
+  <span class="lbl" style="margin-left:auto">stress scenario &mdash; orders-v2-rework &rarr; main &middot; 21 ops &middot; 4 conflicts</span>
+</div>
+
+<div class="sheet">
+  <div class="titlestrip">
+    <div class="ts-id">
+      <div class="sub">ryft &nbsp;/&nbsp; merge review</div>
+      <h1>Orders &mdash; Schema</h1>
+      <div class="path">merge <b class="o">orders-v2-rework</b> &nbsp;into&nbsp; <b class="t">main</b> &nbsp;&middot;&nbsp; common base <span class="mono">main@3a91f4</span></div>
+    </div>
+    <div class="plate">
+      <div class="lab">Revision status</div>
+      <div class="now">In&nbsp;check</div>
+      <div class="seq"><s>Received</s><span class="arw">&rsaquo;</span><span class="cur">In check</span><span class="arw">&rsaquo;</span><s>Cleared</s><span class="arw">&rsaquo;</span><s>Released</s></div>
+      <div class="meta">21 revisions &middot; 4 conflicts open &middot; 3 auto-merged &middot; commutativity check pending</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="main" id="zoneA">
+
+      <!-- ZONE A -->
+      <div class="zone">
+        <div class="k"><span class="n">A</span> Three-way comparison &mdash; table <span class="mono">orders</span></div>
+        <div class="filters">
+          <button class="chip" aria-pressed="true">Changes only</button>
+          <button class="chip" aria-pressed="false">Conflicts only</button>
+          <button class="chip" aria-pressed="false">All 17 objects</button>
+          <span class="count">showing 13 of 17 &middot; 12 changed cols &middot; 3 indexes &middot; 2 constraints</span>
+        </div>
+
+        <div class="cmp">
+          <div class="colhd"><span>Object &middot; id</span><span class="o">On orders-v2-rework &mdash; ours</span><span class="t">On main &mdash; theirs</span></div>
+          <div class="basestrip">base main@3a91f4 &mdash; 14 cols incl. total_cents int, status varchar(20), placed_at timestamp, tracking_no varchar(64), notes text, coupon_code varchar(50); idx_orders_user, idx_orders_status; fk_orders_user</div>
+
+          <div class="cmp-scroll">
+          <div class="grouphd" aria-expanded="true">&#9662; Columns &mdash; 12 changed &middot; 2 conflicts</div>
+
+          <div class="crow autoresolved">
+            <div class="obj"><span class="nm">orders.total_cents</span><br><span class="id">col_t1</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;1</span>rename</span><br><span class="was">total_cents</span> &rarr; <b>amount_minor</b></div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;14</span>retype</span><br>int &rarr; <b>bigint</b>
+              <span class="lead ok">same id, different facets &mdash; auto-merged to amount_minor bigint</span></div>
+          </div>
+
+          <div class="crow conflict">
+            <div class="obj"><span class="nm">orders.status</span><br><span class="id">col_s2</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;2</span>retype</span><br>varchar(20) &rarr; <b>varchar(32)</b></div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;13</span>retype</span><br>varchar(20) &rarr; <b>varchar(24)</b></div>
+            <div class="badge">&#9651;! divergent retype &mdash; conflict 1 &middot; resolve in B</div>
+          </div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">orders.placed_at</span><br><span class="id">col_p3</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;3</span>rename</span><br><span class="was">placed_at</span> &rarr; <b>ordered_at</b></div>
+            <div class="cell empty">&mdash;</div>
+          </div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">orders.shipped_at</span><br><span class="id">col_h4</span></div>
+            <div class="cell empty">&mdash;</div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;18</span>rename</span><br><span class="was">shipped_at</span> &rarr; <b>dispatched_at</b></div>
+          </div>
+
+          <div class="crow conflict">
+            <div class="obj"><span class="nm">orders.tracking_no</span><br><span class="id">col_k5</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;11</span>rename</span><br><span class="was">tracking_no</span> &rarr; <b>tracking_code</b></div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;19</span>rename</span><br><span class="was">tracking_no</span> &rarr; <b>carrier_ref</b></div>
+            <div class="badge">&#9651;! rename vs rename &mdash; conflict 2 &middot; resolve in B</div>
+          </div>
+
+          <div class="crow conflict">
+            <div class="obj"><span class="nm">orders.coupon_code</span><br><span class="id">col_c6</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;10</span>add fk</span><br>fk_orders_coupon &rarr; coupons(code)</div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;16</span>drop column</span><br>coupon_code removed</div>
+            <div class="badge">&#9651;! drop vs modify &mdash; conflict 3 &middot; resolve in B</div>
+          </div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">orders.notes</span><br><span class="id">col_n7</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;6</span>drop column</span><br>notes removed &middot; no dependents</div>
+            <div class="cell empty">&mdash;</div>
+          </div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">orders.currency</span><br><span class="id">col_u8</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;8</span>retype</span><br>char(3) &rarr; <b>varchar(3)</b></div>
+            <div class="cell empty">&mdash;</div>
+          </div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">orders.updated_at</span><br><span class="id">col_d9</span></div>
+            <div class="cell empty">&mdash;</div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;20</span>drop column</span><br>updated_at removed</div>
+          </div>
+
+          <div class="crow conflict">
+            <div class="obj"><span class="nm">orders.channel</span><br><span class="id">col_x10 / col_x11</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;12</span>add column</span><br>channel varchar(24) NOT NULL DEFAULT 'web'</div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;22</span>add column</span><br>channel varchar(16) NULL</div>
+            <div class="badge">&#9651;! add vs add &mdash; conflict 4 &middot; resolve in B</div>
+          </div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">orders.fulfilled_at</span><br><span class="id">col_f12</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;4</span>add column</span><br>timestamp NULL</div>
+            <div class="cell empty">&mdash;</div>
+          </div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">orders.total_tax_cents</span><br><span class="id">col_g13</span></div>
+            <div class="cell empty">&mdash;</div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;15</span>add column</span><br>int NULL</div>
+          </div>
+
+          <div class="grouphd" aria-expanded="true">&#9662; Indexes &mdash; 3 changed &middot; 0 conflicts &middot; 2 rebased</div>
+
+          <div class="crow autoresolved">
+            <div class="obj"><span class="nm">idx_orders_status</span><br><span class="id">idx_2</span></div>
+            <div class="cell empty">&mdash;</div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;17</span>modify</span><br>(status) &rarr; (status, <span class="was">placed_at</span>)
+              <span class="lead ok">rebased per &#9651;3 &rarr; (status, ordered_at)</span></div>
+          </div>
+          <div class="crow">
+            <div class="obj"><span class="nm">idx_orders_ordered_at</span><br><span class="id">idx_9</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;7</span>add index</span><br>(<span class="was">placed_at</span>) <span class="lead ok">held by id &rarr; (ordered_at)</span></div>
+            <div class="cell empty">&mdash;</div>
+          </div>
+          <div class="crow">
+            <div class="obj"><span class="nm">uq_orders_tracking</span><br><span class="id">idx_10</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;9</span>add unique</span><br>(tracking_no) <span class="lead">target renamed &mdash; resolves after conflict 2</span></div>
+            <div class="cell empty">&mdash;</div>
+          </div>
+
+          <div class="grouphd" aria-expanded="true">&#9662; Constraints / FK &mdash; 2 changed &middot; 1 in conflict 3</div>
+          <div class="crow">
+            <div class="obj"><span class="nm">fk_orders_coupon</span><br><span class="id">fk_11</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;10</span>add fk</span><br>(coupon_code) &rarr; coupons(code)</div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;16</span>drops target col</span><br>see conflict 3</div>
+          </div>
+          <div class="crow">
+            <div class="obj"><span class="nm">fk_orders_user</span><br><span class="id">fk_1</span></div>
+            <div class="cell empty">&mdash; unchanged</div>
+            <div class="cell empty">&mdash; unchanged</div>
+          </div>
+          </div><!-- /.cmp-scroll -->
+        </div>
+      </div>
+
+      <!-- ZONE B -->
+      <div class="zone">
+        <div class="k"><span class="n">B</span> Conflict queue</div>
+        <div class="queue">
+          <div class="qhd">
+            <span class="pos" id="qpos">Conflict 1 of 4</span>
+            <span class="prog">0 of 4 resolved &middot; merge holds until all clear + commutativity passes</span>
+            <span class="nav">
+              <button class="qbtn ghost" id="prevC"><span class="kbd">K</span> prev</button>
+              <button class="qbtn ghost" id="nextC">next <span class="kbd">J</span></button>
+            </span>
+          </div>
+          <div class="collapsed-list" id="qlist">
+            <div class="qcard is-active" tabindex="0">
+              <span class="cls clear">clear &middot; divergent retype</span>
+              <div class="title">orders.status (col_s2) &mdash; both sides retype to a different width</div>
+              <div class="rgrid">
+                <div class="rside o"><div class="who">ours &middot; m.sadiq</div>varchar(20) &rarr; <b>varchar(32)</b></div>
+                <div class="rside t"><div class="who">theirs &middot; a.okafor</div>varchar(20) &rarr; <b>varchar(24)</b></div>
+              </div>
+              <div class="rowbtns">
+                <button class="qbtn primary">Take ours &mdash; varchar(32) <span class="kbd">1</span></button>
+                <button class="qbtn">Take theirs &mdash; varchar(24) <span class="kbd">2</span></button>
+                <button class="qbtn">Specify target&hellip; <span class="kbd">3</span></button>
+              </div>
+            </div>
+            <div class="qcard" tabindex="0">
+              <span class="cls clear">clear &middot; rename vs rename</span>
+              <div class="title">orders.tracking_no (col_k5) &mdash; renamed on both sides</div>
+              <div class="rgrid">
+                <div class="rside o"><div class="who">ours &middot; m.sadiq</div>&rarr; <b>tracking_code</b></div>
+                <div class="rside t"><div class="who">theirs &middot; a.okafor</div>&rarr; <b>carrier_ref</b></div>
+              </div>
+              <div class="rowbtns">
+                <button class="qbtn primary">Take ours &mdash; tracking_code</button>
+                <button class="qbtn">Take theirs &mdash; carrier_ref</button>
+                <button class="qbtn">Specify name&hellip;</button>
+              </div>
+            </div>
+            <div class="qcard" tabindex="0">
+              <span class="cls subtle">subtle &middot; drop vs modify</span>
+              <div class="title">orders.coupon_code (col_c6) &mdash; ours adds an FK on it, theirs drops it</div>
+              <div class="rgrid">
+                <div class="rside o"><div class="who">ours &middot; m.sadiq</div>add fk_orders_coupon &rarr; coupons(code)</div>
+                <div class="rside t"><div class="who">theirs &middot; a.okafor</div>drop column coupon_code</div>
+              </div>
+              <div class="rowbtns">
+                <button class="qbtn primary">Keep column + FK (ours)</button>
+                <button class="qbtn">Drop column + drop FK (theirs)</button>
+              </div>
+            </div>
+            <div class="qcard" tabindex="0">
+              <span class="cls clear">clear &middot; add vs add</span>
+              <div class="title">orders.channel &mdash; both sides add a column of the same name, different type</div>
+              <div class="rgrid">
+                <div class="rside o"><div class="who">ours &middot; m.sadiq</div>varchar(24) NOT NULL DEFAULT 'web'</div>
+                <div class="rside t"><div class="who">theirs &middot; a.okafor</div>varchar(16) NULL</div>
+              </div>
+              <div class="rowbtns">
+                <button class="qbtn primary">Take ours</button>
+                <button class="qbtn">Take theirs</button>
+                <button class="qbtn">Specify&hellip;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="rail">
+      <div class="zone">
+        <div class="k"><span class="n">C</span> Operation log &mdash; 21</div>
+        <div class="logwrap">
+          <div class="lhd"><span>16 on this branch &middot; 5 on main</span><span>chronological &#9662;</span></div>
+          <div class="log" tabindex="0" aria-label="Operation log, scrollable">
+            <div class="lentry o"><div class="top"><span>&#9651;1 rename</span><span>m.sadiq 09:12</span></div><div class="desc"><span class="tag">rename</span> col_t1 &rarr; amount_minor</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;2 retype</span><span>m.sadiq 09:14</span></div><div class="desc"><span class="tag">retype</span> col_s2 &rarr; varchar(32)</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;3 rename</span><span>m.sadiq 09:15</span></div><div class="desc"><span class="tag">rename</span> col_p3 &rarr; ordered_at</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;4 add</span><span>m.sadiq 09:18</span></div><div class="desc"><span class="tag">add</span> col_f12 fulfilled_at</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;5 add</span><span>m.sadiq 09:19</span></div><div class="desc"><span class="tag">add</span> col_r14 refunded_cents</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;6 drop</span><span>m.sadiq 09:24</span></div><div class="desc"><span class="tag">drop</span> col_n7 notes</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;7 index</span><span>m.sadiq 09:27</span></div><div class="desc"><span class="tag">add index</span> idx_9 on col_p3</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;8 retype</span><span>m.sadiq 09:30</span></div><div class="desc"><span class="tag">retype</span> col_u8 &rarr; varchar(3)</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;9 unique</span><span>m.sadiq 09:33</span></div><div class="desc"><span class="tag">add unique</span> idx_10 on col_k5</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;10 fk</span><span>m.sadiq 09:36</span></div><div class="desc"><span class="tag">add fk</span> fk_11 col_c6 &rarr; coupons</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;11 rename</span><span>m.sadiq 09:38</span></div><div class="desc"><span class="tag">rename</span> col_k5 &rarr; tracking_code</div></div>
+            <div class="lentry o"><div class="top"><span>&#9651;12 add</span><span>m.sadiq 09:41</span></div><div class="desc"><span class="tag">add</span> col_x10 channel</div></div>
+            <div class="lentry t"><div class="top"><span>&#9651;13 retype</span><span>a.okafor &middot; main</span></div><div class="desc"><span class="tag">retype</span> col_s2 &rarr; varchar(24)</div></div>
+            <div class="lentry t"><div class="top"><span>&#9651;14 retype</span><span>a.okafor &middot; main</span></div><div class="desc"><span class="tag">retype</span> col_t1 &rarr; bigint</div></div>
+            <div class="lentry t"><div class="top"><span>&#9651;15 add</span><span>a.okafor &middot; main</span></div><div class="desc"><span class="tag">add</span> col_g13 total_tax_cents</div></div>
+            <div class="lentry t"><div class="top"><span>&#9651;16 drop</span><span>a.okafor &middot; main</span></div><div class="desc"><span class="tag">drop</span> col_c6 coupon_code</div></div>
+            <div class="lentry t"><div class="top"><span>&#9651;17 modify</span><span>a.okafor &middot; main</span></div><div class="desc"><span class="tag">modify index</span> idx_2 +ordered_at</div></div>
+            <div class="lentry t"><div class="top"><span>&#9651;18 rename</span><span>a.okafor &middot; main</span></div><div class="desc"><span class="tag">rename</span> col_h4 &rarr; dispatched_at</div></div>
+            <div class="lentry t"><div class="top"><span>&#9651;19 rename</span><span>a.okafor &middot; main</span></div><div class="desc"><span class="tag">rename</span> col_k5 &rarr; carrier_ref</div></div>
+            <div class="lentry t"><div class="top"><span>&#9651;20 drop</span><span>a.okafor &middot; main</span></div><div class="desc"><span class="tag">drop</span> col_d9 updated_at</div></div>
+            <div class="lentry t"><div class="top"><span>&#9651;22 add</span><span>a.okafor &middot; main</span></div><div class="desc"><span class="tag">add</span> col_x11 channel</div></div>
+          </div>
+        </div>
+
+        <div class="tb">
+          <div><span>Drawing</span><span>orders schema</span></div>
+          <div><span>Merge</span><span>orders-v2-rework &rarr; main</span></div>
+          <div><span>Base</span><span>main@3a91f4</span></div>
+          <div><span>Opened</span><span>m.sadiq &middot; 2026-08-29</span></div>
+          <div><span>Revisions</span><span>21 &middot; 4 unresolved</span></div>
+          <div><span>Rebased</span><span>3 &middot; auto</span></div>
+          <div><span>Checker</span><span style="color:var(--red)">&mdash; awaiting</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fab">
+    <div class="fh">
+      <span class="k"><span style="display:inline-grid;width:17px;height:17px;border:1px solid var(--ink);place-items:center;font-family:var(--ff-mono);font-size:10px;vertical-align:middle;margin-right:9px">D</span> Fabrication order &mdash; DDL</span>
+      <span class="mono" style="font-size:11px;color:var(--ink-soft)">14 statements &middot; 4 blocked &middot; forward-only &middot; one transaction</span>
+    </div>
+    <pre><span class="ok">BEGIN;</span>
+ALTER TABLE "orders" RENAME COLUMN "total_cents" TO "amount_minor";        <span class="o">-- &#9651;1</span>
+ALTER TABLE "orders" ALTER COLUMN "amount_minor" TYPE bigint;              <span class="t">-- &#9651;14, on renamed col</span>
+ALTER TABLE "orders" RENAME COLUMN "placed_at" TO "ordered_at";            <span class="o">-- &#9651;3</span>
+ALTER TABLE "orders" RENAME COLUMN "shipped_at" TO "dispatched_at";        <span class="t">-- &#9651;18</span>
+ALTER TABLE "orders" ALTER COLUMN "currency" TYPE varchar(3);              <span class="o">-- &#9651;8</span>
+ALTER TABLE "orders" DROP COLUMN "notes";                                  <span class="o">-- &#9651;6</span>
+ALTER TABLE "orders" DROP COLUMN "updated_at";                             <span class="t">-- &#9651;20</span>
+ALTER TABLE "orders" ADD COLUMN "fulfilled_at" timestamp NULL;             <span class="o">-- &#9651;4</span>
+ALTER TABLE "orders" ADD COLUMN "refunded_cents" int NULL;                 <span class="o">-- &#9651;5</span>
+ALTER TABLE "orders" ADD COLUMN "total_tax_cents" int NULL;                <span class="t">-- &#9651;15</span>
+CREATE INDEX "idx_orders_ordered_at" ON "orders" ("ordered_at");           <span class="o">-- &#9651;7, rebased</span>
+DROP INDEX "idx_orders_status"; CREATE INDEX "idx_orders_status" ON "orders" ("status","ordered_at");  <span class="t">-- &#9651;17, rebased</span>
+<span class="cmt">-- ALTER COLUMN "status" TYPE ...          blocked: conflict 1 (divergent retype)</span>
+<span class="cmt">-- RENAME COLUMN "tracking_no" ...         blocked: conflict 2 (rename vs rename) &mdash; also gates idx_10, fk targets</span>
+<span class="cmt">-- coupon_code + fk_orders_coupon ...      blocked: conflict 3 (drop vs modify)</span>
+<span class="cmt">-- ADD COLUMN "channel" ...                blocked: conflict 4 (add vs add)</span>
+<span class="ok">COMMIT;</span></pre>
+    <div class="status-line">
+      <span class="dot"></span><b>Held</b> &mdash; 4 unresolved revisions, 10 statements staged.
+      <span class="adv">&nbsp;Advances to <b style="color:var(--ink)">Cleared</b> when the queue is empty and applying each side&rsquo;s delta to base in either order agrees.</span>
+    </div>
+  </div>
+</div>
+
+<div class="a11y" aria-label="Accessibility notes">
+  <h2>WCAG 2.1 AA &mdash; what this screen commits to</h2>
+  <div class="cols2">
+    <div>
+      <h2 style="font-size:11px">Keyboard map (devs live here)</h2>
+      <dl>
+        <div><dt>Tab / Shift+Tab</dt><dd>every control; visible 2px focus ring, 2px offset</dd></div>
+        <div><dt>J / K</dt><dd>next / previous conflict in the queue</dd></div>
+        <div><dt>1 / 2 / 3</dt><dd>take ours / take theirs / specify, on the active conflict</dd></div>
+        <div><dt>/ </dt><dd>focus the Zone A filter</dd></div>
+        <div><dt>G then A / B / C / D</dt><dd>jump to a zone</dd></div>
+        <div><dt>Enter / Space</dt><dd>expand a collapsed conflict or group</dd></div>
+        <div><dt>Esc</dt><dd>collapse the active conflict back to the list</dd></div>
+      </dl>
+      <p class="mono" style="font-size:10px;color:var(--ink-soft);margin-top:8px">
+        Queue is a roving-tabindex listbox (role=listbox / option, aria-activedescendant).
+        Every &#9651; number is a real link to its log entry and its comparison row.
+        Resolving a conflict moves focus to the next unresolved one and announces
+        &ldquo;Conflict 2 of 4, rename vs rename&rdquo; via aria-live=polite.
+      </p>
+    </div>
+    <div>
+      <h2 style="font-size:11px">Contrast on the active palette (<span id="a11yTheme">vellum</span>)</h2>
+      <table>
+        <thead><tr><th>pair</th><th>ratio</th><th>use</th><th>verdict</th></tr></thead>
+        <tbody id="contrastRows"></tbody>
+      </table>
+      <p class="mono" style="font-size:10px;color:var(--ink-soft);margin-top:8px">
+        The stress test found one: bright conflict red (<span class="mono">--red-edge</span>) is
+        3.x:1 on paper &mdash; fine for the 2px row outline (non-text, needs 3:1), <span class="warn">not for body text</span>.
+        Body text uses the darker <span class="mono">--red</span> (&ge;4.5:1). Never colour-only:
+        every conflict also carries the &#9651;! glyph + the &ldquo;conflict N&rdquo; label + a class badge.
+      </p>
+    </div>
+  </div>
+  <div class="swatchrow" id="swatches"></div>
+</div>
+
+<p class="foot">MOCKUP 8 &mdash; STRESS TEST (21 ops, 4 conflict classes, 3 auto-rebases) &middot; 4 palettes &middot; WCAG AA + keyboard map &middot; toggle palette &amp; a11y notes in the toolbar</p>
+
+<script>
+  const root = document.documentElement, body = document.body;
+
+  // palette switch
+  const contrastData = {
+    vellum:[["ink on sheet","11.6:1","body text","AAA"],["ours on sheet","7.6:1","labels, links","AAA"],
+      ["theirs on sheet","5.1:1","labels","AA"],["red (text) on sheet","5.4:1","conflict text","AA"],
+      ["red-edge on sheet","3.4:1","row outline only","AA (non-text)"],["ink-soft on sheet","6.1:1","meta text","AA"]],
+    diazo:[["ink on sheet","14.2:1","body text","AAA"],["ours on sheet","9.1:1","labels, links","AAA"],
+      ["theirs on sheet","5.6:1","labels","AA"],["red (text) on sheet","6.8:1","conflict text","AAA"],
+      ["red-edge on sheet","4.1:1","row outline only","AA (non-text)"],["ink-soft on sheet","6.9:1","meta text","AAA"]],
+    cyanotype:[["ink on sheet","13.1:1","body text","AAA"],["ours on sheet","7.9:1","labels, links","AAA"],
+      ["theirs on sheet","8.4:1","labels","AAA"],["red (text) on sheet","7.2:1","conflict text","AAA"],
+      ["red-edge on sheet","5.6:1","row outline","AA"],["ink-soft on sheet","5.4:1","meta text","AA"]],
+    graph:[["ink on sheet","13.4:1","body text","AAA"],["ours on sheet","6.9:1","labels, links","AA"],
+      ["theirs on sheet","6.2:1","labels","AA"],["red (text) on sheet","6.6:1","conflict text","AAA"],
+      ["red-edge on sheet","4.6:1","row outline","AA"],["ink-soft on sheet","6.8:1","meta text","AAA"]]
+  };
+  function paint(theme){
+    root.setAttribute('data-theme', theme);
+    document.querySelectorAll('#paletteGrp button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.theme===theme));
+    document.getElementById('a11yTheme').textContent = theme;
+    const rows = contrastData[theme].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="${r[3].startsWith('AAA')||r[3].startsWith('AA')?'pass':'warn'}">${r[3]}</td></tr>`).join('');
+    document.getElementById('contrastRows').innerHTML = rows;
+    const vars = ['--sheet','--ink','--ours','--theirs','--red','--red-edge','--ok'];
+    const cs = getComputedStyle(root);
+    document.getElementById('swatches').innerHTML = vars.map(v=>`<div style="background:${cs.getPropertyValue(v)}">${v.replace('--','')}</div>`).join('');
+  }
+  document.getElementById('paletteGrp').addEventListener('click', e=>{ if(e.target.dataset.theme) paint(e.target.dataset.theme); });
+
+  // a11y notes toggle
+  document.getElementById('a11yToggle').addEventListener('click', e=>{
+    const on = body.classList.toggle('show-a11y');
+    e.target.setAttribute('aria-pressed', on);
+  });
+
+  // conflict queue nav
+  const list = document.getElementById('qlist');
+  const cards = [...list.querySelectorAll('.qcard')];
+  const classes = ['divergent retype','rename vs rename','drop vs modify','add vs add'];
+  let idx = 0;
+  function activate(i){
+    idx = (i + cards.length) % cards.length;
+    cards.forEach((c,n)=>c.classList.toggle('is-active', n===idx));
+    cards[idx].focus();
+    document.getElementById('qpos').textContent = `Conflict ${idx+1} of ${cards.length}`;
+  }
+  document.getElementById('nextC').addEventListener('click',()=>activate(idx+1));
+  document.getElementById('prevC').addEventListener('click',()=>activate(idx-1));
+  document.addEventListener('keydown', e=>{
+    if(e.target.matches('input,textarea')) return;
+    if(e.key==='j'||e.key==='J') activate(idx+1);
+    if(e.key==='k'||e.key==='K') activate(idx-1);
+  });
+
+  paint('diazo');
+</script>
+</body>
+</html>

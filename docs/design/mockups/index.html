@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ryft — visual world mockups</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#14161a;color:#e8e8e8;font-family:ui-sans-serif,system-ui,sans-serif;padding:48px 24px;line-height:1.55}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:22px;font-weight:700;margin-bottom:6px}
+  .sub{color:#9aa0a8;font-size:13px;margin-bottom:28px}
+  ol{list-style:none;counter-reset:m}
+  li{counter-increment:m;border:1px solid #2b2f36;border-radius:10px;padding:16px 18px;margin-bottom:12px;background:#1a1d22}
+  li a{color:#7db2ff;text-decoration:none;font-size:16px;font-weight:600}
+  li a::before{content:counter(m) ".\00a0\00a0";color:#5b616b}
+  li p{color:#9aa0a8;font-size:12.5px;margin-top:5px}
+  .tag{display:inline-block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:1px solid #3a3f47;border-radius:20px;padding:2px 8px;color:#b9bec6;margin-left:8px;vertical-align:middle}
+  .note{margin-top:24px;font-size:12px;color:#7f858d;border-top:1px solid #2b2f36;padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ryft &mdash; visual world mockups</h1>
+  <p class="sub">Every mockup shows the same screen: reviewing <code>contact-fields &rarr; main</code>, with the rename-rebase case (index follows the renamed column) and one real conflict (both sides retype <code>users.phone</code>).</p>
+  <ol>
+    <li><a href="./1-revised-drawing.html">The Revised Drawing</a><span class="tag">the roll</span><p>Schema as a controlled engineering drawing. Revision table, revision clouds around what diverged, a title block with a checker&rsquo;s sign-off, drafting-vellum ground.</p></li>
+    <li><a href="./2-accession-register.html">The Accession Register</a><span class="tag">the pick</span><p>Every object gets a permanent accession number. Renamed cards keep the number; cross-reference slips point at numbers, not names. Ledger-cream, typewritten.</p></li>
+    <li><a href="./3-three-track-score.html">The Three-Track Score</a><span class="tag">alternate</span><p>Base runs down a centre spine; ours-changes align left, theirs-changes align right on the same object row. Shaped blocks encode change kind.</p></li>
+    <li><a href="./4-darkroom-line.html">The Darkroom Line</a><span class="tag">alternate</span><p>The merge as fixed ordered stations with a test-strip dry run you read before committing. Amber safelight on near-black; irreversible past the fixer.</p></li>
+    <li><a href="./5-signal-at-the-edge.html">Signal at the Edge</a><span class="tag">alternate</span><p>The schema text stays calm and colourless. Every change and its severity live in a hairline gutter band and a margin note &mdash; nothing fills the row.</p></li>
+    <li><a href="./6-category-standard.html">The Category Standard</a><span class="tag">canon</span><p>PlanetScale&rsquo;s model played straight &mdash; and inheriting its limits: the rename reads as drop+add, the index breaks, no conflict resolution.</p></li>
+  </ol>
+  <p class="note">These are rough direction mockups, not the build &mdash; static HTML, real content, committed colour and type. Pick one (or say &ldquo;bolder&rdquo; / &ldquo;safer&rdquo; to re-roll) and I&rsquo;ll write the confirmed brief.</p>
+</div>
+</body>
+</html>

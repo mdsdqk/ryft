@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ryft — Drafting Room (fused mk.2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --vellum:#f4f1e8; --vellum-2:#ece7d7; --panel:#faf8f1;
+    --graphite:#2b2f36; --graphite-soft:#5b606a;
+    --ours:#1c4f7c;      /* contact-fields */
+    --theirs:#9c5a24;    /* main */
+    --red:#c23b2e; --green:#3f7d4f;
+    --line:#c3bca8; --line-strong:#a49c85;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#e6e1d2;color:var(--graphite);font-family:"Saira Condensed",system-ui,sans-serif;font-size:15px;line-height:1.4;padding:26px}
+  .mono{font-family:"Spline Sans Mono",ui-monospace,monospace}
+  .k{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--graphite-soft);font-weight:600}
+
+  .sheet{max-width:1200px;margin:0 auto;background:var(--vellum);border:2px solid var(--graphite);position:relative;
+    box-shadow:0 20px 60px -30px rgba(43,47,54,.6)}
+  .sheet::before{content:"";position:absolute;inset:7px;border:1px solid var(--line-strong);pointer-events:none}
+
+  /* ── title strip ───────────────────────────────── */
+  .titlestrip{display:grid;grid-template-columns:1fr auto;border-bottom:2px solid var(--graphite)}
+  .ts-id{padding:20px 24px}
+  .ts-id .sub{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--graphite-soft)}
+  .ts-id h1{font-weight:700;font-size:25px;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+  .ts-id .path{font-family:"Spline Sans Mono",monospace;font-size:12.5px;margin-top:6px}
+  .ts-id .path b.o{color:var(--ours)} .ts-id .path b.t{color:var(--theirs)}
+
+  /* revision-status PLATE — a dial that turns, not a stamp */
+  .plate{border-left:2px solid var(--graphite);padding:14px 22px;min-width:290px;display:flex;flex-direction:column;justify-content:center}
+  .plate .lab{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--graphite-soft)}
+  .plate .now{font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:30px;letter-spacing:.12em;text-transform:uppercase;color:var(--red);line-height:1;margin:5px 0 8px}
+  .plate .seq{display:flex;gap:6px;font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--graphite-soft);align-items:center}
+  .plate .seq s{text-decoration:none;opacity:.5}
+  .plate .seq .cur{color:var(--red);border:1px solid var(--red);padding:2px 5px;opacity:1}
+  .plate .seq .arw{opacity:.4}
+
+  /* ── main grid ─────────────────────────────────── */
+  .grid{display:grid;grid-template-columns:1fr 320px}
+  .main{padding:22px 24px 26px;border-right:2px solid var(--graphite)}
+  .rail{background:var(--vellum-2);padding:20px 20px 24px}
+
+  .zone{margin-bottom:22px}
+  .zone > .k{margin-bottom:9px;display:flex;align-items:center;gap:9px}
+  .zone > .k .n{width:17px;height:17px;border:1px solid var(--graphite);display:grid;place-items:center;font-size:10px;font-family:"Spline Sans Mono",monospace}
+
+  /* ── Zone A: three-way comparison table ────────── */
+  .cmp{border:1.5px solid var(--graphite);background:var(--panel)}
+  .cmp .head{display:grid;grid-template-columns:190px 1fr 1fr;border-bottom:1.5px solid var(--graphite);font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+  .cmp .head span{padding:8px 10px}
+  .cmp .head span+span{border-left:1px solid var(--line)}
+  .cmp .head .o{color:var(--ours)} .cmp .head .t{color:var(--theirs)}
+  .cmp .base-note{padding:5px 10px;font-family:"Spline Sans Mono",monospace;font-size:10px;color:var(--graphite-soft);border-bottom:1px dashed var(--line);background:var(--vellum-2)}
+
+  .crow{display:grid;grid-template-columns:190px 1fr 1fr;border-bottom:1px dashed var(--line)}
+  .crow:last-child{border-bottom:none}
+  .crow > div{padding:10px}
+  .crow > div+div{border-left:1px solid var(--line)}
+  .obj{font-family:"Spline Sans Mono",monospace}
+  .obj .nm{font-size:13px;font-weight:600}
+  .obj .id{font-size:10px;color:var(--graphite-soft)}
+  .cell{font-family:"Spline Sans Mono",monospace;font-size:12px}
+  .cell.empty{color:var(--line-strong)}
+  .rl{display:inline-block;padding:2px 6px;border:1.5px solid var(--ours);background:rgba(28,79,124,.06);color:var(--ours);margin-bottom:3px}
+  .rl.t{border-color:var(--theirs);background:rgba(156,90,36,.07);color:var(--theirs)}
+  .tri{display:inline-block;font-size:10px;font-weight:700;font-family:"Spline Sans Mono",monospace;
+    border:1px solid currentColor;border-radius:2px;padding:0 3px;margin-right:5px}
+  .lead{display:block;font-size:10.5px;color:var(--theirs);margin-top:4px}
+  .lead::before{content:"\21B3 "}
+  .was{text-decoration:line-through;color:var(--red);text-decoration-thickness:1.5px}
+
+  /* conflict row spans both change columns */
+  .crow.conflict{background:rgba(194,59,46,.05);border:1.5px solid var(--red)}
+  .crow.conflict > div+div{border-left-color:rgba(194,59,46,.3)}
+  .cbar{grid-column:2 / 4;border-left:1px solid var(--line);padding:0 10px 10px !important;
+    font-family:"Spline Sans Mono",monospace;font-size:10px;color:var(--red);letter-spacing:.1em;text-transform:uppercase}
+
+  /* ── Zone B: conflict resolution ──────────────── */
+  .resolve{border:1.5px solid var(--red);background:rgba(194,59,46,.05);padding:14px 16px}
+  .resolve .rk{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--red);font-weight:700;margin-bottom:10px}
+  .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .rside{border:1px solid var(--graphite);background:var(--panel);padding:9px 11px;font-family:"Spline Sans Mono",monospace;font-size:12px}
+  .rside .who{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--graphite-soft);margin-bottom:3px}
+  .rside.o{border-top:3px solid var(--ours)} .rside.t{border-top:3px solid var(--theirs)}
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{font-family:"Spline Sans Mono",monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    border:1.5px solid var(--graphite);background:var(--vellum);padding:8px 12px;cursor:pointer}
+  .btn.primary{background:var(--graphite);color:var(--vellum)}
+
+  /* ── Zone C: operation log ────────────────────── */
+  .log{position:relative;padding-left:16px}
+  .log::before{content:"";position:absolute;left:3px;top:6px;bottom:6px;width:1px;background:var(--line-strong)}
+  .lentry{position:relative;padding:0 0 14px 8px;font-family:"Spline Sans Mono",monospace;font-size:11.5px}
+  .lentry::before{content:"";position:absolute;left:-13px;top:4px;width:7px;height:7px;background:var(--vellum-2);border:1.5px solid var(--graphite)}
+  .lentry.o::before{border-color:var(--ours)} .lentry.t::before{border-color:var(--theirs)}
+  .lentry.bad::before{border-color:var(--red);background:var(--red)}
+  .lentry .top{display:flex;justify-content:space-between;gap:8px}
+  .lentry .who{color:var(--graphite-soft);font-size:10px}
+  .lentry .desc{margin-top:2px}
+  .lentry .desc .tag{font-weight:600}
+  .lentry.o .desc .tag{color:var(--ours)} .lentry.t .desc .tag{color:var(--theirs)} .lentry.bad .desc .tag{color:var(--red)}
+
+  /* ── Zone D: title block ──────────────────────── */
+  .tb{margin-top:20px;border:1.5px solid var(--graphite)}
+  .tb div{display:grid;grid-template-columns:84px 1fr;border-bottom:1px solid var(--line);font-family:"Spline Sans Mono",monospace;font-size:10.5px}
+  .tb div:last-child{border-bottom:none}
+  .tb span{padding:6px 8px}
+  .tb span:first-child{border-right:1px solid var(--line);letter-spacing:.08em;text-transform:uppercase;color:var(--graphite-soft)}
+
+  /* ── fabrication order ────────────────────────── */
+  .fab{border-top:2px solid var(--graphite)}
+  .fab .fh{padding:9px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid var(--graphite)}
+  .fab pre{margin:0;padding:14px 24px;font-family:"Spline Sans Mono",monospace;font-size:12.5px;line-height:1.75;background:var(--panel);overflow:auto}
+  .fab .cmt{color:var(--red)} .fab .ok{color:var(--green)}
+  .status-line{padding:11px 24px;font-family:"Spline Sans Mono",monospace;font-size:11.5px;display:flex;align-items:center;gap:8px;border-top:1px dashed var(--line)}
+  .status-line .dot{width:9px;height:9px;background:var(--red);border-radius:50%}
+  .status-line b{color:var(--red)}
+  .status-line .adv{color:var(--graphite-soft)}
+
+  .foot{max-width:1200px;margin:14px auto 0;font-family:"Spline Sans Mono",monospace;font-size:10px;color:var(--graphite-soft);text-align:center;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <div class="titlestrip">
+    <div class="ts-id">
+      <div class="sub">ryft &nbsp;/&nbsp; merge review</div>
+      <h1>Users &mdash; Schema</h1>
+      <div class="path">merge <b class="o">contact-fields</b> &nbsp;into&nbsp; <b class="t">main</b> &nbsp;&middot;&nbsp; common base <span class="mono">main@8f2c1a</span></div>
+    </div>
+    <div class="plate">
+      <div class="lab">Revision status</div>
+      <div class="now">In&nbsp;check</div>
+      <div class="seq">
+        <s>Received</s><span class="arw">&rsaquo;</span><span class="cur">In check</span><span class="arw">&rsaquo;</span><s>Cleared</s><span class="arw">&rsaquo;</span><s>Released</s>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="main">
+
+      <!-- ZONE A -->
+      <div class="zone">
+        <div class="k"><span class="n">A</span> Three-way comparison</div>
+        <div class="cmp">
+          <div class="head">
+            <span>Object &middot; stable id</span>
+            <span class="o">As drawn on contact-fields &mdash; ours</span>
+            <span class="t">As drawn on main &mdash; theirs</span>
+          </div>
+          <div class="base-note">base main@8f2c1a: email varchar(255) &middot; phone varchar(20) &middot; (no verified_at, no uq_users_email)</div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">users.email</span><br><span class="id">col_a1</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;1</span>rename</span><br><span class="was">email</span> &rarr; <b>email_address</b></div>
+            <div class="cell empty">&mdash; unchanged</div>
+          </div>
+
+          <div class="crow conflict">
+            <div class="obj"><span class="nm">users.phone</span><br><span class="id">col_p3</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;2</span>retype</span><br>varchar(20) &rarr; <b>varchar(32)</b></div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;3</span>retype</span><br>varchar(20) &rarr; <b>text</b></div>
+            <div class="cbar">&#9651;! divergent retype &mdash; both sides change col_p3 to a different type &middot; resolve in B</div>
+          </div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">users.verified_at</span><br><span class="id">col_e2</span></div>
+            <div class="cell"><span class="rl"><span class="tri">&#9651;4</span>add</span><br>timestamp NULL</div>
+            <div class="cell empty">&mdash;</div>
+          </div>
+
+          <div class="crow">
+            <div class="obj"><span class="nm">uq_users_email</span><br><span class="id">idx_9</span></div>
+            <div class="cell empty">&mdash;</div>
+            <div class="cell"><span class="rl t"><span class="tri">&#9651;5</span>add index</span><br>UNIQUE ( <span class="was">email</span> )
+              <span class="lead">reference held by id col_a1 &mdash; rebased per &#9651;1 to ( email_address ). clean.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ZONE B -->
+      <div class="zone">
+        <div class="k"><span class="n">B</span> Conflict &mdash; 1 of 1 to resolve</div>
+        <div class="resolve">
+          <div class="rk">&#9651;! &nbsp; Divergent retype &mdash; users.phone &nbsp;(col_p3)</div>
+          <div class="rgrid">
+            <div class="rside o"><div class="who">ours &middot; m.sadiq</div>varchar(20) &rarr; <b>varchar(32)</b></div>
+            <div class="rside t"><div class="who">theirs &middot; a.okafor</div>varchar(20) &rarr; <b>text</b></div>
+          </div>
+          <div class="btns">
+            <button class="btn primary">Take ours &mdash; varchar(32)</button>
+            <button class="btn">Take theirs &mdash; text</button>
+            <button class="btn">Specify target type&hellip;</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="rail">
+      <div class="zone">
+        <div class="k"><span class="n">C</span> Operation log</div>
+        <div class="log">
+          <div class="lentry o"><div class="top"><span>&#9651;1</span><span class="who">m.sadiq &middot; 14:02</span></div><div class="desc"><span class="tag">rename</span> col_a1 &rarr; email_address</div></div>
+          <div class="lentry o"><div class="top"><span>&#9651;2</span><span class="who">m.sadiq &middot; 14:04</span></div><div class="desc"><span class="tag">retype</span> col_p3 &rarr; varchar(32)</div></div>
+          <div class="lentry o"><div class="top"><span>&#9651;4</span><span class="who">m.sadiq &middot; 14:07</span></div><div class="desc"><span class="tag">add</span> col_e2 verified_at</div></div>
+          <div class="lentry t"><div class="top"><span>&#9651;3</span><span class="who">a.okafor &middot; on main</span></div><div class="desc"><span class="tag">retype</span> col_p3 &rarr; text</div></div>
+          <div class="lentry t"><div class="top"><span>&#9651;5</span><span class="who">a.okafor &middot; on main</span></div><div class="desc"><span class="tag">add index</span> idx_9 uq_users_email</div></div>
+          <div class="lentry bad"><div class="top"><span>&#9651;!</span><span class="who">unresolved</span></div><div class="desc"><span class="tag">conflict</span> col_p3 retype &times; retype</div></div>
+        </div>
+
+        <div class="tb">
+          <div><span>Drawing</span><span>users schema</span></div>
+          <div><span>Merge</span><span>contact-fields &rarr; main</span></div>
+          <div><span>Base</span><span>main@8f2c1a</span></div>
+          <div><span>Opened</span><span>m.sadiq &middot; 2026-08-29</span></div>
+          <div><span>Revisions</span><span>5 &middot; 1 unresolved</span></div>
+          <div><span>Checker</span><span style="color:var(--red)">&mdash; awaiting</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fab">
+    <div class="fh">
+      <span class="k"><span class="n" style="display:inline-grid;width:17px;height:17px;border:1px solid var(--graphite);place-items:center;font-family:'Spline Sans Mono',monospace;font-size:10px;vertical-align:middle;margin-right:9px">D</span> Fabrication order &mdash; DDL</span>
+      <span class="mono" style="font-size:11px;color:var(--graphite-soft)">theirs &rarr; merged &middot; forward-only &middot; one transaction</span>
+    </div>
+    <pre><span class="ok">BEGIN;</span>
+ALTER TABLE "users" RENAME COLUMN "email" TO "email_address";        <span style="color:var(--ours)">-- &#9651;1</span>
+ALTER TABLE "users" ADD COLUMN "verified_at" timestamp NULL;         <span style="color:var(--ours)">-- &#9651;4</span>
+CREATE UNIQUE INDEX "uq_users_email" ON "users" ("email_address");   <span style="color:var(--theirs)">-- &#9651;5, rebased</span>
+<span class="cmt">-- ALTER TABLE "users" ALTER COLUMN "phone" ... &nbsp; blocked: &#9651;! unresolved</span>
+<span class="ok">COMMIT;</span></pre>
+    <div class="status-line">
+      <span class="dot"></span><b>Held</b> &mdash; 1 unresolved revision.
+      <span class="adv">&nbsp;Advances to <b style="color:var(--graphite)">Cleared</b> when &#9651;! is resolved and the commutativity check passes.</span>
+    </div>
+  </div>
+
+</div>
+<p class="foot">MOCKUP 7 &mdash; DRAFTING ROOM (fused) &middot; #1's visual world + #2's information architecture + #3's ours/theirs clarity, no spine &middot; status is a dial that turns, not a stamp</p>
+</body>
+</html>
