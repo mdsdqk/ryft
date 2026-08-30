@@ -23,8 +23,8 @@ export interface MigrationScenario {
   source: SchemaDocument;
   target: SchemaDocument;
   expect: {
-    /** Statement `kind`s, in the exact order the migration must emit them. */
-    kinds: DdlStatement["kind"][];
+    /** Statement `kind`s, in the exact order the migration must emit them. Omit to assert ordering (`before`) only. */
+    kinds?: DdlStatement["kind"][];
     /**
      * Optional ordering assertions beyond `kinds` — pairs `[a, b]` meaning "the
      * first statement matching `a` must come before the first matching `b`". A
@@ -164,8 +164,180 @@ const foreignKeyKnot: MigrationScenario = {
   },
 };
 
+// ── 4. new table with an inline primary key, no foreign keys (§S4) ──────
+const newTableWithPk: MigrationScenario = {
+  name: "new table with inline primary key",
+  source: clone(seedSchema),
+  target: (() => {
+    const d = clone(seedSchema);
+    d.tables.push({
+      id: "tbl_attachments_0006",
+      name: "attachments",
+      columns: [
+        { id: "col_attachments_id_0006", name: "id", type: { kind: "uuid" }, nullable: false, default: null },
+        { id: "col_attachments_url_0006", name: "url", type: { kind: "text" }, nullable: false, default: null },
+      ],
+      primaryKey: { id: "pk_attachments_0006", name: "attachments_pkey", columnIds: ["col_attachments_id_0006"] },
+      foreignKeys: [],
+      uniques: [],
+      indexes: [],
+    });
+    return d;
+  })(),
+  expect: {
+    kinds: ["createTable"],
+    contains: ['CREATE TABLE "attachments"'],
+    prefixesValid: true,
+  },
+};
+
+// ── 5. drop a column with no dependents (§S5) ──────────────────────────
+const dropPlainColumn: MigrationScenario = {
+  name: "drop a column with no dependents",
+  source: clone(seedSchema),
+  target: (() => {
+    const d = clone(seedSchema);
+    const t = table(d, seedIds.posts.table);
+    t.columns = t.columns.filter((c) => c.id !== seedIds.posts.metadata);
+    return d;
+  })(),
+  expect: {
+    kinds: ["dropColumn"],
+    contains: ['ALTER TABLE "posts" DROP COLUMN "metadata"'],
+    prefixesValid: true,
+  },
+};
+
+// ── 6. drop a table (§S6) ────────────────────────────────────────────
+const dropWholeTable: MigrationScenario = {
+  name: "drop a table",
+  source: clone(seedSchema),
+  target: (() => {
+    const d = clone(seedSchema);
+    d.tables = d.tables.filter((t) => t.id !== seedIds.postTags.table);
+    return d;
+  })(),
+  expect: {
+    // A single DROP TABLE. post_tags' own foreign keys and composite primary key
+    // are not dropped explicitly — Postgres removes a table's own constraints
+    // with it. (An *inbound* FK from another table would still block the drop at
+    // the operation-validation layer, ticket 0008 — nothing points at post_tags.)
+    kinds: ["dropTable"],
+    contains: ['DROP TABLE "post_tags";'],
+    prefixesValid: true,
+  },
+};
+
+// ── 7. change an index — adjacent drop+recreate in the alter phase (§S7) ─
+const changeIndexPair: MigrationScenario = {
+  name: "change an index (adjacent drop + recreate, not deferred)",
+  source: clone(seedSchema),
+  target: (() => {
+    const d = clone(seedSchema);
+    const idx = table(d, seedIds.comments.table).indexes.find((i) => i.id === seedIds.comments.postIdx)!;
+    idx.columnIds = [seedIds.comments.postId, seedIds.comments.createdAt];
+    return d;
+  })(),
+  expect: {
+    kinds: ["dropIndex", "createIndex"],
+    before: [['"kind":"dropIndex"', '"kind":"createIndex"']],
+    prefixesValid: true,
+  },
+};
+
+// ── 8. add a foreign key to a new table (§S8) ─────────────────────────
+const addForeignKeyToNewTable: MigrationScenario = {
+  name: "add a column + new table + a foreign key between them",
+  source: clone(seedSchema),
+  target: (() => {
+    const d = clone(seedSchema);
+    d.tables.push({
+      id: "tbl_region_0006",
+      name: "region",
+      columns: [{ id: "col_region_id_0006", name: "id", type: { kind: "uuid" }, nullable: false, default: null }],
+      primaryKey: { id: "pk_region_0006", name: "region_pkey", columnIds: ["col_region_id_0006"] },
+      foreignKeys: [],
+      uniques: [],
+      indexes: [],
+    });
+    const users = table(d, seedIds.users.table);
+    users.columns.push({ id: "col_users_region_id_0006", name: "region_id", type: { kind: "uuid" }, nullable: true, default: null });
+    users.foreignKeys.push({
+      id: "fk_users_region_id_0006",
+      name: "users_region_id_fkey",
+      columnIds: ["col_users_region_id_0006"],
+      refTableId: "tbl_region_0006",
+      refColumnIds: ["col_region_id_0006"],
+      onDelete: "set null",
+    });
+    return d;
+  })(),
+  expect: {
+    kinds: ["createTable", "addColumn", "addForeignKey"],
+    before: [
+      ['"kind":"createTable"', '"kind":"addForeignKey"'],
+      ['"kind":"addColumn"', '"kind":"addForeignKey"'],
+    ],
+    prefixesValid: true,
+  },
+};
+
+// ── 9. rename a table (§S9) ───────────────────────────────────────────
+const renameTable: MigrationScenario = {
+  name: "rename a table",
+  source: clone(seedSchema),
+  target: (() => {
+    const d = clone(seedSchema);
+    table(d, seedIds.tags.table).name = "labels";
+    return d;
+  })(),
+  expect: {
+    kinds: ["renameTable"],
+    contains: ['ALTER TABLE "tags" RENAME TO "labels";'],
+    prefixesValid: true,
+  },
+};
+
+// ── 10. mixed multi-table migration, phase order + prefix validity (§S10) ─
+const mixedMigration: MigrationScenario = {
+  name: "mixed multi-table migration (phase order, all prefixes valid)",
+  source: clone(seedSchema),
+  target: (() => {
+    const d = clone(seedSchema);
+    d.tables.push({
+      id: "tbl_audit_0006",
+      name: "audit",
+      columns: [{ id: "col_audit_id_0006", name: "id", type: { kind: "uuid" }, nullable: false, default: null }],
+      primaryKey: { id: "pk_audit_0006", name: "audit_pkey", columnIds: ["col_audit_id_0006"] },
+      foreignKeys: [],
+      uniques: [],
+      indexes: [],
+    });
+    column(d, seedIds.posts.table, seedIds.posts.body).name = "content";
+    column(d, seedIds.comments.table, seedIds.comments.flags).type = { kind: "bigint" };
+    const posts = table(d, seedIds.posts.table);
+    posts.columns = posts.columns.filter((c) => c.id !== seedIds.posts.metadata);
+    return d;
+  })(),
+  expect: {
+    before: [
+      ['"kind":"createTable"', '"kind":"dropColumn"'],
+      ['"kind":"renameColumn"', '"kind":"dropColumn"'],
+      ['"kind":"alterColumnType"', '"kind":"dropColumn"'],
+    ],
+    prefixesValid: true,
+  },
+};
+
 export const migrationScenarios: MigrationScenario[] = [
   renameThenIndex,
   retypeVsIndex,
   foreignKeyKnot,
+  newTableWithPk,
+  dropPlainColumn,
+  dropWholeTable,
+  changeIndexPair,
+  addForeignKeyToNewTable,
+  renameTable,
+  mixedMigration,
 ];

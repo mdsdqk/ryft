@@ -3,8 +3,10 @@
 Ticket 0006. The scenario catalogue and invariant list that doubles as the engine's
 executable spec — the "meaningful tests" evidence. `decisions.md` carries the narrative.
 
-Runner: **vitest** (`pnpm test` → `vitest run`, `pnpm test:watch` → `vitest`). Root
-`vitest.config.ts` covers `engine/**` and `src/**`; `web/` has its own config (§6).
+Runner: **vitest** (`pnpm test` → `vitest run`, `pnpm test:watch` → `vitest`). One root
+`vitest.config.ts` covers `engine/**`, `src/**`, and `web/src/**/*.test.ts` (the pure
+selectors — §5); `web/` code reaches the engine through the `@engine` alias mirrored from
+`web/vite.config.ts`.
 
 ## 0. How this maps to test files
 
@@ -126,7 +128,7 @@ of B"; `contains` are verbatim SQL substrings; every row must pass `verifyPrefix
 | S3 | FK ordering knot | seed → seed + two mutually-referencing new tables | `createTable`, `createTable`, `addForeignKey`, `addForeignKey` | every `createTable` before every `addForeignKey`; all prefixes valid |
 | S4 | new table with PK, no FK | seed → seed + `attachments(id, url)` PK `(id)` | `createTable` | one statement; carries columns + PK inline; no `addForeignKey` |
 | S5 | drop a column, no dependents | seed → seed minus `posts.metadata` | `dropColumn` | statement carries `destructive: true`; in the teardown phase |
-| S6 | drop a table | seed → seed minus `post_tags` | `dropConstraint`×2 (its FKs), `dropTable` | FKs torn down before the table; all `destructive: true` |
+| S6 | drop a table | seed → seed minus `post_tags` | `dropTable` | one statement; a table's own FKs / PK are not dropped explicitly (Postgres removes them with the table). An *inbound* FK would block the drop at op-validation (0008), not here |
 | S7 | change an index | seed → seed with `comments_post_id_idx` cols `[post_id]` → `[post_id, created_at]` | `dropIndex`, `createIndex` | adjacent pair, **in the alter phase**, not split into teardown |
 | S8 | add FK between existing tables | seed → seed + FK `comments.post_id` already exists… use a fresh FK `posts.author_id` → a new `authors` table | `createTable`, `addForeignKey` | single `addForeignKey`, after the `createTable` |
 | S9 | rename a table | seed → seed with `tags` → `labels` | `renameTable` | `ALTER TABLE "tags" RENAME TO "labels";` |
@@ -173,11 +175,10 @@ component, or render tests.
 
 Rationale: the surfaces are fixture-bound and thin; their logic is layout and wiring, which a
 render test pins without adding confidence. The pure view-model derivations are where a wrong
-edit ships a wrong verdict to the user, so those get direct unit tests. Runner: `web/`'s own
-vitest config (it already has vite).
+edit ships a wrong verdict to the user, so those get direct unit tests.
 
-## 6. `web/` runner
-
-`web/vitest.config.ts` extends the existing `web/vite.config.ts`; `web/package.json` gains
-`"test": "vitest run"`. Included: `web/src/**/*.test.ts`. Environment: `node` (the tested
-code is pure — no `jsdom` needed).
+`web/src/merge-review/model.test.ts` covers `openConflicts` / `isMergeable` /
+`effectiveStatus` and the `format.ts` renderers (`sqlType`, `retypeDetail`, the label maps).
+It runs under the single root `vitest.config.ts` — no separate `web/` runner, no `jsdom`
+(the tested code is pure). `web/` still typechecks it under its own `tsc`
+(`web/tsconfig.json` includes `src`).

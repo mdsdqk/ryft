@@ -25,7 +25,7 @@ for (const s of migrationScenarios) {
     sql = migration.sql;
     const gotKinds = migration.statements.map((st) => st.kind);
 
-    if (JSON.stringify(gotKinds) !== JSON.stringify(s.expect.kinds)) {
+    if (s.expect.kinds && JSON.stringify(gotKinds) !== JSON.stringify(s.expect.kinds)) {
       problems.push(`kinds [${gotKinds}] ≠ [${s.expect.kinds}]`);
     }
 

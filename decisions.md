@@ -731,6 +731,33 @@ duplicate name, a dangling reference two clean deltas leave behind — to this t
 `verifyPrefixes` is unchanged — a migration's intermediate states only need reference
 resolution. See ADR 0008 §5.
 
+### The engine test catalogue is real tests, not a document to transcribe later
+
+Ticket 0006. The ticket's literal deliverable was "the filled matrices and invariant list,
+ready to transcribe into a test file". A markdown table is weak evidence for the "meaningful
+tests" rubric line this ticket exists for, and the spike runners were already ~80% of the way,
+so it ships as a real **vitest** suite: `engine/merge.test.ts` (38 scenarios), `emit.test.ts`
+(10), `invariants.test.ts` (I1–I8 swept over both), and `web/src/merge-review/model.test.ts`
+(the pure view-model selectors). `docs/engine-test-catalog.md` is the companion matrix.
+Runner is one root `vitest.config.ts` covering `engine/`, `src/`, and the pure `web/` tests —
+no separate `web/` runner, no `jsdom`.
+
+Two engine behaviours the catalogue guessed wrong and were reconciled to reality (pin what
+the engine does, not what I assumed): dropping a table emits a single `DROP TABLE` with no
+explicit teardown of the table's own constraints (Postgres removes them with it), and the
+drop half of a `changeIndex` redefinition carries `destructive: false` on purpose so 0008's
+warning pass does not flag a mechanical redefinition as a destructive change.
+
+One genuine gap surfaced and is pinned rather than hidden: `diffSnapshots` on a primary key
+whose *id* changed — a wholesale `primaryKey` object swap instead of a `changePrimaryKey` —
+emits `addPrimaryKey` without the matching `dropPrimaryKey`, so `emitMigration` fails its own
+intermediate-state check. An `it.fails` test records it; it will flip to a real failure once
+emit emits the drop or the fixture is reshaped. Fixing it is ADR 0003's call.
+
+Frontend test posture: pure functions only (`web/src/merge-review/model.ts` selectors,
+`format.ts` renderers). No DOM, component, or render tests — the surfaces are fixture-bound
+and thin, and a render test pins layout without adding confidence.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:
