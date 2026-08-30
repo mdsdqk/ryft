@@ -637,6 +637,68 @@ operation classes through one `editor-tour` branch in the engine's own phase ord
 the V1 conflict beat. One script that did both would give a `renameTable` the same narrative
 weight as the rename-rebase case and run long. See ADR 0005 §4 and `docs/first-run.md`.
 
+### Validation is one pure function in the engine, and it blocks incoherence but only warns on risk
+
+Ticket 0008. `validateOperation(doc, op)` lives in `engine/`, is pure, and returns typed
+`OpError` / `OpWarning` lists. `applyOperation` calls it and refuses on any error; the
+structured editor imports it for inline feedback, so the two can never disagree about what is
+legal. Every precondition resolves to one of three outcomes: block (the resulting document
+would not be a valid schema, or the edit has no target), warn (legal but risky — surfaced on
+the editor, the divergence view, and the merge view), or silent.
+
+The line between block and warn came down to one principle the owner set: if a real Postgres
+would let the DDL through, we do not block it either. So `setNullable(false)` on a column with
+no default warns rather than blocks — there is no row data in scope to violate it, and the
+user may be relying on application-level enforcement, which is their call to make badly. A
+narrowing `retypeColumn` also only warns: telling `int → bigint` from `int → text` is the
+widening lattice `CONTEXT.md` puts out of scope, so the engine cannot rank retypes and warns
+on all lossy-looking ones. Dropping a column from a primary key is silent — an ordinary
+structural edit. What does block: a missing target, a name collision, a type outside the nine
+kinds, an illegal identifier, an unresolved reference, a second primary key, a nullable column
+in a primary key, a drop with live dependents, and an unrenderable default. See ADR 0008
+§1–§2 and `docs/robustness.md` §2.
+
+### Generated DDL always double-quotes every identifier, permanently
+
+Ticket 0008. ADR 0003 left `quoteIdent` as a placeholder that always double-quotes, expecting
+0008 to supply a reserved-word list and a quote-only-when-needed rule. 0008's answer is that
+the list is unnecessary: always-quoting is already correct for every identifier, reserved or
+not, and it makes the ticket's "reserved words and mixed-case names round-trip correctly"
+fall out for free. A column legitimately named `select` is emitted as `"select"` and works.
+The saving from quote-when-needed — fewer quotes on an artifact read and run once — is not
+worth maintaining Postgres's ~100-word reserved list. Alongside this, new object names are
+restricted at edit time to `^[a-z_][a-z0-9_]*$` and 63 bytes (Postgres's limit — a longer
+name is silently truncated and can collide), which is a legibility choice, not a
+quoting-correctness one. See ADR 0008 §3.
+
+### Column defaults are an allowlist of renderable forms, rejected at edit time
+
+Ticket 0008. The default literal is spliced verbatim into generated DDL, so `validateOperation`
+accepts a non-null default only if it is an integer or decimal literal, a boolean, the `null`
+keyword, a properly-quoted string literal, or a call to a function on a fixed allowlist —
+`now()`, `current_timestamp`, `gen_random_uuid()` in V0, widened in V1. Anything else is a
+blocking `unsafe-default` error naming the allowed forms; it is never silently dropped or
+guessed at. This is the same move as the closed `ColumnType` union: a small enumerated safe
+set beats sanitising open input, and it keeps the generated migration trustworthy to run. A
+denylist (pass everything except strings with `;`, `--`, unbalanced quotes) was rejected —
+a blocklist is only as good as its pattern list, and "render the rest as-is" puts arbitrary
+user text into generated SQL. `Column.default` stays an opaque string in the representation
+(ADR 0001 is not re-opened); 0008 only validates it. See ADR 0008 §4.
+
+### Whole-document structural validation runs API-side, so the merge contract stays frozen
+
+Ticket 0008. ADR 0002 deferred "order-independent illegality" in a merged document — a
+duplicate name, a dangling reference two clean deltas leave behind — to this ticket.
+`validateDocument(doc)` composes `checkReferences` (ADR 0003 §4) with the 0008 checks
+(nullable primary-key member, unrenderable default) and runs in the API layer, not inside
+`threeWayMerge`: after an operations batch on the new branch head as a backstop, and after
+`threeWayMerge` returns `clean` on the merged candidate, where a `StructuralError` becomes a
+`409`. Running it one layer out keeps ADR 0002's `MergeOutcome` shape (`merged` non-null iff
+`clean`) frozen and puts the check on the code path that already owns "safe to persist" (ADR
+0004 §8). A new `MergeVerdict` value was considered and rejected for re-opening a frozen ADR.
+`verifyPrefixes` is unchanged — a migration's intermediate states only need reference
+resolution. See ADR 0008 §5.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:
