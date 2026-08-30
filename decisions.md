@@ -158,18 +158,35 @@ Cut: SQL parsing, type normalization, and collation handling, all of which exist
 `schemadiff` because its input is arbitrary user SQL and its output has to match what MySQL
 would do.
 
-### Six conflict classes, plus overlap
+### Seven conflict classes, plus overlap
 
 Conflicts are typed, not textual. The classes are divergent retype, add-vs-add, rename-vs-rename,
 divergent index definition, drop-vs-modify, and dependency conflict. Overlap, where both branches
 make the identical change, is not a conflict: it applies once and the merge proceeds.
 
 The vocabulary comes from PlanetScale, which names clear conflicts, subtle conflicts, and
-overlaps. The first five of mine are clear conflicts. Dependency conflict is the subtle one.
+overlaps. Of those six, five are clear conflicts; dependency conflict is the subtle one. (A
+seventh class arrived later while speccing the engine — see below — leaving six clear and one
+subtle.)
 
 The merge returns a typed report rather than an interactive prompt. Atlas's experience is the
 argument: a prompt is a contract with a human, and it fails silently and destructively the
 moment a CI job or an agent is on the other end.
+
+A seventh class arrived while I was speccing the engine in ticket 0002: **divergent
+definition**, a clear-severity catch-all for both sides changing the same object and aspect to
+different values where none of the first six match — a divergent column default, or a divergent
+primary key, unique, or foreign-key definition. These are real and were landing nowhere. I could
+have let the commutativity check (below) absorb them, but that check reports "unclassified
+divergence", which is the message reserved for *the enumeration has a hole* — using it for a
+routine divergent-default edit would train people to ignore it. A named, queued class with a
+branch picker is the honest treatment. That makes it six clear classes and one subtle.
+
+The other correction from that spec pass: the classifier is two passes, not one. Pairing changes
+by the object-and-aspect slot they touch finds five of the classes, but drop-vs-modify pairs a
+deletion against an edit on *different* slots of the same object, and dependency conflict relates
+an edit on one object to a deletion of *another*. Both need a second, cross-referencing pass.
+A single-pass slot classifier would have silently missed two of the seven.
 
 ### Ordering conflicts: split in two, not dropped
 
@@ -207,7 +224,7 @@ common ancestor in either order produces the same document, and that the documen
 merge result. If that fails, the merge is blocked and reported as an unclassified divergence.
 
 This is PlanetScale's commutativity test, `diff1(diff2(base)) == diff2(diff1(base))`. My first
-plan kept it only as a unit test invariant. I moved it into the engine because the six conflict
+plan kept it only as a unit test invariant. I moved it into the engine because the seven conflict
 classes are rule-based, and a rule-based detector is only ever as complete as the list of rules
 I thought of. The commutativity check does not depend on that list. It catches the case I failed
 to enumerate, and it turns a silent wrong merge into a visible refusal.
@@ -215,6 +232,14 @@ to enumerate, and it turns a silent wrong merge into a visible refusal.
 It costs almost nothing, because the apply function and document equality both already exist for
 other reasons. A merge tool that silently produces a wrong schema is worse than one that admits
 it is stuck.
+
+One limit I want recorded rather than glossed: this check proves *order-independence*, not
+correctness. Two branches that each create a table called `audit` produce the same document in
+either application order, so the check passes and the result is still invalid. Concurrent
+duplicate names are caught up front by keying the classifier on `(namespace, name)` as well as
+on id; everything else in that category — a duplicate name, a reference the merge left dangling —
+is the job of a structural validation pass over the merged candidate, which is ticket 0008, not
+this check.
 
 ### `main` is the trunk, and branches come only from `main`
 

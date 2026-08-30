@@ -58,16 +58,17 @@ and only a textual diff, so it is not a model for anything below.)
   (index, NOT NULL, foreign key) against the old name, the dependent change is re-pointed at the
   new name instead of erroring or being dropped. The project's headline edge case.
 - **Conflict** — a change on `ours` and a change on `theirs`, relative to `base`, that cannot
-  both be applied. Six classes are recognised, each mapped to PlanetScale's severity vocabulary:
+  both be applied. Seven classes are recognised, each mapped to PlanetScale's severity vocabulary:
 
   | Class | Severity | Detection rule |
   |---|---|---|
   | Divergent retype | clear | both sides retype the same column id to different types |
-  | Add-vs-add | clear | both sides add a column of the same name with different types |
+  | Add-vs-add | clear | both sides add an object of the same name in one namespace whose definitions differ (identical definitions are an overlap) |
   | Rename-vs-rename | clear | both sides rename the same column id to different names |
   | Divergent index definition | clear | both sides change the same index id incompatibly |
   | Drop-vs-modify | clear | one side drops an object id the other side modifies |
   | Dependency conflict | subtle | a change whose target object was dropped or renamed incompatibly on the other side, so it cannot be rebased |
+  | Divergent definition | clear | catch-all: both sides change the same object and aspect to different values and no class above matched (divergent default, primary key, unique, or foreign key) |
 
 - **Overlap** — both sides make the *identical* change to the same object. **Not** a conflict:
   the change is applied once and the merge proceeds silently. PlanetScale's term, adopted.
@@ -82,8 +83,10 @@ and only a textual diff, so it is not a model for anything below.)
 - **Commutativity post-condition** — before declaring a clean merge, the engine verifies that
   applying each side's delta to `base` in either order yields the same document, and that it
   equals the merged document. A failure is reported as an **unclassified divergence** and blocks
-  the merge. This is the completeness check on the six rule-based classes: the classes are only
-  as complete as their enumeration, so the engine never claims a clean merge it cannot prove.
+  the merge. This is the completeness check on the seven rule-based classes: the classes are only
+  as complete as their enumeration, so the engine never claims a clean merge it cannot prove. It
+  detects order-dependence only; an order-independent invalid result (a duplicate name, a
+  dangling reference) is caught by structural validation, not this check.
 - **False conflict** — independent changes to the same table (or unrelated objects) that a
   text-level merge would collide on but the semantic merge applies cleanly.
 - **Resolution** — a recorded choice that settles one conflict (take ours, take theirs, or, for
@@ -111,7 +114,7 @@ and only a textual diff, so it is not a model for anything below.)
 
 - **V0** — the walking skeleton: seed, branch, edit, open merge request, semantic three-way
   diff, fast-forward (no-conflict) merge, deployed.
-- **V1** — conflict detection and classification for all five classes, plus a resolution UI for
+- **V1** — conflict detection and classification for all seven classes, plus a resolution UI for
   divergent retype and rename-rebase.
 - **Stretch** — raw-SQL import with heuristic rename detection; drop-vs-modify resolution UI;
   migration dry-run.
