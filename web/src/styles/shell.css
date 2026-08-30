@@ -142,6 +142,12 @@
   padding: clamp(16px, 4vw, 40px);
   min-width: 0;
 }
+/* #main takes programmatic focus on route change (see AppShell) purely so
+ * assistive tech lands on the new content; it is not an interactive control, so
+ * it carries no visible ring. Interactive controls inside it still show theirs. */
+#main:focus {
+  outline: none;
+}
 /* signed-out: no rail, the gate sits centred near the top */
 .shl-stage--solo {
   display: flex;
@@ -246,201 +252,15 @@
 }
 
 /* ── placeholder sheet — the not-yet-built surfaces ──────────────────── */
-
-.shl-planned {
-  padding: 40px 24px 48px;
-}
-.shl-planned__msg {
-  font-family: var(--ff-mono);
-  font-size: 12px;
-  line-height: 1.65;
-  color: var(--ink-soft);
-  max-width: 64ch;
-  overflow-wrap: anywhere;
-}
-.shl-planned__msg code {
-  font-size: 11px;
-  color: var(--ink);
-}
-
-/* keep a long database / branch name from blowing the title strip */
-.mr-sheet .mr-titlestrip__h1 {
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-
-/* ── demo-data list surfaces (dashboard / branches / merges stubs) ───── */
-
-.shl-body {
-  padding: 22px 24px 26px;
-}
-.shl-zone {
-  margin-bottom: 22px;
-}
-.shl-zone:last-child {
-  margin-bottom: 0;
-}
-.shl-zone__k {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin-bottom: 10px;
-}
-.shl-zone__k .shl-ct {
-  letter-spacing: 0.04em;
-  color: var(--ink-faint);
-}
-
-.shl-facts {
-  border: 1.5px solid var(--ink);
-  background: var(--panel);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-.shl-facts > div {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  padding: 8px 12px;
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  border-bottom: 1px solid var(--line);
-}
-.shl-facts > div:nth-child(odd) {
-  border-inline-end: 1px solid var(--line);
-}
-.shl-facts > div:nth-last-child(-n + 2) {
-  border-bottom: none;
-}
-.shl-facts > div:last-child {
-  border-inline-end: none;
-}
-.shl-facts dt {
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.shl-facts dd {
-  font-weight: 600;
-  text-align: end;
-  overflow-wrap: anywhere;
-}
-
-.shl-rows {
-  border: 1.5px solid var(--line-strong);
-  background: var(--panel);
-}
-.shl-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 14px;
-  align-items: center;
-  padding: 11px 13px;
-  border-bottom: 1px dashed var(--line);
-  font-family: var(--ff-mono);
-  font-size: 11.5px;
-}
-.shl-row:last-child {
-  border-bottom: none;
-}
-.shl-row__main {
-  min-width: 0;
-}
-.shl-row a {
-  color: var(--ink);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 12.5px;
-  overflow-wrap: anywhere;
-}
-.shl-row a:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.shl-row--more {
-  display: block;
-  padding: 10px 13px;
-}
-.shl-row--more a {
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.shl-row--more a:hover {
-  color: var(--ink);
-}
-.shl-row__meta {
-  display: block;
-  margin-top: 3px;
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  color: var(--ink-faint);
-  overflow-wrap: anywhere;
-}
-.shl-tri {
-  white-space: nowrap;
-  font-weight: 700;
-  color: var(--ours);
-}
-.shl-tri--none {
-  font-weight: 400;
-  color: var(--ink-faint);
-}
-.shl-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.shl-status--held {
-  color: var(--conflict);
-}
-.shl-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--ok);
-  flex: 0 0 auto;
-}
-.shl-dot--held {
-  background: var(--conflict-edge);
-}
-
-@media (max-width: 640px) {
-  .shl-facts {
-    grid-template-columns: 1fr;
-  }
-  .shl-facts > div:nth-child(odd) {
-    border-inline-end: none;
-  }
-  .shl-body {
-    padding: 16px;
-  }
-}
+/* PlannedSheet now composes the surface kit (SurfaceSheet + EmptyState); its
+ * styling lives in surfaces/kit/kit.css and the shared .mr-shell in app.css. */
 
 @media (forced-colors: active) {
   .shl-rail__nav a[aria-current="page"],
-  .shl-facts,
-  .shl-rows,
   .shl-signin__input {
     border: 1px solid CanvasText;
   }
   .shl-rail {
     border-inline-end: 2px solid CanvasText;
-  }
-  .shl-dot {
-    outline: 1px solid CanvasText;
   }
 }

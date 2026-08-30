@@ -1,10 +1,12 @@
 /**
  * On-world placeholder for a surface that is routed but not yet built. Keeps the
- * drafting-room frame (bordered sheet + title strip) so navigating to it never
- * shows a blank page, and says plainly what is planned and where.
+ * drafting-room frame so navigating to it never shows a blank page, and says
+ * plainly what is planned and where.
  */
 
 import type { ReactNode } from "react";
+
+import { EmptyState, SurfaceSheet } from "./kit/index.ts";
 
 export function PlannedSheet({
   title,
@@ -14,15 +16,8 @@ export function PlannedSheet({
   children: ReactNode;
 }) {
   return (
-    <article className="mr-sheet">
-      <header className="mr-titlestrip">
-        <div className="mr-titlestrip__id">
-          <h1 className="mr-titlestrip__h1">{title}</h1>
-        </div>
-      </header>
-      <div className="shl-planned">
-        <p className="shl-planned__msg">{children}</p>
-      </div>
-    </article>
+    <SurfaceSheet title={title}>
+      <EmptyState>{children}</EmptyState>
+    </SurfaceSheet>
   );
 }

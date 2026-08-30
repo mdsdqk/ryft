@@ -26,16 +26,16 @@ export function AppShell() {
   const { path, navigate } = useRouter();
   const [keysOpen, setKeysOpen] = useState(false);
 
-  // move focus to the content region on each route change so keyboard and
-  // screen-reader users are not stranded on the link they just followed. Skip
-  // the first render — the page load already places focus sensibly.
+  // move focus to the content region on an actual route change, so keyboard and
+  // screen-reader users are not stranded on the link they just followed. Compare
+  // the previous path rather than a first-render flag — StrictMode double-invokes
+  // effects, which would defeat a flag but leaves `path` unchanged. The visible
+  // ring on this non-interactive container is suppressed in CSS (#main:focus).
   const mainRef = useRef<HTMLElement>(null);
-  const firstRender = useRef(true);
+  const prevPath = useRef(path);
   useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
+    if (prevPath.current === path) return;
+    prevPath.current = path;
     mainRef.current?.focus();
   }, [path]);
 

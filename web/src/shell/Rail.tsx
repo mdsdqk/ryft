@@ -2,14 +2,20 @@
  * The sheet-index rail — the drawing set's binder. Top-level sheets always show;
  * opening a branch or a merge nests that item's sub-sheets under it. The current
  * sheet is boxed, the same marker the revision dial uses for its current step.
+ *
+ * The database line and the counts come from the data seam. With the fixture
+ * they resolve before the first frame is meaningfully visible; once a real API
+ * is wired, hoist this read to the app root so the rail and the dashboard share
+ * one fetch.
  */
 
 import { Link, matchPath, useRouter } from "../router/router.tsx";
-import { demoBranches, demoDatabase, demoMerges } from "./demo.ts";
+import { source, useResource } from "../data/index.ts";
 
 export function Rail() {
   const { path } = useRouter();
-  const db = demoDatabase;
+  const { data } = useResource(() => source.getOverview());
+  const db = data?.database;
 
   const branchMatch = matchPath("/branch/:name", path);
   const mergeMatch = matchPath("/merge/:id", path);
@@ -18,9 +24,11 @@ export function Rail() {
   return (
     <nav className="shl-rail" aria-label="Database sheets">
       <div className="shl-rail__set">ryft · schema under version control</div>
-      <div className="shl-rail__db">{db.name}</div>
+      <div className="shl-rail__db">{db?.name ?? "—"}</div>
       <div className="shl-rail__conn">
-        {db.connection} · {db.tables} tables · {db.trunk} @ rev {db.trunkRevision}
+        {db
+          ? `${db.connection} · ${db.tables} tables · ${db.trunk} @ rev ${db.trunkRevision}`
+          : "loading…"}
       </div>
 
       <ul className="shl-rail__nav">
@@ -31,7 +39,8 @@ export function Rail() {
         </li>
         <li>
           <Link to="/branches">
-            Branches <span className="shl-ct">{demoBranches.length}</span>
+            Branches{" "}
+            {data && <span className="shl-ct">{data.branches.length}</span>}
           </Link>
           {branchMatch && (
             <ul className="shl-rail__sub" aria-label={`${branchMatch.name} sheets`}>
@@ -51,7 +60,7 @@ export function Rail() {
         </li>
         <li>
           <Link to="/merges">
-            Merges <span className="shl-ct">{demoMerges.length}</span>
+            Merges {data && <span className="shl-ct">{data.merges.length}</span>}
           </Link>
           {mergeMatch && (
             <ul className="shl-rail__sub" aria-label="Merge sheets">

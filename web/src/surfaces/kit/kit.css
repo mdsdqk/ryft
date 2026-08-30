@@ -1,0 +1,228 @@
+/*
+ * Surface kit — the shared building blocks every list/detail surface composes:
+ * a sheet body, a titled zone, a fact list, a row list, a status pill, a
+ * revision marker. Tokens only, from theme.css; the border ladder and square
+ * corners from DESIGN.md. Extracted from the dashboard (WU-0,
+ * docs/design/app-flow-work-breakdown.md).
+ */
+
+/* ── sheet ───────────────────────────────────────────────────────────── */
+
+/* the title-strip's right cell, for a surface's one primary action */
+.kit-sheet__action {
+  border-inline-start: 2px solid var(--ink);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+}
+.kit-sheet__body {
+  padding: 22px 24px 26px;
+}
+
+/* ── zone ────────────────────────────────────────────────────────────── */
+
+.kit-zone {
+  margin-bottom: 22px;
+}
+.kit-zone:last-child {
+  margin-bottom: 0;
+}
+.kit-zone__k {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+.kit-zone__ct {
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+/* ── fact list ───────────────────────────────────────────────────────── */
+
+.kit-facts {
+  border: 1.5px solid var(--ink);
+  background: var(--panel);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.kit-facts > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 8px 12px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  border-bottom: 1px solid var(--line);
+}
+.kit-facts > div:nth-child(odd) {
+  border-inline-end: 1px solid var(--line);
+}
+.kit-facts > div:nth-last-child(-n + 2) {
+  border-bottom: none;
+}
+.kit-facts > div:last-child {
+  border-inline-end: none;
+}
+.kit-facts dt {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.kit-facts dd {
+  min-width: 0;
+  font-weight: 600;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+/* ── row list ────────────────────────────────────────────────────────── */
+
+.kit-list {
+  list-style: none;
+  border: 1.5px solid var(--line-strong);
+  background: var(--panel);
+}
+.kit-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 11px 13px;
+  border-bottom: 1px dashed var(--line);
+  font-family: var(--ff-mono);
+  font-size: 11.5px;
+}
+.kit-row:last-child {
+  border-bottom: none;
+}
+.kit-row__main {
+  min-width: 0;
+}
+.kit-row__link {
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.kit-row__meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+.kit-row--more {
+  display: block;
+  padding: 10px 13px;
+}
+.kit-row--more a {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  a.kit-row__link:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .kit-row--more a:hover {
+    color: var(--ink);
+  }
+}
+
+/* ── revision marker ─────────────────────────────────────────────────── */
+
+.kit-tri {
+  white-space: nowrap;
+  font-weight: 700;
+  color: var(--ours);
+}
+.kit-tri--none {
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+/* ── status pill — a coloured dot plus the word, never colour alone ───── */
+
+.kit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.kit-pill--held {
+  color: var(--conflict);
+}
+.kit-pill__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--ink-faint);
+}
+.kit-pill--ok .kit-pill__dot {
+  background: var(--ok);
+}
+.kit-pill--held .kit-pill__dot {
+  background: var(--conflict-edge);
+}
+
+/* ── responsive ──────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  .kit-sheet__action {
+    border-inline-start: none;
+    border-top: 2px solid var(--ink);
+  }
+}
+@media (max-width: 640px) {
+  .kit-facts {
+    grid-template-columns: 1fr;
+  }
+  .kit-facts > div:nth-child(odd) {
+    border-inline-end: none;
+  }
+  .kit-sheet__body {
+    padding: 16px;
+  }
+}
+/* narrow: a row stacks — trailing status/marker drops below the primary line
+ * so a long branch name and a long status never fight for one line */
+@media (max-width: 480px) {
+  .kit-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .kit-row > :not(.kit-row__main) {
+    margin-top: 6px;
+  }
+}
+
+@media (forced-colors: active) {
+  .kit-facts,
+  .kit-list {
+    border: 1px solid CanvasText;
+  }
+  .kit-pill__dot {
+    outline: 1px solid CanvasText;
+  }
+}
