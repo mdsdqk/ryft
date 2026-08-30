@@ -26,6 +26,10 @@ export type BranchSummary = {
   cutOn: string;
   /** count of operations that have diverged this branch from its base */
   divergence: number;
+  /** the trunk (`main`) — listed on `/branches`, never deleted, never △N */
+  trunk?: boolean;
+  /** id of an open merge request whose source is this branch; blocks delete */
+  openMergeId?: string;
 };
 
 export type MergeSummary = {

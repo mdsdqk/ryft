@@ -10,7 +10,9 @@
  * dependency — an inline arrow is fine.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+
+import { dataEpoch, subscribeData } from "./watch.ts";
 
 export type Resource<T> = {
   data: T | null;
@@ -30,6 +32,7 @@ export function useResource<T>(
   });
   const [nonce, setNonce] = useState(0);
   const reload = useCallback(() => setNonce((n) => n + 1), []);
+  const epoch = useSyncExternalStore(subscribeData, dataEpoch, dataEpoch);
 
   useEffect(() => {
     let live = true;
@@ -52,9 +55,10 @@ export function useResource<T>(
     return () => {
       live = false;
     };
-    // loader identity changes every render by design; nonce + deps drive re-runs
+    // loader identity changes every render by design; nonce + epoch + deps drive
+    // re-runs. epoch is bumped by fixture writes (create/delete a branch).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nonce, ...deps]);
+  }, [nonce, epoch, ...deps]);
 
   return { ...state, reload };
 }

@@ -1,0 +1,171 @@
+/*
+ * Branches list — co-located with Branches.tsx. Tokens from theme.css; the
+ * border ladder and square corners from DESIGN.md. Does not restyle the kit
+ * row itself; it adds the title-strip create plate and the on-row confirm.
+ */
+
+/* ── create plate in the title strip ─────────────────────────────────── */
+
+.br-create {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: min(280px, 100%);
+}
+.br-create__label {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.br-create__row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+.br-create__input {
+  flex: 1 1 12ch;
+  min-width: 0;
+  font-family: var(--ff-mono);
+  font-feature-settings: "tnum" 1;
+  font-size: 16px;
+  line-height: 1.2;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  padding: 7px 10px;
+  caret-color: var(--ink);
+}
+.br-create__input::placeholder {
+  color: var(--ink-faint);
+}
+@media (hover: hover) {
+  .br-create__input:hover:not(:disabled) {
+    border-color: var(--ink);
+  }
+}
+.br-create__input:disabled {
+  color: var(--ink-faint);
+  background: var(--sheet-2);
+  cursor: not-allowed;
+}
+.br-create__err {
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--conflict);
+  max-width: 36ch;
+}
+
+.br .kit-sheet__action {
+  align-items: stretch;
+  padding: 14px 18px;
+}
+.br .kit-sheet__action .mr-btn:disabled {
+  color: var(--ink-faint);
+  border-color: var(--line-strong);
+  background: var(--sheet-2);
+  cursor: not-allowed;
+}
+
+/* ── live notice: visually reserved, announced to AT ─────────────────── */
+
+.br-live {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ok);
+  min-height: 1.45em;
+  margin: 0 0 12px;
+}
+
+/* ── row extras ──────────────────────────────────────────────────────── */
+
+.br-row .kit-tri {
+  color: var(--ink-soft);
+}
+.br-row .kit-tri--none {
+  color: var(--ink-faint);
+}
+
+.br-row__trail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.br-trunk {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.br-row__plate {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.br-row__msg {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink);
+  max-width: 62ch;
+  overflow-wrap: anywhere;
+}
+.br-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.br-row--armed,
+.br-row--held {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: start;
+  outline: 1.5px solid var(--ink);
+  outline-offset: -1.5px;
+  background: var(--panel);
+  padding: 14px 13px;
+}
+.br-row--held {
+  outline-color: var(--conflict-edge);
+  background: var(--conflict-wash);
+}
+.br-row--held .br-row__msg {
+  color: var(--conflict);
+}
+
+@media (max-width: 1100px) {
+  .br .kit-sheet__action {
+    border-inline-start: none;
+    border-top: 2px solid var(--ink);
+  }
+  .br-create {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .br-row__trail {
+    flex-wrap: wrap;
+  }
+}
+
+@media (forced-colors: active) {
+  .br-create__input,
+  .br-row--armed,
+  .br-row--held {
+    outline: 1px solid CanvasText;
+    border-color: CanvasText;
+  }
+}

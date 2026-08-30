@@ -18,4 +18,10 @@ export type {
   MergeSummary,
   Overview,
 } from "./types.ts";
+export type { CreateBranchArgs } from "./source.ts";
 export { useResource, type Resource } from "./useResource.ts";
+export {
+  BRANCH_NAME_MAX,
+  BranchHeldError,
+  heldByMergeMessage,
+} from "./branches.ts";
