@@ -491,6 +491,106 @@ a `destructive: true` flag for 0008's warning pass to read, instead of that pass
 regex generated SQL. Until 0008 lands, generated SQL over-quotes and carries no warnings, and
 the spike is written not to depend on either. See ADR 0003 §5.
 
+### Schema states are stored whole, as `jsonb`
+
+Ticket 0004. A branch's `head`, its `base_snapshot`, and a merge request's frozen `base` /
+`ours` / `theirs` are each one `jsonb` column holding a `SchemaDocument`. There is no table
+for schema objects — tables, columns, indexes, and constraints live only inside those
+documents.
+
+This follows straight from the state-based model. The engine consumes whole documents and
+clones them with `structuredClone`; it never queries inside one. Normalising into rows would
+rebuild that tree on every read and create a second copy of the engine's types that can drift
+from `engine/schema.ts`. The cost is that Postgres cannot enforce anything about schema
+contents — id uniqueness, FK member resolution, every structural invariant is the engine's
+job, which it already was. See ADR 0004 §1.
+
+### The merge queue is a stored status, strict FIFO — and I walked this back once
+
+Ticket 0004. My first cut of the queue was "no queue table": a line derived from `created_at`,
+position shown for information only, merging serialised by a row lock and re-validated on the
+merge click. The owner pushed back on two points and both were right. First, while merge
+request 1 sits open with unresolved conflicts, merge request 2's three-way against current
+`main` is misleading — its real base is whatever `main` becomes after MR1 lands, so inviting
+its author to resolve conflicts then is inviting wasted work. Second, the "is this MR allowed
+to act" gate has to hold at the API, not just the UI; deriving "is this the oldest open MR"
+on every mutating call is recomputation for a fact that changes only on create, merge, and
+abandon.
+
+So `merge_requests.status` is `queued | open | held | merged`, and the invariant is that at
+most one MR per target branch is `open` or `held` — the active one. Every mutating endpoint
+checks that one column. The queue is strict single-file: the front MR merges or is abandoned,
+then the oldest `queued` MR is promoted. A `held` MR (kicked back from a failed merge attempt)
+keeps its place and blocks the line; "let a clean MR behind it jump ahead" was considered and
+rejected because it reintroduces exactly the ordering questions the queue removes — if MR4 and
+MR5 are both clean behind three held MRs, which merges first, and do they form their own
+queue. The accepted cost is that an abandoned active MR freezes the line until someone deletes
+it, which is how a real merge queue behaves. See ADR 0004 §3.
+
+### The merge is one transaction with a row lock, not an optimistic version check
+
+Ticket 0004. The ticket offers an optimistic check on `main`'s head as the cheap alternative
+to a job runner. `SELECT … FOR UPDATE` on the target branch row is cheaper still and has the
+same semantics — the database serialises the second merger behind the first, and there is no
+compare-and-retry loop to write. `head_version` stays on the row, but only so a merge-request
+`GET` can say "you previewed against `main@v3`, it is now at `v5`". The re-validation inside
+the transaction runs `threeWayMerge` against the live `main.head`, never the frozen `theirs`.
+See ADR 0004 §4.
+
+### A merge request freezes only the three snapshots; everything else recomputes
+
+Ticket 0004. The row stores `base` / `ours` / `theirs` and nothing derived — not the
+`MergeReport`, not the generated migration, not the queue position. `GET /merge-requests/:id`
+re-runs `threeWayMerge` and `emitMigration` every call. Same argument as the derived delta and
+the DDL IR: a stored copy of engine output goes stale the moment the engine changes. The
+engine is pure and works on kilobyte documents, so recomputing is free. When a `queued` MR is
+promoted to `open`, its next `GET` rewrites the frozen `theirs` and `ours` to the live values
+first — `base` never moves — so the active MR's resolution work is always against the real
+current base. A merged MR is still fully reproducible, because its triple was refreshed to
+what the merge actually used. See ADR 0004 §5.
+
+### Resolutions are keyed by the engine's `conflictId`, with a stored snapshot to detect reshape
+
+Ticket 0004. `engine/classify.ts` already builds `Conflict.id` as the class plus the sorted
+object ids and nothing else, so the ticket's "key by object id plus conflict class" is just
+"key by `conflictId`". Each stored resolution also carries a `conflict_snapshot` — the
+conflict's `base` / `ours` / `theirs` at save time. On re-validation a resolution is
+re-applied only if its `conflictId` is still a live conflict and the snapshot still matches;
+if the id is gone the choice is dropped quietly, if the id is there but the shape changed it
+is dropped with a visible notice. Rows are never auto-deleted — a stale one is harmless
+because the engine ignores an unknown `conflictId` and the snapshot guard blocks a wrong
+re-apply. See ADR 0004 §6.
+
+### The API returns raw domain data; the client owns the view-model projection
+
+Ticket 0004. I first proposed the opposite — the Hono layer assembling `MergeReview` (rows,
+gate states, pre-rendered `"int → varchar(32)"` strings) and returning that, with the raw
+`MergeReport` on a sibling `/report` route. The owner pushed back and was right. The two
+candidate shapes are both JSON — this was never an SSR question — and the projection between
+them has to run somewhere. The client is the right place here: it is not a thin consumer (WU-E
+is a structured schema editor that already renders `SchemaDocument`s), `MergeReview` is defined
+in `web/` and its fixture already builds that shape, and CI/agents want the raw typed report
+rather than pre-rendered strings anyway. Server-side assembly would add an adapter layer and
+couple the API to a frontend-shaped type for no present gain.
+
+So `GET /merge-requests/:id` returns
+`{ base, ours, theirs, report, migration, queue, stale, droppedResolutions }` — raw engine
+output plus the queue framing the client cannot derive. No `/report` sibling; the primary
+endpoint is already raw. `GET /overview` and `GET /branches/:name` likewise return domain data
+(`Database`, `BranchSummary[]`, schema documents), not rendered aggregates. The
+`MergeReview` transform grows in `web/src/merge-review/`, fed by the API instead of literals.
+See ADR 0004 §7.
+
+### The server re-runs every operation through the engine
+
+Ticket 0004. `POST /branches/:name/operations` applies each op through a shared
+`applyOperation(doc, op)` that enforces ADR 0001 §3's dependency block, returning `422` with
+the blocking dependents and persisting nothing. The client enforces the same rule for
+feedback, but the server is authoritative — an API that trusts the client can persist a
+corrupt head. `applyOperation` is new engine surface (`apply.ts` exports only the batch
+`applyDelta` today), framework-free, and it is also what the structured editor needs, so the
+rule has one home. See ADR 0004 §8.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:
