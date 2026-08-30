@@ -6,11 +6,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useLocation, useNavigate } from "react-router";
+
 import { useTheme } from "../theme/useTheme.ts";
 import { useSession } from "../session/session.ts";
-import { useRouter } from "../router/router.tsx";
 import { Rail } from "./Rail.tsx";
-import { Routes } from "./routes.tsx";
+import { AppRoutes } from "./routes.tsx";
 
 const KEYS: Array<[string, string]> = [
   ["J / K", "next / previous conflict — on the merge-review screen"],
@@ -23,21 +24,24 @@ const KEYS: Array<[string, string]> = [
 export function AppShell() {
   const { resolved, choice, setChoice } = useTheme();
   const { username, signOut } = useSession();
-  const { path, navigate } = useRouter();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [keysOpen, setKeysOpen] = useState(false);
 
   // move focus to the content region on an actual route change, so keyboard and
   // screen-reader users are not stranded on the link they just followed. Compare
-  // the previous path rather than a first-render flag — StrictMode double-invokes
-  // effects, which would defeat a flag but leaves `path` unchanged. The visible
-  // ring on this non-interactive container is suppressed in CSS (#main:focus).
+  // the previous pathname rather than a first-render flag — StrictMode
+  // double-invokes effects, which would defeat a flag but leaves `pathname`
+  // unchanged. Search-only changes (`?scenario=`, `/merges?empty`) must not
+  // steal focus. The visible ring on this non-interactive container is
+  // suppressed in CSS (#main:focus).
   const mainRef = useRef<HTMLElement>(null);
-  const prevPath = useRef(path);
+  const prevPath = useRef(pathname);
   useEffect(() => {
-    if (prevPath.current === path) return;
-    prevPath.current = path;
+    if (prevPath.current === pathname) return;
+    prevPath.current = pathname;
     mainRef.current?.focus();
-  }, [path]);
+  }, [pathname]);
 
   return (
     <>
@@ -110,7 +114,7 @@ export function AppShell() {
         <div className="shl-shell">
           <Rail />
           <main id="main" className="shl-stage" tabIndex={-1} ref={mainRef}>
-            <Routes />
+            <AppRoutes />
           </main>
         </div>
       ) : (
@@ -120,7 +124,7 @@ export function AppShell() {
           tabIndex={-1}
           ref={mainRef}
         >
-          <Routes />
+          <AppRoutes />
         </main>
       )}
     </>

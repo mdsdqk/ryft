@@ -61,7 +61,8 @@ The database is a *set of drawings*. The shell is the set's binder.
   the single `--shadow-sheet`) on the ground, with a title strip. Merge-review's four
   lettered zones are one page's internal structure, not the app's — most pages have one
   or two zones, not four.
-- **Routing** (client-side; add a router — none exists yet):
+- **Routing** (client-side; React Router v8 declarative — `BrowserRouter` + the
+  flat table in `web/src/shell/routes.tsx`. See work-breakdown decision 1):
   | Route | Surface |
   |---|---|
   | `/` | sign-in when no user; else redirect to `/db` |
@@ -260,8 +261,9 @@ One route, `/branch/:name`. Sub-sheets in the rail: **Schema** · **Divergence**
 
 - **Shell:** locked — left sheet-index rail (§3). Rail width / collapse / identity /
   sub-sheet nesting still to resolve at build.
-- **Router:** which client-side router (none in the tree yet); keep it minimal —
-  the route table in §3 is small.
+- **Router:** resolved — React Router v8 declarative (`BrowserRouter` +
+  `Routes`/`Route`). See `app-flow-work-breakdown.md` decision 1. The route table
+  in §3 is still the product table; do not add nested URLs for Divergence/History.
 - **Identity surfacing:** `User` / `Organization` are modelled but the current flow
   never shows them. Decide per surface whether author names, and any org label, appear
   in the shell or only in lists and logs.

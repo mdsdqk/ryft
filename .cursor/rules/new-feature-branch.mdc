@@ -1,0 +1,17 @@
+---
+description: Pull latest main and create a new branch before starting any feature
+alwaysApply: true
+---
+
+# New feature git setup
+
+Before writing code for a new feature:
+
+1. `git fetch origin`
+2. `git checkout main` and `git pull origin main`
+3. `git checkout -b feat/<short-slug>` from that updated `main`
+4. Call `SetActiveBranch` with the new branch name
+
+Never start feature work on `main` or on an unrelated feature branch. If the working tree is dirty, stop and ask before switching.
+
+Branch names: `feat/<slug>` for features, `fix/<slug>` for bug fixes. Keep the slug short and concrete (`feat/react-router`, not `feat/update-stuff`).

@@ -10,7 +10,7 @@
 
 import type { ReactNode } from "react";
 
-import { Link } from "../../router/router.tsx";
+import { Link } from "react-router";
 
 export function SheetList({
   children,

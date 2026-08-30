@@ -44,7 +44,7 @@ import {
   useResource,
   type BranchSummary,
 } from "../data/index.ts";
-import { Link } from "../router/router.tsx";
+import { Link } from "react-router";
 import { useSession } from "../session/session.ts";
 import {
   EmptyState,
