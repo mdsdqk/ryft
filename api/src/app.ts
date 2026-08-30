@@ -16,6 +16,8 @@ import type { Db } from "./db/client.js";
 import { users } from "./db/schema.js";
 import { sessionRoutes } from "./routes/session.js";
 import { overviewRoutes } from "./routes/overview.js";
+import { branchRoutes } from "./routes/branches.js";
+import { mergeRequestRoutes } from "./routes/merge-requests.js";
 
 export type Actor = typeof users.$inferSelect;
 
@@ -51,6 +53,8 @@ export function createApp(db: Db): Hono<Env> {
   });
 
   app.route("/", overviewRoutes);
+  app.route("/", branchRoutes);
+  app.route("/", mergeRequestRoutes);
 
   app.onError((err, c) => {
     if (err instanceof HTTPException) {

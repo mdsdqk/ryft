@@ -75,7 +75,8 @@ export type MergeRequestResponse = {
   ours: SchemaDocument;
   theirs: SchemaDocument;
   report: MergeReport;
-  migration: Migration;
+  /** `emitMigration(theirs, merged)` — `null` when the merge is not clean (no merged doc to render). */
+  migration: Migration | null;
   queue: { status: "queued" | "open" | "held" | "merged"; position: number; ahead: number; behind: number };
   stale: boolean;
   droppedResolutions: Array<{ conflictId: string; why: "changed" | "absent" }>;
