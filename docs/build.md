@@ -77,8 +77,8 @@ are in `docs/backend-contract.md` §4. **V1 rows from that table are omitted** �
 
 | Method · path | Notes vs. `docs/backend-contract.md` §3 |
 |---|---|
-| `POST /session` | Unchanged. Create-or-resume by username; the only route that mints a user. |
-| `POST /workspace/reset` | Unchanged. `?bare` seeds `main` alone. Truncates all five V0 tables and re-seeds. |
+| `POST /session` | Unchanged. Create-or-resume by username; the only route that mints a user. No `x-ryft-user`. Resume → `200`; new user → `201`. |
+| `POST /workspace/reset` | `?bare` seeds `main` alone. Truncates the V0 tables (CASCADE) and re-seeds. **No `x-ryft-user`** — on a fresh database there is no user to authenticate as until the seed runs; it is the one read/write endpoint outside the identity gate besides `/session`. |
 | `GET /overview` | Unchanged. `database` counts derived from `main.head`; `trunkRevision = main.head_version`. |
 | `GET /branches` | Unchanged. |
 | `GET /branches/:name` | Unchanged. `divergence = diffSnapshots(base_snapshot, head).length`. |
