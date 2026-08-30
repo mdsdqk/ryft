@@ -5,7 +5,12 @@
  * create / delete and the empty-state variants are later steps (WU-D).
  */
 
-import { source, useResource } from "../data/index.ts";
+import {
+  mergeStatusLabel,
+  mergeStatusTone,
+  source,
+  useResource,
+} from "../data/index.ts";
 import {
   EmptyState,
   FactList,
@@ -95,10 +100,8 @@ export function Dashboard() {
                 }
                 meta={`${m.author} · opened ${m.openedOn} · ${m.operations} operations`}
                 trailing={
-                  <StatusPill tone={m.status === "held" ? "held" : "ok"}>
-                    {m.status === "held"
-                      ? `Held · ${m.conflicts} conflict${m.conflicts === 1 ? "" : "s"}`
-                      : "Clean"}
+                  <StatusPill tone={mergeStatusTone(m)}>
+                    {mergeStatusLabel(m)}
                   </StatusPill>
                 }
               />

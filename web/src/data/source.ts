@@ -2,11 +2,11 @@
  * The data seam. Every surface reads through a `DataSource`; nothing imports a
  * concrete implementation except `./index.ts`, which picks one.
  *
- * V0 ships `getOverview` (rail + dashboard) and the branches resource (WU-A).
- * WU-B adds `listMerges`; WU-E adds `getBranchSchema`.
+ * V0 ships `getOverview` (rail + dashboard), the branches resource (WU-A),
+ * and the merges resource (WU-B). WU-E adds `getBranchSchema`.
  */
 
-import type { BranchSummary, Overview } from "./types.ts";
+import type { BranchSummary, MergeSummary, Overview } from "./types.ts";
 
 export type CreateBranchArgs = {
   name: string;
@@ -20,6 +20,8 @@ export interface DataSource {
   getOverview(): Promise<Overview>;
   /** trunk first, then working branches — the `/branches` list */
   listBranches(): Promise<BranchSummary[]>;
+  /** open merge requests, oldest first — the `/merges` queue */
+  listMerges(): Promise<MergeSummary[]>;
   /** cut a working branch from `main`; throws on a bad or taken name */
   createBranch(args: CreateBranchArgs): Promise<BranchSummary>;
   /** drop a working branch; throws if it is the trunk or held by an open MR */
