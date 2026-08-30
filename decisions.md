@@ -333,6 +333,11 @@ Because it is on the request path it needs a real answer for when Neon is slow o
 The dry run is evidence, not a gate: the merge stays possible, and the UI says plainly that it
 could not be verified.
 
+*(Revised in ticket 0009. The dry run is now stretch-band, triggered by a manual "Validate"
+button on a clean merge request rather than automatically on creation, and it only checks that
+a real Postgres accepts the emitted DDL — no introspection, no compare-to-`merged`. See ADR
+0009. The "evidence, not a gate" and graceful-degradation points still hold.)*
+
 ### Forward-only migrations
 
 The generated DDL only goes forwards. Renames render as `ALTER ... RENAME` and never as a drop
@@ -347,6 +352,33 @@ Cut: down-migrations, rollback generation, and anything that executes the migrat
 real database on the user's behalf. The product ends at a migration you can read and run. This
 is the largest single reduction against PlanetScale, whose entire value is that they apply it
 for you, and it is the right cut for the time available.
+
+*(Corrected below — see "The generated DDL is a rendering of the merge, not a deliverable".
+The product does not "end at a migration you run": `main`'s schema document is the schema of
+record and a merge updates it directly. There is no downstream database. The forward-only and
+`ALTER … RENAME` facts above still hold for what `emit` renders.)*
+
+### The generated DDL is a rendering of the merge, not a deliverable
+
+Caught by grilling in ticket 0009. `main`'s schema document is the schema of record. A merge
+updates that document directly — applying the merged delta and appending to the op log is the
+entire act. Nothing executes the generated DDL and there is no downstream Postgres for it to
+run against.
+
+Earlier framing — "get ordered, runnable Postgres DDL out the other side", "the product ends
+at a migration you can read and run" — imported the mental model of the migration-file tools
+(Atlas, Prisma, Liquibase: you keep a schema, they hand you a file to apply) into a product
+that is actually a control plane where the schema lives inside it. The docs even carried the
+contradiction openly: state-based, migration files are not the input, yet a runnable migration
+file was named as the output.
+
+Nothing in code changes. `emit`'s `DdlStatement` IR, the phase ordering, `serialize`, and
+`replay`'s intermediate-state check all stand, and the merge-review screen still shows the
+SQL. What changes is language: the SQL is shown as what the merge amounts to, not as an
+artifact anyone runs. The Neon-backed dry run (ticket 0009) drops to the stretch band with no
+narrative attached — it just checks that a real Postgres accepts what `emit` produced; the
+V0/V1 guarantee that `emit` is correct is a pure test (`applyDelta` / `replay` in memory).
+ADR 0003's mechanism is untouched; its "a migration you deploy" framing is corrected here.
 
 ### Stack
 
@@ -720,7 +752,11 @@ risk is a stretch item.
 A SQL console per branch, which is how PlanetScale actually works and was my original intent: a
 SQL editor where you run `ALTER TABLE` and `DROP CONSTRAINT` and that becomes your schema
 evolution. It is on the stretch list rather than cut, because it is the one feature that would
-close the ingestion gap, and because two things make it cheaper than it looks. It is the dry-run
-harness run in reverse, executing statements against an ephemeral branch and introspecting the
-result, so it needs no SQL parser. And a rename typed as `ALTER TABLE ... RENAME COLUMN` carries
+close the ingestion gap, and because a rename typed as `ALTER TABLE ... RENAME COLUMN` carries
 its own intent, so the console keeps the identity signal that a raw state comparison loses.
+
+*(An earlier version of this entry argued the console was "most of a SQL importer for free"
+because the dry-run harness introspected Postgres back into a schema document. Ticket 0009
+settled the harness as apply-only — it never introspects — so that argument no longer holds.
+The console and raw-SQL import stay stretch, and would need their own introspection round-trip
+if built.)*

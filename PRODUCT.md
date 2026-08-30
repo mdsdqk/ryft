@@ -33,8 +33,9 @@ code quality, tests, documentation, and setup experience.
 ryft puts a Postgres schema under version control. A user signs in, lands in the database,
 and works with its schema the way they work with code: branch it, change the branch through
 a structured editor, see exactly how the branch has diverged from the trunk, open a merge
-request, resolve whatever conflicts the two sides created, and get ordered, runnable
-Postgres DDL for the merge.
+request, resolve whatever conflicts the two sides created, and merge it back into the trunk.
+`main`'s schema is the schema of record — the merge updates it directly; the merge-review
+screen also renders the change as ordered Postgres DDL, alongside the diff.
 
 The object under version control is the schema — tables, columns, primary keys, foreign
 keys, unique constraints, indexes — not the migration files that describe it and not the
@@ -118,9 +119,11 @@ and inherit its visual world (`DESIGN.md`).
 - **Type equivalence is exact-match**, parameters included (`varchar(255)` ≠
   `varchar(256)`). There is no widening/safety lattice; ranking retypes by safety is
   stretch.
-- **Merge output** is forward-only Postgres DDL, dependency-ordered, in a single
-  transaction; renames render as `ALTER … RENAME`, never drop-and-add. The engine will not
-  return a merged schema it cannot prove clean.
+- **A merge updates `main`'s schema document directly** — that is the act, and there is no
+  downstream database. The change is also rendered as forward-only, dependency-ordered
+  Postgres DDL (single transaction; renames as `ALTER … RENAME`, never drop-and-add) and
+  shown on the merge-review screen; ryft does not execute it. The engine will not return a
+  merged schema it cannot prove clean.
 - **Conflict handling**: divergent changes are sorted into named classes, each with a
   severity — *clear*, *subtle*, or *overlap*, a vocabulary adopted from PlanetScale's
   `schemadiff`. An identical change made on both sides is an *overlap*: applied once, not a
@@ -135,7 +138,7 @@ and inherit its visual world (`DESIGN.md`).
 - **Delivery bands**: V0 is the walking skeleton (seed, branch, edit, open MR, three-way
   diff, no-conflict merge, deployed). V1 adds conflict detection, classification, and the
   resolution UI. Stretch, not expected to land: SQL console, raw-SQL import with heuristic
-  rename detection, migration dry-run.
+  rename detection, DDL verification against a real Postgres.
 
 ## Brand Commitments
 

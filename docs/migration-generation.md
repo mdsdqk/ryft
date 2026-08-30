@@ -1,7 +1,10 @@
 # SQL migration generation and dependency ordering — algorithm
 
 Ticket 0003. Given the delta between two schema documents (`theirs` → merged, or `base` →
-branch head), produce a runnable, correctly ordered, **forward-only** Postgres DDL migration.
+branch head), produce a correctly ordered, **forward-only** Postgres DDL rendering of the
+change, shown on the merge-review screen. Nothing executes it — `main`'s schema document is
+the schema of record and a merge updates it directly (ticket 0009; `decisions.md` § "The
+generated DDL is a rendering of the merge, not a deliverable").
 
 This is the algorithm write-up. `docs/adr/0003-sql-generation-and-ordering.md` is the
 structured companion (one section per load-bearing call). `decisions.md` carries the

@@ -185,7 +185,8 @@ creation and refreshed only on a merge attempt (§4) or on promotion to `open` (
 
 - `MergeReport` ← `threeWayMerge(base, ours, theirs, survivingResolutions)`.
 - `Migration` ← `emitMigration(theirs, merged)` (ADR 0003 §1: `source = theirs`,
-  `target = merged` — the forward DDL the target branch runs after the merge lands).
+  `target = merged`) — the change rendered as DDL for the merge-review screen; nothing
+  executes it (ticket 0009).
 - `position` / `ahead` / `behind` ← the `created_at` ordering over non-terminal rows.
 - `stale` ← `main.head_version !== previewed_main_version` (advisory; the frozen triple is
   internally consistent regardless).

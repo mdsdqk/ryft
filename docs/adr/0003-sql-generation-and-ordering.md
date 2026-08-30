@@ -5,11 +5,18 @@ Status: accepted. `engine/emit.ts` (`emitMigration`, the `DdlStatement` IR, `exp
 `replayStatement`, `verifyPrefixes`) are implemented, with worked examples in
 `engine/__fixtures__/migration-scenarios.ts` run by `engine/emit.spike.ts`.
 
-The load-bearing calls made while designing migration generation — the step that turns a
-merged (or branch-head) schema document into runnable Postgres DDL. One section per call.
+The load-bearing calls made while designing migration generation — the step that renders a
+merged (or branch-head) schema document as ordered Postgres DDL. One section per call.
 `docs/migration-generation.md` is the full algorithm write-up; `decisions.md` carries the
 narrative. Builds on ADR 0001 (stable ids; references held by id, resolved to names only at
 render time) and ADR 0002 (the derived-delta model; `apply.ts`'s four-phase replay).
+
+**Framing note (ticket 0009).** This ADR originally described the output as "runnable Postgres
+DDL" for the user to deploy. That framing was wrong: `main`'s schema document is the schema of
+record, a merge updates it directly, and there is no downstream database — nothing executes the
+DDL. The mechanism in the six sections below is unchanged and correct; the DDL is a *rendering*
+of the change, shown on the merge-review screen. See `decisions.md` § "The generated DDL is a
+rendering of the merge, not a deliverable".
 
 ## 1. `emitMigration` takes the two documents and derives the delta itself
 

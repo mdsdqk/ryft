@@ -95,20 +95,20 @@ and only a textual diff, so it is not a model for anything below.)
 
 ## Output
 
-- **Migration** — the ordered, runnable Postgres DDL that transforms one schema document into
-  another (`theirs` → merged, or `base` → head). Forward-only; renames render as
-  `ALTER … RENAME`, never drop-and-add. Statements are dependency-ordered and wrapped in a
-  single transaction — Postgres has transactional DDL, so a migration either fully applies or
-  does nothing. MySQL cannot do this, and much of PlanetScale's equivalence-class machinery
-  exists to work around its absence.
-- **Intermediate-state validity** — every prefix of a migration must leave the schema
-  structurally sound (all references resolve), not just the final statement. The dependency
-  ordering rules are the implementation; a step-by-step in-memory replay is the verifier that
-  proves they held. PlanetScale does the same (`schemadiff` validates every intermediate state).
-- **Pre-merge dry run** — the generated migration is applied to an ephemeral Neon branch seeded
-  with `theirs`, and the result is introspected back and compared to the merged document. This
-  is PlanetScale's *shadow branch* (§2 of the reference): it runs on merge-request creation and
-  its verdict is shown in the product, not only in CI.
+- **Migration** — the dependency-ordered Postgres DDL that `emit` renders for a change
+  (`theirs` → merged for a merge, `base` → head for a branch diff). Forward-only; renames
+  render as `ALTER … RENAME`, never drop-and-add; statements are dependency-ordered and wrapped
+  `BEGIN … COMMIT`. It is shown on the merge-review screen as what the change amounts to in
+  SQL. `main`'s schema document is the schema of record and a merge updates that document
+  directly — nothing executes the DDL, and there is no downstream database.
+- **Intermediate-state validity** — every prefix of the DDL must leave the schema structurally
+  sound (all references resolve), not just the final statement. The dependency-ordering rules
+  are the implementation; a step-by-step in-memory replay is the verifier that proves they
+  held. PlanetScale does the same (`schemadiff` validates every intermediate state).
+- **DDL verification** *(stretch)* — the rendered DDL is applied to an ephemeral Neon Postgres
+  branch to confirm a real Postgres accepts it. Advisory; the merge never depends on it. In
+  V0/V1 the correctness of `emit`'s output is covered by tests; the Neon-backed check is
+  stretch (ADR 0009).
 
 ## Delivery bands
 
@@ -117,4 +117,4 @@ and only a textual diff, so it is not a model for anything below.)
 - **V1** — conflict detection and classification for all seven classes, plus a resolution UI for
   divergent retype and rename-rebase.
 - **Stretch** — raw-SQL import with heuristic rename detection; drop-vs-modify resolution UI;
-  migration dry-run.
+  DDL verification against a real Postgres (ADR 0009).
