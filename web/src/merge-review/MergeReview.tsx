@@ -1,0 +1,177 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import type { MergeReview as MergeReviewModel } from "./model.ts";
+import { effectiveStatus, openConflicts } from "./model.ts";
+import { statusLabel } from "./format.ts";
+
+import { ComparisonTable } from "./components/ComparisonTable.tsx";
+import { ConflictQueue } from "./components/ConflictQueue.tsx";
+import { FabricationOrder } from "./components/FabricationOrder.tsx";
+import { OperationLog } from "./components/OperationLog.tsx";
+import { RevisionDial } from "./components/RevisionDial.tsx";
+import { TitleBlock } from "./components/TitleBlock.tsx";
+
+const FILTER_ID = "mr-filter-changes";
+const ZONE_IDS = { a: "mr-zone-a", b: "mr-zone-b", c: "mr-zone-c", d: "mr-zone-d" } as const;
+
+export function MergeReview({ base }: { base: MergeReviewModel }) {
+  const [resolutions, setResolutions] = useState<Record<string, string>>({});
+  // an explicit selection; when it resolves or is empty, the derived active
+  // below falls through to the first still-open conflict.
+  const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
+
+  // fold the working resolutions back into the model the whole screen renders from
+  const review = useMemo<MergeReviewModel>(() => {
+    const conflicts = base.conflicts.map((c) => ({
+      ...c,
+      resolvedWith: resolutions[c.id] ?? null,
+    }));
+    const allResolved = conflicts.every((c) => c.resolvedWith !== null);
+    return {
+      ...base,
+      conflicts,
+      commutativity: allResolved ? "passed" : "pending",
+    };
+  }, [base, resolutions]);
+
+  const open = openConflicts(review);
+  const rebased = review.rows.filter((r) => r.leader?.tone === "ok").length;
+
+  // the active conflict: an explicit pick if it is still open, otherwise the
+  // first open one, otherwise the explicit pick (all resolved), otherwise the first.
+  const activeConflictId = useMemo(() => {
+    const picked = review.conflicts.find((c) => c.id === selectedConflictId);
+    if (picked && picked.resolvedWith === null) return picked.id;
+    const firstOpen = review.conflicts.find((c) => c.resolvedWith === null);
+    return firstOpen?.id ?? picked?.id ?? review.conflicts[0]?.id ?? "";
+  }, [review.conflicts, selectedConflictId]);
+
+  const resolve = useCallback((conflictId: string, optionId: string) => {
+    setResolutions((prev) => ({ ...prev, [conflictId]: optionId }));
+    setSelectedConflictId(null); // let the derived active advance to the next open one
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(".mr-queue__list")?.focus(),
+    );
+  }, []);
+
+  const reopen = useCallback((conflictId: string) => {
+    setResolutions((prev) => {
+      const next = { ...prev };
+      delete next[conflictId];
+      return next;
+    });
+    setSelectedConflictId(conflictId);
+  }, []);
+
+  const move = useCallback(
+    (delta: number) => {
+      const ids = base.conflicts.map((c) => c.id);
+      const i = Math.max(0, ids.indexOf(activeConflictId));
+      setSelectedConflictId(ids[(i + delta + ids.length) % ids.length]!);
+    },
+    [base.conflicts, activeConflictId],
+  );
+
+  const openConflictFromRow = useCallback((conflictId: string) => {
+    setSelectedConflictId(conflictId);
+    document.getElementById(ZONE_IDS.b)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById(`mr-cf-${conflictId}`)?.closest<HTMLElement>(".mr-queue__list")?.focus();
+  }, []);
+
+  // global keyboard: J/K move · 1/2/3 resolve active · / filter · g-then-letter jump
+  const gPending = useRef(false);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+        return;
+      }
+
+      if (gPending.current && /^[abcd]$/i.test(e.key)) {
+        gPending.current = false;
+        const el = document.getElementById(ZONE_IDS[e.key.toLowerCase() as "a" | "b" | "c" | "d"]);
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+        el?.focus();
+        e.preventDefault();
+        return;
+      }
+      gPending.current = false;
+
+      if (e.key === "/") {
+        document.getElementById(FILTER_ID)?.focus();
+        e.preventDefault();
+      } else if (e.key === "g" || e.key === "G") {
+        gPending.current = true;
+        window.setTimeout(() => (gPending.current = false), 900);
+      } else if (e.key === "j" || e.key === "J") {
+        move(1);
+      } else if (e.key === "k" || e.key === "K") {
+        move(-1);
+      } else if (["1", "2", "3"].includes(e.key)) {
+        const c = review.conflicts.find((x) => x.id === activeConflictId);
+        if (c && c.resolvedWith === null) {
+          const opt = c.options.find((o) => o.hint === e.key);
+          if (opt) {
+            resolve(c.id, opt.id);
+            e.preventDefault();
+          }
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [move, resolve, review.conflicts, activeConflictId]);
+
+  const status = effectiveStatus(review);
+  const dialDetail = `${review.revisions.length} revisions · ${open.length} ${
+    open.length === 1 ? "conflict" : "conflicts"
+  } open · ${review.autoMergedCount} auto-merged · commutativity ${review.commutativity}`;
+
+  return (
+    <article className="mr-sheet">
+      <header className="mr-titlestrip">
+        <div className="mr-titlestrip__id">
+          <h1 className="mr-titlestrip__h1">{review.table} — schema merge</h1>
+          <p className="mr-titlestrip__path">
+            <b className="mr-o">{review.source}</b> → <b className="mr-t">{review.target}</b> · common
+            base <code>{review.base}</code>
+          </p>
+          <p className="mr-titlestrip__demo">Demonstration review — sample data</p>
+        </div>
+        <RevisionDial status={status} detail={dialDetail} />
+      </header>
+
+      <div className="mr-grid">
+        <div className="mr-main">
+          <div id={ZONE_IDS.a} tabIndex={-1} className="mr-zone-anchor">
+            <ComparisonTable review={review} filterId={FILTER_ID} onOpenConflict={openConflictFromRow} />
+          </div>
+          <div id={ZONE_IDS.b} tabIndex={-1} className="mr-zone-anchor">
+            <ConflictQueue
+              conflicts={review.conflicts}
+              activeId={activeConflictId}
+              onActivate={setSelectedConflictId}
+              onResolve={resolve}
+              onReopen={reopen}
+            />
+          </div>
+        </div>
+
+        <aside className="mr-rail">
+          <div id={ZONE_IDS.c} tabIndex={-1} className="mr-zone-anchor">
+            <OperationLog review={review} />
+          </div>
+          <TitleBlock review={review} unresolved={open.length} rebased={rebased} />
+        </aside>
+      </div>
+
+      <div id={ZONE_IDS.d} tabIndex={-1} className="mr-zone-anchor">
+        <FabricationOrder review={review} />
+      </div>
+
+      <p className="mr-vh" aria-live="polite">
+        Revision status: {statusLabel(status)}.
+      </p>
+    </article>
+  );
+}
