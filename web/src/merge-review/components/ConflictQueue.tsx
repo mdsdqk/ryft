@@ -37,6 +37,7 @@ export function ConflictQueue({
   );
   const resolvedCount = conflicts.filter((c) => c.resolvedWith !== null).length;
   const active = conflicts[activeIndex];
+  const allResolved = conflicts.length > 0 && resolvedCount === conflicts.length;
 
   function move(delta: number) {
     const next = conflicts[(activeIndex + delta + conflicts.length) % conflicts.length];
@@ -44,7 +45,12 @@ export function ConflictQueue({
   }
 
   useEffect(() => {
-    if (!active || !liveRef.current) return;
+    if (!liveRef.current) return;
+    if (conflicts.length === 0) {
+      liveRef.current.textContent = "No conflicts on this merge.";
+      return;
+    }
+    if (!active) return;
     liveRef.current.textContent =
       active.resolvedWith !== null
         ? `Conflict ${activeIndex + 1} of ${conflicts.length}, ${conflictLabel(active.cls)}, resolved.`
@@ -73,10 +79,19 @@ export function ConflictQueue({
         <span className="mr-zone__n">B</span> Conflict queue
       </h2>
 
+      {conflicts.length === 0 ? (
+        <div className="mr-queue mr-queue--empty">
+          <p className="mr-shell__title">No conflicts</p>
+          <p className="mr-shell__msg">
+            The two sides changed different things. Nothing needs a decision here — the merge clears
+            once the commutativity check agrees.
+          </p>
+        </div>
+      ) : (
       <div className="mr-queue">
         <header className="mr-queue__head">
           <span className="mr-queue__pos">
-            Conflict {activeIndex + 1} of {conflicts.length}
+            {allResolved ? `All ${conflicts.length} resolved` : `Conflict ${activeIndex + 1} of ${conflicts.length}`}
           </span>
           <span className="mr-queue__prog">
             {resolvedCount} of {conflicts.length} resolved · merge holds until the queue is empty and
@@ -174,6 +189,7 @@ export function ConflictQueue({
           })}
         </ul>
       </div>
+      )}
 
       <p ref={liveRef} className="mr-vh" aria-live="polite" />
     </section>

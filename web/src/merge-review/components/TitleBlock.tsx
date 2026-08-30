@@ -1,4 +1,5 @@
 import type { MergeReview } from "../model.ts";
+import { shortDate } from "../format.ts";
 
 /** The drawing's title block: what this sheet is, who opened it, where it stands. */
 export function TitleBlock({
@@ -14,7 +15,7 @@ export function TitleBlock({
     ["Drawing", `${review.table} schema`],
     ["Merge", `${review.source} → ${review.target}`],
     ["Base", review.base],
-    ["Opened", `${review.openedBy.name} · ${review.openedAt.slice(0, 10)}`],
+    ["Opened", `${review.openedBy.name} · ${shortDate(review.openedAt)}`],
     ["Revisions", `${review.revisions.length} · ${unresolved} unresolved`],
     ["Rebased", `${rebased} · auto`],
     ["Checker", unresolved > 0 ? "— awaiting" : "ready to sign"],

@@ -92,6 +92,15 @@ export function ComparisonTable({
         </p>
 
         <div className="mr-cmp__scroll">
+          {shown.length === 0 && (
+            <p className="mr-cmp__empty">
+              {filter === "changes"
+                ? `${review.source} has not diverged from ${review.target} — every object matches the common ancestor.`
+                : filter === "conflicts"
+                  ? "No conflicts on this merge."
+                  : "This table has no objects."}
+            </p>
+          )}
           {GROUP_ORDER.map((g) => {
             const rows = byGroup.get(g)!;
             if (rows.length === 0) return null;

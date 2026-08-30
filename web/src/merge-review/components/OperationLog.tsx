@@ -50,7 +50,14 @@ export function OperationLog({ review }: { review: MergeReview }) {
           </label>
         </header>
 
-        <ol className="mr-log__list">
+        <ol className="mr-log__list" data-empty={entries.length === 0}>
+          {entries.length === 0 && (
+            <li className="mr-log__empty">
+              {review.revisions.length === 0
+                ? "No edits on this branch yet."
+                : "No edits by this author."}
+            </li>
+          )}
           {entries.map((r) => (
             <li key={r.n} className="mr-log__entry" data-side={r.side}>
               <span className="mr-log__node" aria-hidden="true" />

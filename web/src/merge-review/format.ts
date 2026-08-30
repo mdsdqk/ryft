@@ -78,8 +78,17 @@ export function statusLabel(s: RevisionStatus): string {
   return STATUS_LABEL[s];
 }
 
-/** "09:14" from an ISO string, local time, display only. */
+const TIME_FMT = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+const DATE_FMT = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+
+/** A wall-clock time from an ISO string, in the viewer's locale. Display only. */
 export function clock(iso: string): string {
   const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return Number.isNaN(d.getTime()) ? "—" : TIME_FMT.format(d);
+}
+
+/** A short date from an ISO string, in the viewer's locale. Display only. */
+export function shortDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : DATE_FMT.format(d);
 }

@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { useTheme } from "./theme/useTheme.ts";
 import { MergeReview } from "./merge-review/MergeReview.tsx";
-import { ordersReview } from "./merge-review/fixture.ts";
+import {
+  MergeReviewError,
+  MergeReviewLoading,
+} from "./merge-review/components/ReviewShell.tsx";
+import { REVIEW_SCENARIOS, readScenario } from "./merge-review/scenarios.ts";
 
 const KEYS: Array<[string, string]> = [
   ["J / K", "next / previous conflict"],
@@ -15,6 +19,26 @@ const KEYS: Array<[string, string]> = [
 export function App() {
   const { resolved, choice, setChoice } = useTheme();
   const [keysOpen, setKeysOpen] = useState(false);
+
+  // In production this is a data fetch keyed by the merge-request id; here the
+  // ?scenario= param selects a shape so every state can be exercised.
+  const scenario = readScenario();
+
+  let body: ReactNode;
+  if (scenario === "loading") {
+    body = <MergeReviewLoading />;
+  } else if (scenario === "error") {
+    body = (
+      <MergeReviewError
+        message="The server returned 503 while fetching the three snapshots. This is usually transient."
+        onRetry={() => {
+          location.search = "";
+        }}
+      />
+    );
+  } else {
+    body = <MergeReview base={REVIEW_SCENARIOS[scenario]} />;
+  }
 
   return (
     <>
@@ -65,9 +89,7 @@ export function App() {
         <span className="app-bar__resolved mr-vh">Active theme: {resolved}</span>
       </header>
 
-      <main className="app-main">
-        <MergeReview base={ordersReview} />
-      </main>
+      <main className="app-main">{body}</main>
     </>
   );
 }

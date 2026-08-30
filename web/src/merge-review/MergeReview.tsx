@@ -15,7 +15,14 @@ const FILTER_ID = "mr-filter-changes";
 const ZONE_IDS = { a: "mr-zone-a", b: "mr-zone-b", c: "mr-zone-c", d: "mr-zone-d" } as const;
 
 export function MergeReview({ base }: { base: MergeReviewModel }) {
-  const [resolutions, setResolutions] = useState<Record<string, string>>({});
+  // seed the working resolutions from any the incoming review already carries
+  const [resolutions, setResolutions] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      base.conflicts
+        .filter((c) => c.resolvedWith !== null)
+        .map((c) => [c.id, c.resolvedWith as string]),
+    ),
+  );
   // an explicit selection; when it resolves or is empty, the derived active
   // below falls through to the first still-open conflict.
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
@@ -26,12 +33,33 @@ export function MergeReview({ base }: { base: MergeReviewModel }) {
       ...c,
       resolvedWith: resolutions[c.id] ?? null,
     }));
+    // Zone A rows stop pointing at Zone B once their conflict is settled
+    const rows = base.rows.map((r) => {
+      const res = r.resolution;
+      if (res.state !== "conflict") return r;
+      const pick = resolutions[res.conflictId];
+      if (!pick) return r;
+      const opt = base.conflicts
+        .find((c) => c.id === res.conflictId)
+        ?.options.find((o) => o.id === pick);
+      return {
+        ...r,
+        resolution: {
+          state: "auto-merged" as const,
+          note: `resolved — ${opt?.label ?? pick}`,
+        },
+      };
+    });
     const allResolved = conflicts.every((c) => c.resolvedWith !== null);
-    return {
-      ...base,
-      conflicts,
-      commutativity: allResolved ? "passed" : "pending",
-    };
+    // a review that arrives already failing keeps failing until its resolutions
+    // change; otherwise the check only "passes" once the queue is empty.
+    const commutativity: MergeReviewModel["commutativity"] =
+      base.commutativity === "failed" && allResolved
+        ? "failed"
+        : allResolved
+          ? "passed"
+          : "pending";
+    return { ...base, conflicts, rows, commutativity };
   }, [base, resolutions]);
 
   const open = openConflicts(review);

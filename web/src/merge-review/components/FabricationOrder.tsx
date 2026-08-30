@@ -12,6 +12,9 @@ export function FabricationOrder({ review }: { review: MergeReview }) {
   const open = openConflicts(review);
   const mergeable = isMergeable(review);
   const status = effectiveStatus(review);
+  // commutativity failed while nothing is left in the queue — an order-dependent
+  // divergence that is not one of the named conflict classes.
+  const unclassified = open.length === 0 && review.commutativity === "failed";
 
   return (
     <section className="mr-zone mr-fab" aria-labelledby="mr-fab-h">
@@ -42,15 +45,29 @@ export function FabricationOrder({ review }: { review: MergeReview }) {
             </span>
           ))}
           {!mergeable &&
+            !unclassified &&
             fo.blocked.map((b) => (
               <span key={b.conflictId} className="mr-sql-blocked">
                 -- {b.reason}
                 {"\n"}
               </span>
             ))}
-          {mergeable && (
+          {unclassified && (
+            <span className="mr-sql-blocked">
+              -- blocked: the two application orders disagree (unclassified divergence)
+              {"\n"}
+            </span>
+          )}
+          {mergeable && fo.statements.length === 0 && (
             <span className="mr-sql-ok">
-              -- all four conflicts resolved; their statements fold in here
+              -- this branch has not diverged; the migration is empty
+              {"\n"}
+            </span>
+          )}
+          {mergeable && fo.statements.length > 0 && review.conflicts.length > 0 && (
+            <span className="mr-sql-ok">
+              -- {review.conflicts.length} {review.conflicts.length === 1 ? "conflict" : "conflicts"}{" "}
+              resolved; the chosen statements fold in here
               {"\n"}
             </span>
           )}
@@ -58,17 +75,24 @@ export function FabricationOrder({ review }: { review: MergeReview }) {
         </code>
       </pre>
 
-      <p className="mr-fab__status" data-mergeable={mergeable}>
+      <p className="mr-fab__status" data-mergeable={mergeable} data-unclassified={unclassified}>
         <span className="mr-fab__dot" aria-hidden="true" />
         {mergeable ? (
           <>
             <b>Cleared</b> — the queue is empty and applying each side's delta to base in either
             order agrees. Ready for the checker to sign off and release.
           </>
+        ) : unclassified ? (
+          <>
+            <b>Held — unclassified divergence.</b> Every conflict is resolved, but replaying the two
+            deltas against base in the two orders produces different schemas. The engine will not
+            merge a result it cannot prove stable.
+            <span className="mr-fab__adv"> Re-open the resolutions and adjust, or escalate.</span>
+          </>
         ) : (
           <>
             <b>Held</b> — {open.length} unresolved {open.length === 1 ? "conflict" : "conflicts"},{" "}
-            {fo.statements.length} statements staged.
+            {fo.statements.length} {fo.statements.length === 1 ? "statement" : "statements"} staged.
             <span className="mr-fab__adv">
               {" "}
               Advances to <b>Cleared</b> when the queue is empty and the commutativity check passes.
