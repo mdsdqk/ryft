@@ -9,8 +9,9 @@
  * rewrite of every surface's loading and error handling.
  */
 
-import type { DataSource } from "./source.ts";
-import type { BranchSummary, Database, MergeSummary } from "./types.ts";
+import type { CreateBranchArgs, DataSource } from "./source.ts";
+import type { Database, MergeSummary } from "./types.ts";
+import * as branches from "./branches.ts";
 
 const database: Database = {
   name: "public",
@@ -23,13 +24,6 @@ const database: Database = {
   trunkRevision: 41,
   trunkChangedOn: "2026-02-08",
 };
-
-const branches: BranchSummary[] = [
-  { name: "contact-fields", author: "grace", cutOn: "2026-02-10", divergence: 3 },
-  { name: "post-metrics", author: "ravi", cutOn: "2026-02-09", divergence: 4 },
-  { name: "drop-legacy-tags", author: "mara", cutOn: "2026-02-07", divergence: 2 },
-  { name: "audit-timestamps", author: "ravi", cutOn: "2026-02-12", divergence: 0 },
-];
 
 const merges: MergeSummary[] = [
   {
@@ -50,7 +44,13 @@ const clone = <T>(v: T): T => structuredClone(v);
 export const fixtureSource: DataSource = {
   getOverview: async () => ({
     database: clone(database),
-    branches: clone(branches),
+    branches: branches.listWorking(merges),
     merges: clone(merges),
   }),
+  listBranches: async () => branches.listAll(database, merges),
+  createBranch: async (args: CreateBranchArgs) =>
+    branches.createBranch(args, database, merges),
+  deleteBranch: async (name: string) => {
+    branches.deleteBranch(name, database, merges);
+  },
 };
