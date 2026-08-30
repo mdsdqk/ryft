@@ -19,6 +19,9 @@
  *    human-readable part is frozen at creation and may go stale after a rename;
  *    the id string itself is immutable.
  *  - Primary-key columns must have `nullable: false`.
+ *  - Every constraint and index also carries a stored `name` (its DDL/Postgres
+ *    identifier). Identity is still the `id`; `name` is a label. See the note on
+ *    `PrimaryKey` / `Unique` / `Index` / `ForeignKey` below.
  *  - Column order within a table is insertion order and is NOT semantically
  *    significant (Postgres appends; there is no reorder).
  *  - Column order within a `PrimaryKey` or `Index` IS significant: (a, b) != (b, a).
@@ -69,20 +72,39 @@ export interface Column {
   default: string | null;
 }
 
+/**
+ * The identifier a constraint or index is given in generated DDL, and the name
+ * it is known by in Postgres (`\d`, error messages, `DROP CONSTRAINT <name>`).
+ *
+ * Stored, not synthesised: the structured editor assigns a Postgres-style name
+ * at creation (`users_pkey`, `posts_author_id_fkey`, `posts_author_id_idx`) and
+ * the user may override it. Identity is still the `id` — the three-way merge
+ * matches on `id`, never on `name` — so `name` is a label, in the same class as
+ * `SchemaDocument.database`. It is not an independently editable field in V0
+ * (no `renameConstraint` operation), so it is effectively immutable after
+ * creation and never diverges between branches.
+ *
+ * Uniqueness (enforced by validation — ticket 0008): constraint names are unique
+ * within their table; index names are unique within the schema.
+ */
+
 export interface PrimaryKey {
   id: string;
+  name: string;
   /** Member columns by id, ordered. Order is significant. */
   columnIds: string[];
 }
 
 export interface Unique {
   id: string;
+  name: string;
   /** Member columns by id. Stored ordered; order is not semantically significant. */
   columnIds: string[];
 }
 
 export interface Index {
   id: string;
+  name: string;
   /** Indexed columns by id, ordered. Order is significant. */
   columnIds: string[];
   unique: boolean;
@@ -90,6 +112,7 @@ export interface Index {
 
 export interface ForeignKey {
   id: string;
+  name: string;
   /** Local (referencing) columns by id, ordered. */
   columnIds: string[];
   /** Referenced table by id. */

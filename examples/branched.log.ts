@@ -54,6 +54,7 @@ export const branchedLog: LogEntry[] = [
       tableId: seedIds.users.table,
       index: {
         id: branchIds.emailAddressUniqueIndex,
+        name: "users_email_address_key",
         // The email column, referenced by the id it kept across the rename in
         // seq 1. Resolves to the name `email_address` at DDL-render time.
         columnIds: [seedIds.users.email],

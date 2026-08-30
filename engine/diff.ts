@@ -56,11 +56,15 @@ export function eqSet(a: readonly string[], b: readonly string[]): boolean {
   return true;
 }
 
+// `name` is deliberately not compared here or in `sameForeignKeyDef`: it is a
+// stored label, immutable in V0 (no `renameConstraint` op), so it never differs
+// between `base` and `head`. It rides along in the `change*` payloads below only
+// so the DDL renderer has it.
 function sameIndexDef(a: Index, b: Index): boolean {
   return a.unique === b.unique && eqSeq(a.columnIds, b.columnIds);
 }
 
-function sameForeignKeyDef(a: ForeignKey, b: ForeignKey): boolean {
+export function sameForeignKeyDef(a: ForeignKey, b: ForeignKey): boolean {
   return (
     a.refTableId === b.refTableId &&
     a.onDelete === b.onDelete &&
@@ -138,8 +142,8 @@ function diffIndexes(tableId: string, base: Table, head: Table): Operation[] {
         type: "changeIndex",
         tableId,
         indexId: idx.id,
-        from: { columnIds: prev.columnIds, unique: prev.unique },
-        to: { columnIds: idx.columnIds, unique: idx.unique },
+        from: { name: prev.name, columnIds: prev.columnIds, unique: prev.unique },
+        to: { name: idx.name, columnIds: idx.columnIds, unique: idx.unique },
       });
     }
   }
@@ -161,8 +165,8 @@ function diffUniques(tableId: string, base: Table, head: Table): Operation[] {
         type: "changeUnique",
         tableId,
         uniqueId: uq.id,
-        from: { columnIds: prev.columnIds },
-        to: { columnIds: uq.columnIds },
+        from: { name: prev.name, columnIds: prev.columnIds },
+        to: { name: uq.name, columnIds: uq.columnIds },
       });
     }
   }
@@ -185,12 +189,14 @@ function diffForeignKeys(tableId: string, base: Table, head: Table): Operation[]
         tableId,
         fkId: fk.id,
         from: {
+          name: prev.name,
           columnIds: prev.columnIds,
           refTableId: prev.refTableId,
           refColumnIds: prev.refColumnIds,
           onDelete: prev.onDelete,
         },
         to: {
+          name: fk.name,
           columnIds: fk.columnIds,
           refTableId: fk.refTableId,
           refColumnIds: fk.refColumnIds,

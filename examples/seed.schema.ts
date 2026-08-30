@@ -95,9 +95,9 @@ export const seedSchema: SchemaDocument = {
         { id: users.displayName, name: "display_name", type: { kind: "text" }, nullable: false, default: null },
         { id: users.createdAt, name: "created_at", type: { kind: "timestamptz" }, nullable: false, default: "now()" },
       ],
-      primaryKey: { id: users.pk, columnIds: [users.id] },
+      primaryKey: { id: users.pk, name: "users_pkey", columnIds: [users.id] },
       foreignKeys: [],
-      uniques: [{ id: users.emailUnique, columnIds: [users.email] }],
+      uniques: [{ id: users.emailUnique, name: "users_email_key", columnIds: [users.email] }],
       indexes: [],
     },
     {
@@ -114,10 +114,11 @@ export const seedSchema: SchemaDocument = {
         { id: posts.metadata, name: "metadata", type: { kind: "jsonb" }, nullable: true, default: null },
         { id: posts.createdAt, name: "created_at", type: { kind: "timestamptz" }, nullable: false, default: "now()" },
       ],
-      primaryKey: { id: posts.pk, columnIds: [posts.id] },
+      primaryKey: { id: posts.pk, name: "posts_pkey", columnIds: [posts.id] },
       foreignKeys: [
         {
           id: posts.authorFk,
+          name: "posts_author_id_fkey",
           columnIds: [posts.authorId],
           refTableId: users.table,
           refColumnIds: [users.id],
@@ -125,7 +126,7 @@ export const seedSchema: SchemaDocument = {
         },
       ],
       uniques: [],
-      indexes: [{ id: posts.authorIdx, columnIds: [posts.authorId], unique: false }],
+      indexes: [{ id: posts.authorIdx, name: "posts_author_id_idx", columnIds: [posts.authorId], unique: false }],
     },
     {
       id: comments.table,
@@ -138,10 +139,11 @@ export const seedSchema: SchemaDocument = {
         { id: comments.flags, name: "flags", type: { kind: "int" }, nullable: false, default: "0" },
         { id: comments.createdAt, name: "created_at", type: { kind: "timestamptz" }, nullable: false, default: "now()" },
       ],
-      primaryKey: { id: comments.pk, columnIds: [comments.id] },
+      primaryKey: { id: comments.pk, name: "comments_pkey", columnIds: [comments.id] },
       foreignKeys: [
         {
           id: comments.postFk,
+          name: "comments_post_id_fkey",
           columnIds: [comments.postId],
           refTableId: posts.table,
           refColumnIds: [posts.id],
@@ -149,6 +151,7 @@ export const seedSchema: SchemaDocument = {
         },
         {
           id: comments.authorFk,
+          name: "comments_author_id_fkey",
           columnIds: [comments.authorId],
           refTableId: users.table,
           refColumnIds: [users.id],
@@ -156,7 +159,7 @@ export const seedSchema: SchemaDocument = {
         },
       ],
       uniques: [],
-      indexes: [{ id: comments.postIdx, columnIds: [comments.postId], unique: false }],
+      indexes: [{ id: comments.postIdx, name: "comments_post_id_idx", columnIds: [comments.postId], unique: false }],
     },
     {
       id: tags.table,
@@ -165,9 +168,9 @@ export const seedSchema: SchemaDocument = {
         { id: tags.id, name: "id", type: { kind: "uuid" }, nullable: false, default: null },
         { id: tags.name, name: "name", type: { kind: "varchar", n: 50 }, nullable: false, default: null },
       ],
-      primaryKey: { id: tags.pk, columnIds: [tags.id] },
+      primaryKey: { id: tags.pk, name: "tags_pkey", columnIds: [tags.id] },
       foreignKeys: [],
-      uniques: [{ id: tags.nameUnique, columnIds: [tags.name] }],
+      uniques: [{ id: tags.nameUnique, name: "tags_name_key", columnIds: [tags.name] }],
       indexes: [],
     },
     {
@@ -178,10 +181,11 @@ export const seedSchema: SchemaDocument = {
         { id: postTags.tagId, name: "tag_id", type: { kind: "uuid" }, nullable: false, default: null },
       ],
       // Composite primary key. Column order is significant: (post_id, tag_id).
-      primaryKey: { id: postTags.pk, columnIds: [postTags.postId, postTags.tagId] },
+      primaryKey: { id: postTags.pk, name: "post_tags_pkey", columnIds: [postTags.postId, postTags.tagId] },
       foreignKeys: [
         {
           id: postTags.postFk,
+          name: "post_tags_post_id_fkey",
           columnIds: [postTags.postId],
           refTableId: posts.table,
           refColumnIds: [posts.id],
@@ -189,6 +193,7 @@ export const seedSchema: SchemaDocument = {
         },
         {
           id: postTags.tagFk,
+          name: "post_tags_tag_id_fkey",
           columnIds: [postTags.tagId],
           refTableId: tags.table,
           refColumnIds: [tags.id],

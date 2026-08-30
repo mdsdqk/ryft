@@ -424,6 +424,73 @@ with three people in it, and a landing page that takes a username. There is stil
 no session, and no permission check, and impersonation is a non-goal rather than a bug. See
 ADR 0001 §4.
 
+### The migration generator takes two schema documents, not a delta
+
+Ticket 0003. `emitMigration(source, target)` computes the delta itself with `diffSnapshots`,
+the same way `threeWayMerge` is handed documents and derives its deltas rather than being
+passed them. The ticket phrases the input as "a delta between two schema documents", which
+reads like the signature, but the delta alone is not enough: resolving an object's id to its
+current name needs the target document, and the foreign-key pass reads both. Passing a delta
+as well would be a third input that can silently disagree with `diffSnapshots(source, target)`.
+`source` is `theirs` for a merge and `base` for a branch head; `target` is the merged document
+or the branch head. See ADR 0003 §1.
+
+### DDL is generated as a typed statement list, then serialized
+
+The generator builds a `DdlStatement[]` — a discriminated union that mirrors Postgres DDL and
+carries resolved names, never ids — and only then renders it to SQL text. Two things need the
+ordered statement list before it is a string: the intermediate-state check replays it against
+an in-memory schema model, and the merge-review screen renders "what this migration will do"
+without re-parsing SQL. It is the same move as the merge engine's derived delta: the artifact
+that gets verified is the artifact that gets rendered, so they cannot drift. Emitting strings
+directly would force the intermediate-state checker to parse SQL back into a model — the parser
+this project has gone out of its way not to write. See ADR 0003 §2.
+
+### Statement ordering reuses the merge engine's four fixed phases
+
+The migration's dependency graph is the same shallow static graph `applyDelta` already reasons
+about — table to column to {index, primary key, unique, foreign key}, cross-table only through
+a foreign key, with views and the rest cut. A graph that shape has one topological order up to
+sibling permutation, and it is known at compile time, so `emitMigration` sorts statements into
+the same four phases the replay uses — creates and renames, intra-table alters, foreign keys,
+then drops in reverse — instead of building and sorting a graph per migration. "Describe the
+topological-sort rule" is answered by "the phases are the topological order". The foreign-key
+knot — two new tables referencing each other — dissolves the way it does in `applyDelta`:
+`CREATE TABLE` never carries its foreign keys, and a later pass adds every foreign key once all
+tables and columns exist. A `change*` to an index or constraint emits an adjacent drop-then-add
+pair inside one phase, not a drop deferred to the teardown phase, or the re-add would run
+first. See ADR 0003 §3 and `docs/migration-generation.md` §3–4.
+
+### A column retype is ordered before dependent adds, but nothing is dropped around it
+
+Postgres `ALTER COLUMN ... TYPE` rebuilds every index, primary key, and unique that covers the
+column on its own, so the generator never emits an explicit drop-and-recreate around a retype.
+The only rule is a within-phase ordering: a retype of a column is serialized before any index
+or constraint add in the same migration that lists that column, so we do not build an object
+and immediately have Postgres rebuild it. Drops of dependents are already in the final phase,
+so that direction needs nothing. See ADR 0003 §3 and `docs/migration-generation.md` §6.
+
+### The intermediate-state check is a separate statement-by-statement replayer
+
+`docs/merge-engine.md` has `applyDelta`, which replays id-referenced operations as one
+four-phase batch. The migration check is a different thing: it replays the already-ordered,
+name-resolved `DdlStatement[]` one statement at a time and asserts every reference still
+resolves after each — every prefix of the migration, not just the end state. An unsound prefix
+means the ordering is wrong, and this catches it at generation time, on top of the transaction
+that would roll a bad ordering back at apply time. The reference-resolution predicate it runs
+after each step is the seam to ticket 0008, which extends the same predicate with the
+nullable-primary-key-member and unsafe-default checks. See ADR 0003 §4 and
+`docs/migration-generation.md` §5.
+
+### Quoting and destructive-change warnings are ticket 0008's, consumed through seams
+
+Ticket 0003 leaves two hooks rather than deciding these. Every identifier in the serializer
+goes through one `quoteIdent` function, a placeholder that always double-quotes until 0008
+supplies the reserved-word and mixed-case rules. Every destructive statement in the IR carries
+a `destructive: true` flag for 0008's warning pass to read, instead of that pass having to
+regex generated SQL. Until 0008 lands, generated SQL over-quotes and carries no warnings, and
+the spike is written not to depend on either. See ADR 0003 §5.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:

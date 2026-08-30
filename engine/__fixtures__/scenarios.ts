@@ -63,7 +63,7 @@ export const scenarios: Scenario[] = [
   make(
     "rename-rebase (ours renames, theirs indexes)",
     (d) => (col(d, seedIds.users.table, seedIds.users.email).name = "email_address"),
-    (d) => usersOf(d).indexes.push({ id: "idx_email_addr", columnIds: [seedIds.users.email], unique: true }),
+    (d) => usersOf(d).indexes.push({ id: "idx_email_addr", name: "users_email_addr_key", columnIds: [seedIds.users.email], unique: true }),
     { verdict: "clean", minRebased: 1 },
   ),
 
@@ -97,7 +97,7 @@ export const scenarios: Scenario[] = [
 
   make(
     "dependency conflict (ours indexes a column theirs drops)",
-    (d) => postsOf(d).indexes.push({ id: "idx_body", columnIds: [seedIds.posts.body], unique: false }),
+    (d) => postsOf(d).indexes.push({ id: "idx_body", name: "posts_body_idx", columnIds: [seedIds.posts.body], unique: false }),
     (d) => (postsOf(d).columns = postsOf(d).columns.filter((c) => c.id !== seedIds.posts.body)),
     { verdict: "conflicts", classes: ["dependency-conflict"] },
   ),
@@ -140,7 +140,7 @@ export const scenarios: Scenario[] = [
   make(
     "symmetric dependency — ours drops a column theirs indexes (class 6b)",
     (d) => (postsOf(d).columns = postsOf(d).columns.filter((c) => c.id !== seedIds.posts.title)),
-    (d) => postsOf(d).indexes.push({ id: "idx_title", columnIds: [seedIds.posts.title], unique: false }),
+    (d) => postsOf(d).indexes.push({ id: "idx_title", name: "posts_title_idx", columnIds: [seedIds.posts.title], unique: false }),
     { verdict: "conflicts", classes: ["dependency-conflict"] },
   ),
 
@@ -194,7 +194,7 @@ export const scenarios: Scenario[] = [
 
   make(
     "bad resolution — choice not in resolutionModes stays held",
-    (d) => postsOf(d).indexes.push({ id: "idx_body", columnIds: [seedIds.posts.body], unique: false }),
+    (d) => postsOf(d).indexes.push({ id: "idx_body", name: "posts_body_idx", columnIds: [seedIds.posts.body], unique: false }),
     (d) => (postsOf(d).columns = postsOf(d).columns.filter((c) => c.id !== seedIds.posts.body)),
     { verdict: "conflicts", classes: ["dependency-conflict"] },
     [{ conflictId: "dependency-conflict:col_posts_body_4c88+idx_body", choice: "ours" }],
@@ -204,7 +204,7 @@ export const scenarios: Scenario[] = [
     "primary-key replacement (one side)",
     (d) => {
       const t = postsOf(d);
-      t.primaryKey = { id: "pk_posts_new", columnIds: [seedIds.posts.id, seedIds.posts.authorId] };
+      t.primaryKey = { id: "pk_posts_new", name: "posts_pkey", columnIds: [seedIds.posts.id, seedIds.posts.authorId] };
     },
     () => {},
     { verdict: "clean" },

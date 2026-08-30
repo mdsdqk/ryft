@@ -26,7 +26,13 @@ export default [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
-      'no-console': 'off'
+      'no-console': 'off',
+      // `_`-prefixed identifiers are intentionally unused (ignored callback
+      // args, deliberate placeholders).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }
+      ]
     }
   }
 ];

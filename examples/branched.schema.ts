@@ -48,6 +48,7 @@ function applyContactFields(usersTable: Table): Table {
       ...usersTable.indexes,
       {
         id: branchIds.emailAddressUniqueIndex,
+        name: "users_email_address_key",
         columnIds: [seedIds.users.email],
         unique: true,
       },

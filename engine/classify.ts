@@ -318,8 +318,12 @@ function conflictId(cls: ConflictClass, ids: string[]): string {
 // ── primary keys ─────────────────────────────────────────────────────────
 
 interface PkIntent {
-  /** The table's PK after this side's edits, or `null` if the side dropped it. */
-  after: PrimaryKey | null;
+  /**
+   * The table's PK after this side's edits, or `null` if the side dropped it.
+   * Only `id` + `columnIds` are needed here; a `changePrimaryKey` op does not
+   * carry the constraint `name`, and PK classification does not use it.
+   */
+  after: Pick<PrimaryKey, "id" | "columnIds"> | null;
   ops: Operation[];
 }
 
