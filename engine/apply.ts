@@ -314,3 +314,24 @@ export function applyDelta(delta: Delta, doc: SchemaDocument): SchemaDocument {
 
   return next;
 }
+
+/**
+ * Apply ONE operation to an already-cloned, mutable `doc`. The single-op
+ * counterpart of `applyDelta`'s phased batch: with one op there is nothing to
+ * topologically sort, and a lone `createTable` carries its foreign keys inline
+ * (no new-table ⇄ new-table cycle exists within a single op), so the FKs
+ * `applyStructural` strips off are replayed immediately rather than deferred.
+ *
+ * Each op type is handled by exactly one of the four appliers; the other three
+ * fall through their `default`. `engine/apply-operation.ts` is the validated
+ * public entry point — this is the raw mutator it calls once `validateOperation`
+ * has passed, and it assumes a well-formed op.
+ */
+export function applyOne(doc: SchemaDocument, op: Operation): void {
+  const deferredFks: Operation[] = [];
+  applyStructural(doc, op, deferredFks);
+  applyIntraTable(doc, op);
+  applyForeignKey(doc, op);
+  applyDrop(doc, op);
+  for (const fk of deferredFks) applyForeignKey(doc, fk);
+}
