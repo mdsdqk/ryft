@@ -105,6 +105,44 @@
   color: var(--sheet);
 }
 
+.app-bar__session {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.app-bar__user {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  max-width: 20ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-bar__signout {
+  flex: 0 0 auto;
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px solid var(--line-strong);
+  padding: 5px 9px;
+}
+@media (forced-colors: active) {
+  .app-bar__signout {
+    border-color: CanvasText;
+  }
+}
+@media (hover: hover) {
+  .app-bar__signout:hover {
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+}
+
 .app-main {
   padding: clamp(16px, 4vw, 40px);
 }

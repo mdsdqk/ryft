@@ -13,6 +13,7 @@ import "@fontsource/spline-sans-mono/600.css";
 
 import "./styles/theme.css";
 import "./styles/app.css";
+import "./styles/shell.css";
 
 import { App } from "./App.tsx";
 
