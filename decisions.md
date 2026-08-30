@@ -61,8 +61,11 @@ One path, end to end, deployed:
 
 Seed `main` with a small realistic schema. Cut a branch. Change it through a structured editor
 that records what you did, including renames. Open a merge request. See a three-way diff against
-the common ancestor with every conflict classified by type. Resolve the conflicts. Merge. Get
-ordered, runnable Postgres DDL out the other side.
+the common ancestor with every conflict classified by type. Resolve the conflicts. Merge, and
+see the change rendered as ordered Postgres DDL. (An earlier draft of this line called that
+DDL the deliverable "out the other side"; it is not — ryft's schema document is the schema of
+record and a merge updates it directly. See "The generated DDL is a rendering of the merge,
+not a deliverable" below.)
 
 The edge case I own is rename-rebase: a dependent object, an index, a foreign key, or a NOT NULL
 constraint, that was added on one branch against a column the other branch renamed. It gets
@@ -757,6 +760,25 @@ emit emits the drop or the fixture is reshaped. Fixing it is ADR 0003's call.
 Frontend test posture: pure functions only (`web/src/merge-review/model.ts` selectors,
 `format.ts` renderers). No DOM, component, or render tests — the surfaces are fixture-bound
 and thin, and a render test pins layout without adding confidence.
+
+### V0 is a thin real slice; the full backend is V1
+
+Ticket 0007, the budget reconciliation. The ticket expected a straight fight between the
+robustness work (~2–3h), the DDL verification harness (~3h), and a second conflict-resolution
+UI. It did not play out that way. The harness had already become stretch (ADR 0009), so it
+was not competing for V0/V1 time — its only cost there is a pure `emit` correctness test,
+which shipped with the test catalogue. Robustness is not a feature that competes with a UI;
+`validateOperation` and the drop-with-dependents block are foundational and sit in V0, while
+`validateDocument` on the merge path moves to V1.
+
+The real competition is inside the build: the entire Hono API is unbuilt (ADR 0004 is a
+design lock). So V0 — the deployed submission — is scoped to a **thin real slice**: persist
+exactly the golden-path demo (seed, branch, structured edits with the drop-block, open a
+merge request, clean merge) against a minimal API, and assume one merge request at a time.
+The merge queue, resolution persistence and re-validation, `validateDocument`, and the
+`verify` endpoint are all V1. Nothing was cut that was not already heading for stretch; V0
+narrowed on the persistence surface, not on the engine — which is finished and is where the
+depth of this submission lives. Bands, budget, and the risk register are in `docs/scope.md`.
 
 ## Deliberately cut
 
