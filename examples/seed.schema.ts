@@ -7,9 +7,12 @@
  * nullable and not-null columns, literal and function defaults, and every
  * `ColumnType` kind.
  *
- * Provisional content: ticket 0005 owns the final seed. This document's jobs are
- * to pressure-test the shapes in `engine/schema.ts` and to serve as the `base`
- * for the branched example (ticket 0002).
+ * Final seed content (ticket 0005 / ADR 0005 — the blog domain was kept, not
+ * swapped for a SaaS sketch, to avoid churning the green 0002 / 0003 fixtures).
+ * This document also pressure-tests the shapes in `engine/schema.ts` and serves
+ * as the `base` for the branched example (ticket 0002). The full first-run
+ * workspace built on top of it — organisation, users, `main`, the `contact-fields`
+ * branch, and one open merge request — is `examples/seed.workspace.ts`.
  *
  * IDs use the Postgres-style prefixed scheme. Suffixes here are hand-picked and
  * stable (production ids carry a random suffix); deterministic ids keep the

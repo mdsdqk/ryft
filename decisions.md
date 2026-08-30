@@ -591,6 +591,52 @@ corrupt head. `applyOperation` is new engine surface (`apply.ts` exports only th
 `applyDelta` today), framework-free, and it is also what the structured editor needs, so the
 rule has one home. See ADR 0004 §8.
 
+### The seed stays the blog schema, not a SaaS app
+
+Ticket 0005. The ticket sketched a SaaS seed — `users`, `organizations`, `memberships`,
+`projects`. I kept the provisional blog schema instead (`users`, `posts`, `comments`, `tags`,
+`post_tags`). It is wired into the 0002 merge spike (~30 references), the 0003 emit spike, and
+both worked branch examples, all green and reviewed; and it already does everything a seed
+needs — every `ColumnType` once, single and composite primary keys, uniques, indexes, foreign
+keys with `cascade` and `restrict`, nullable and not-null, literal and `now()` defaults —
+small enough to read at a glance. The SaaS domain would make the versioned schema echo ryft's
+own org/membership shape, which is a nice touch for a reviewer, but it is thematic polish and
+it costs a rebuild of the two spikes and both examples. The versioned schema is a sample
+customer database; it does not need to look like ryft's internals. If the theme is wanted
+later, the demo organisation can be named for a SaaS company without touching the schema. See
+ADR 0005 §1.
+
+### The fresh instance is populated, not bare
+
+Ticket 0005. `POST /workspace/reset` seeds `main` plus the `contact-fields` branch, its
+operation log, and one open, clean merge request — so the branches list, the merge list, and
+the three-way diff all have real content on the first screen. The ticket floated a pre-made
+merge request as a nice-to-have; I made it the default. The merge-review screen is the built
+surface and the one most worth showing working immediately, and a reviewer landing on three
+empty lists learns less than one who can open a real branch and merge it. The seeded merge
+request is clean, not conflicted — V0 ends in a successful merge, and the conflict beat is a
+branch the demo script has the reviewer create, not a state a fresh instance sits in
+uninvited. The empty-state copy is still fully specified and reachable by deleting the branch
+(or a `?bare` reset mode for screenshots). See ADR 0005 §2.
+
+### The first branch is created clean, with a suggestion rather than a pre-applied edit
+
+Ticket 0005. "A first branch pre-loaded with a suggested change to try" reads two ways. A
+branch that already contains an operation nobody made fights "one operation, one intent" — the
+first log entry is a mystery to reverse-engineer and the first undo is ambiguous. So the
+one-click path makes a branch equal to `main`, and the branch workspace shows a dismissible
+copy suggestion ("Try a rename: `posts.body` → `content`") that is also step one of the demo
+script. See ADR 0005 §3.
+
+### The demo script is two tiers, not one
+
+Ticket 0005. "Exercises every operation class exactly once" and "make someone smile" want
+different documents. There is a five-minute golden path — land, merge the seeded request,
+branch, make a few edits, merge — and a separate full-coverage appendix that threads all 21
+operation classes through one `editor-tour` branch in the engine's own phase order, then walks
+the V1 conflict beat. One script that did both would give a `renameTable` the same narrative
+weight as the rename-rebase case and run long. See ADR 0005 §4 and `docs/first-run.md`.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:

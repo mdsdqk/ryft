@@ -11,10 +11,11 @@ import { seedIds } from "./seed.schema.js";
 import { branchIds } from "./branched.schema.js";
 
 /**
- * Stand-in author. The three real seeded users are ticket 0005's; this is a
- * fixed UUID standing in for "Grace" so the fixture exercises `authorId`.
+ * Grace's seeded user id. Fixed UUID, shared with `examples/seed.workspace.ts`
+ * (the first-run workspace, ticket 0005), which imports it as the `id` of the
+ * seeded `grace` user so this log's `authorId` resolves to a real seeded person.
  */
-const GRACE = "3f2a9c14-0b7e-4d51-9a6c-8e2d1f4b7a90";
+export const GRACE = "3f2a9c14-0b7e-4d51-9a6c-8e2d1f4b7a90";
 
 export const branchedLog: LogEntry[] = [
   {
