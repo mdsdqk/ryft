@@ -19,7 +19,9 @@ reconciliation call, and the risk register. It does **not** restate what other d
 | The engine — `diff` → `classify` → `threeWayMerge` → `emit` → `replay`, framework-free, zero runtime deps | done — implemented + **223 tests** (`docs/engine-test-catalog.md`) |
 | Persistence + API contract, first-run, robustness, DDL-verification — **design locks** | done — ADRs 0004, 0005, 0008, 0009 |
 | Frontend — app shell, router, rail, merge-review screen, `/branches`, `/merges`, surface kit, data seam | done — fixture-bound |
-| **Remaining** — wire the deployed app to a real backend, and deploy | the build (ticket 0010) |
+| The engine's server surface — `validateOperation`, `applyOperation` | done — ticket 0010 checkpoint A, +32 tests |
+| The V0 backend — Hono API on Neon/Drizzle for the golden path, deploy config | done — ticket 0010 (ADR 0010); `api/` package, +15 in-process tests |
+| **Remaining** — wire `web/src/data/` to the API; build the structured editor (WU-E) | the frontend iteration (ADR 0010 §7) |
 
 The depth play — the "above and beyond" — is the **engine**: the rename-rebase edge case
 solved by stable-id identity, a typed conflict report usable from CI or an agent, and an

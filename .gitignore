@@ -25,3 +25,6 @@ __pycache__/
 
 #Agentic
 .impeccable/*
+
+#Vercel
+.vercel

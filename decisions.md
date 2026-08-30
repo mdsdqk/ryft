@@ -780,6 +780,62 @@ The merge queue, resolution persistence and re-validation, `validateDocument`, a
 narrowed on the persistence surface, not on the engine — which is finished and is where the
 depth of this submission lives. Bands, budget, and the risk register are in `docs/scope.md`.
 
+### The build ships the backend first; the frontend wire-up is a separate iteration
+
+Ticket 0010, ADR 0010. "Wire the deployed app to a real backend" split cleanly in two, and
+this iteration does the first half: the engine's two missing pure functions
+(`validateOperation`, `applyOperation`), the Hono API on real persistence for the golden
+path, and the deploy config. The `web/src/data/` seam still reads its fixture; swapping it
+for an HTTP client, and building the structured editor (WU-E) so the golden path is drivable
+through the UI, is the next iteration. The frontend already deploys fixture-bound and is
+untouched here.
+
+The reason to split: the backend is a self-contained, testable deliverable — the API, its
+15-test in-process integration suite, and a deployed URL — that de-risks the UI work by
+giving it a running API to build against. The alternative, one big push through to a
+UI-drivable demo, keeps everything unverified for longer and bundles the largest unbuilt
+screen (the editor) into the same review.
+
+### Persistence is Neon + Drizzle `pg-core`, picked now rather than via an interim store
+
+Ticket 0010, ADR 0010 §2. The call was whether an interim SQLite datastore would save enough
+to be worth a later migration to Neon. It would not. The deploy target is Vercel serverless,
+which has no persistent local filesystem — SQLite there means a hosted service (Turso), the
+same class of dependency as Neon. And ADR 0004's contract is written entirely in `pg-core`
+terms (`pgTable`, `pgEnum`, `jsonb`, `uuid().defaultRandom()`, `timestamptz`, `FOR UPDATE`),
+so an interim `sqlite-core` schema is a rewrite for V1, not an extension. The one genuinely
+Postgres-specific runtime mechanism, `SELECT … FOR UPDATE` for merge serialisation, is
+already V1 (`docs/scope.md` — V0 is one merge request at a time), so V0 on Neon uses a plain
+transaction and forgoes nothing. Rejected alongside SQLite: an in-memory store, which would
+not exercise transactions or the `jsonb` round-trip — most of what the persistence layer has
+to get right. Tests do not touch Neon: they run the app in-process against `@electric-sql/pglite`
+(real Postgres in WebAssembly), so `pnpm test` stays a zero-setup single command.
+
+### V0 drops the merge queue; a second merge request is allowed, not blocked
+
+Ticket 0010, ADR 0010 §4. The V0 API ships the full ADR 0004 endpoint table minus the queue
+machinery, the resolutions routes, `validateDocument` on the merge path, and the `verify`
+endpoint. `merge_requests.status` takes only `open` and `merged` — there is no `queued`
+state because there is no queue. An earlier draft of this ticket had `POST /merge-requests`
+return `409` if any open request already existed, as a stand-in for the queue's
+one-at-a-time guarantee. That was cut: `GET /merge-requests/:id` and the merge transaction
+both recompute the three-way against **live `main.head`** every call, so every open request
+already has a well-defined result against the current trunk — blocking creation adds a
+restriction the contract never asked for and buys nothing. The only creation guard kept is
+`409` when the *same source branch* already has a non-terminal request.
+
+### The V0 merge transaction has no row lock
+
+Ticket 0010, ADR 0010 §5. ADR 0004 §4 serialises concurrent merges with `SELECT … FOR
+UPDATE` on the target branch row. V0 has nothing to serialise — one request at a time, single
+trunk — so the merge runs in a plain transaction: re-read `source.head` and `main.head` live,
+`threeWayMerge` against live `main`, and on `clean` write the head, bump `head_version`,
+append the `merge` marker, and flip the request to `merged` in one commit; on not-clean
+respond `409 { error: "revalidation-failed", report }` with no write. Two simultaneous merge
+clicks could both pass the `status = open` check before either commits — acceptable at one
+reviewer driving one demo, and fixed properly by the V1 row lock, which this explicitly
+defers rather than approximates.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:

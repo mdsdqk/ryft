@@ -7,6 +7,7 @@
     "build": "tsc --noEmit",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "typecheck:all": "tsc --noEmit && pnpm --filter @ryft/api typecheck && pnpm --filter @ryft/web typecheck",
     "spike": "tsx",
     "test": "vitest run",
     "test:watch": "vitest"

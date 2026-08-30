@@ -57,10 +57,25 @@ pnpm test                             # engine + api, all on pglite, no DATABASE
 
 ### Deploy (Vercel)
 
-- Project env var `DATABASE_URL` → the Neon connection string.
-- `pnpm --filter @ryft/api db:push` against the production `DATABASE_URL` once.
-- Push to the deploy branch; `vercel.json` builds `@ryft/web` and mounts the function.
-- Seed the deployed instance: `curl -X POST https://<app>/api/workspace/reset`.
+`vercel.json` at the repo root: build `@ryft/web` → `web/dist` (static), mount `api/index.ts`
+as one Node function, rewrite `/api/(.*)` → the function and every other path → `index.html`
+(SPA fallback).
+
+```
+# 1. a Neon database (free tier) — copy its pooled connection string
+# 2. apply the schema to it, once:
+DATABASE_URL='postgres://…' pnpm --filter @ryft/api db:push
+
+# 3. Vercel project: set env var DATABASE_URL to the same string, then
+vercel deploy --prod            # or connect the GitHub repo and push
+
+# 4. seed the deployed instance:
+curl -X POST https://<app>.vercel.app/api/workspace/reset
+```
+
+The deployed **web app** is still the fixture-bound frontend (unchanged this iteration); the
+**API** at `/api/*` is live and exercised by the `curl` walk in §5 and the golden-path test.
+Wiring the two is the follow-up iteration (ADR 0010 §7).
 
 ## 3. Identity
 
