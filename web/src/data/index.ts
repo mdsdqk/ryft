@@ -25,3 +25,4 @@ export {
   BranchHeldError,
   heldByMergeMessage,
 } from "./branches.ts";
+export { mergeStatusLabel, mergeStatusTone } from "./merges.ts";

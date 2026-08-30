@@ -1,0 +1,52 @@
+/*
+ * Merge requests list — co-located with Merges.tsx. Tokens from theme.css;
+ * the border ladder and square corners from DESIGN.md. Consumes the kit
+ * row as-is; this file only styles the empty-state action, overflow, and
+ * a bounded queue so a long name or a long queue cannot blow the sheet.
+ */
+
+.mg {
+  min-width: 0;
+}
+.mg .mr-titlestrip__path {
+  overflow-wrap: anywhere;
+}
+
+.mg a.mr-btn {
+  text-decoration: none;
+}
+.mg a.mr-btn:focus-visible {
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .mg a.mr-btn:hover {
+    background: var(--sheet-2);
+    border-color: var(--ink);
+  }
+}
+
+.mg .kit-list {
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+.mg .kit-row > :not(.kit-row__main) {
+  min-width: 0;
+}
+.mg .kit-pill {
+  justify-self: end;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 28ch;
+}
+
+@media (max-width: 480px) {
+  .mg .kit-pill {
+    justify-self: start;
+  }
+}
+
+@media (forced-colors: active) {
+  .mg a.mr-btn {
+    outline: 1px solid CanvasText;
+  }
+}

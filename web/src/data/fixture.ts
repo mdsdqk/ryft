@@ -10,8 +10,9 @@
  */
 
 import type { CreateBranchArgs, DataSource } from "./source.ts";
-import type { Database, MergeSummary } from "./types.ts";
+import type { Database } from "./types.ts";
 import * as branches from "./branches.ts";
+import * as merges from "./merges.ts";
 
 const database: Database = {
   name: "public",
@@ -25,32 +26,22 @@ const database: Database = {
   trunkChangedOn: "2026-02-08",
 };
 
-const merges: MergeSummary[] = [
-  {
-    id: "1",
-    source: "contact-fields",
-    target: "main",
-    author: "grace",
-    openedOn: "2026-02-11",
-    operations: 3,
-    status: "held",
-    conflicts: 1,
-  },
-];
-
-// clone on the way out so a caller cannot mutate the fixture
 const clone = <T>(v: T): T => structuredClone(v);
 
 export const fixtureSource: DataSource = {
-  getOverview: async () => ({
-    database: clone(database),
-    branches: branches.listWorking(merges),
-    merges: clone(merges),
-  }),
-  listBranches: async () => branches.listAll(database, merges),
+  getOverview: async () => {
+    const open = merges.listOpen();
+    return {
+      database: clone(database),
+      branches: branches.listWorking(open),
+      merges: open,
+    };
+  },
+  listBranches: async () => branches.listAll(database, merges.listOpen()),
+  listMerges: async () => merges.listOpen(),
   createBranch: async (args: CreateBranchArgs) =>
-    branches.createBranch(args, database, merges),
+    branches.createBranch(args, database, merges.listOpen()),
   deleteBranch: async (name: string) => {
-    branches.deleteBranch(name, database, merges);
+    branches.deleteBranch(name, database, merges.listOpen());
   },
 };

@@ -39,7 +39,11 @@ export type MergeSummary = {
   author: string;
   openedOn: string;
   operations: number;
-  status: "clean" | "held";
+  /**
+   * `clean` — mergeable; `held` — blocked on conflicts; `stale` — `main`
+   * moved after this request opened. The list never conveys these by colour.
+   */
+  status: "clean" | "held" | "stale";
   /** unresolved conflicts; 0 unless status is "held" */
   conflicts: number;
 };
