@@ -4,9 +4,8 @@
  * a session and bounces to `/` without one.
  */
 
-import { useEffect } from "react";
+import { Navigate, Route, Routes } from "react-router";
 
-import { matchPath, useRouter } from "../router/router.tsx";
 import { useSession } from "../session/session.ts";
 
 import { SignIn } from "../surfaces/SignIn.tsx";
@@ -17,14 +16,6 @@ import { BranchWorkspace } from "../surfaces/BranchWorkspace.tsx";
 import { MergeReviewRoute } from "../surfaces/MergeReviewRoute.tsx";
 import { PlannedSheet } from "../surfaces/PlannedSheet.tsx";
 
-function Redirect({ to }: { to: string }) {
-  const { navigate } = useRouter();
-  useEffect(() => {
-    navigate(to, { replace: true });
-  }, [navigate, to]);
-  return null;
-}
-
 function NotFound() {
   return (
     <PlannedSheet title="No such sheet">
@@ -34,27 +25,28 @@ function NotFound() {
   );
 }
 
-export function Routes() {
-  const { path } = useRouter();
+export function AppRoutes() {
   const { username } = useSession();
 
-  if (path === "/" || path === "") {
-    return username ? <Redirect to="/db" /> : <SignIn />;
+  if (!username) {
+    return (
+      <Routes>
+        <Route path="/" element={<SignIn />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
   }
 
-  // every surface past the gate needs a session
-  if (!username) return <Redirect to="/" />;
-
-  if (path === "/db") return <Dashboard />;
-  if (path === "/branches") return <Branches />;
-  if (path === "/merges") return <Merges />;
-
-  const branch = matchPath("/branch/:name", path);
-  if (branch) return <BranchWorkspace name={branch.name!} />;
-
-  if (path === "/merge" || matchPath("/merge/:id", path)) {
-    return <MergeReviewRoute />;
-  }
-
-  return <NotFound />;
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/db" replace />} />
+      <Route path="/db" element={<Dashboard />} />
+      <Route path="/branches" element={<Branches />} />
+      <Route path="/merges" element={<Merges />} />
+      <Route path="/branch/:name" element={<BranchWorkspace />} />
+      <Route path="/merge" element={<MergeReviewRoute />} />
+      <Route path="/merge/:id" element={<MergeReviewRoute />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
 }

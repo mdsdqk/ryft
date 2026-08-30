@@ -5,7 +5,7 @@
  * `loading` and `error` shells) so every state stays exercisable.
  */
 
-import { useRouter } from "../router/router.tsx";
+import { useNavigate } from "react-router";
 import { MergeReview } from "../merge-review/MergeReview.tsx";
 import {
   MergeReviewError,
@@ -14,7 +14,7 @@ import {
 import { REVIEW_SCENARIOS, readScenario } from "../merge-review/scenarios.ts";
 
 export function MergeReviewRoute() {
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
   const scenario = readScenario();
 
   if (scenario === "loading") return <MergeReviewLoading />;

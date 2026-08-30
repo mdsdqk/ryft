@@ -28,7 +28,7 @@ mid-unit.
 
 | # | Question | State | Answer |
 |---|---|---|---|
-| 1 | Client router | **Resolved** | Hand-rolled `web/src/router/router.tsx`. Do not add `react-router`. |
+| 1 | Client router | **Resolved** | React Router v8 declarative API (`react-router`: `BrowserRouter` + `Routes`/`Route` in `web/src/shell/routes.tsx`). Not `createBrowserRouter`, not framework mode. The hand-rolled History API module is gone. Auth hops and merge-review retry use `replace`. No return-to. `/merge` aliases `/merge/:id`. Query flags stay. |
 | 2 | Divergence: sub-sheet or route | **Resolved** | Sub-sheet of `/branch/:name` (rail nests `Schema · Divergence · History`). Not its own route. |
 | 3 | Structured-editor commit model | **Proposed** | Per-control apply — each control commits one operation on change/confirm, no batched "save". Matches PRODUCT.md "one operation, one intent" and keeps undo unambiguous. |
 | 4 | Identity surfacing | **Proposed** | Author names appear in lists, the operation log, and merge review. No org label in V0 (single organisation). `User`/`Organization` stay modelled, not shown. |
@@ -41,9 +41,9 @@ mid-unit.
 
 Files more than one unit will touch. Follow the convention or you will create conflicts.
 
-- **`web/src/shell/routes.tsx`** — every surface unit adds one import and one branch to the
-  flat `if`-ladder in `Routes`. Keep it a flat ladder in route-table order (§3). A conflict
-  here is a one-line re-add; never restructure the function in a surface unit.
+- **`web/src/shell/routes.tsx`** — every surface unit adds one import and one sibling
+  `<Route>` to the flat `AppRoutes` tree, in route-table order (§3). A conflict here is
+  a one-line re-add; never restructure the function in a surface unit.
 - **CSS** — `web/src/styles/shell.css` is shell chrome only (app bar, rail, stage, sign-in,
   placeholder sheet). **WU-0 moves the surface patterns already sitting in it** (`.shl-facts`,
   `.shl-rows`, `.shl-row*`) into the shared kit. From then on **each surface unit adds a

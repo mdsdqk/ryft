@@ -9,14 +9,15 @@
 
 import { useId, useState, type FormEvent } from "react";
 
-import { useRouter } from "../router/router.tsx";
+import { useNavigate } from "react-router";
+
 import { useSession } from "../session/session.ts";
 
 const MAX_USERNAME = 64;
 
 export function SignIn() {
   const { signIn } = useSession();
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const inputId = useId();
 

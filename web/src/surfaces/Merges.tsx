@@ -31,7 +31,7 @@ import {
   useResource,
   type MergeSummary,
 } from "../data/index.ts";
-import { Link, useQueryParam } from "../router/router.tsx";
+import { Link, useSearchParams } from "react-router";
 import {
   EmptyState,
   Loading,
@@ -79,10 +79,11 @@ function withLongName(rows: readonly MergeSummary[]): MergeSummary[] {
 }
 
 export function Merges() {
-  const forceEmpty = useQueryParam("empty") != null;
-  const forceError = useQueryParam("error") != null;
-  const forceLoading = useQueryParam("loading") != null;
-  const forceLong = useQueryParam("long") != null;
+  const [params] = useSearchParams();
+  const forceEmpty = params.has("empty");
+  const forceError = params.has("error");
+  const forceLoading = params.has("loading");
+  const forceLong = params.has("long");
 
   const { data, loading, error, reload } = useResource(
     () =>

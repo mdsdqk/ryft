@@ -9,17 +9,20 @@
  * one fetch.
  */
 
-import { Link, matchPath, useRouter } from "../router/router.tsx";
+import { Link, useLocation, useMatch } from "react-router";
+
 import { source, useResource } from "../data/index.ts";
 
 export function Rail() {
-  const { path } = useRouter();
+  const { pathname } = useLocation();
   const { data } = useResource(() => source.getOverview());
   const db = data?.database;
 
-  const branchMatch = matchPath("/branch/:name", path);
-  const mergeMatch = matchPath("/merge/:id", path);
-  const onDatabase = path === "/db" || path === "/";
+  const branchMatch = useMatch("/branch/:name");
+  const mergeMatch = useMatch("/merge/:id");
+  const onDatabase = pathname === "/db" || pathname === "/";
+  const onBranches = useMatch({ path: "/branches", end: true });
+  const onMerges = useMatch({ path: "/merges", end: true });
 
   return (
     <nav className="shl-rail" aria-label="Database sheets">
@@ -38,14 +41,23 @@ export function Rail() {
           </Link>
         </li>
         <li>
-          <Link to="/branches">
+          <Link
+            to="/branches"
+            aria-current={onBranches ? "page" : undefined}
+          >
             Branches{" "}
             {data && <span className="shl-ct">{data.branches.length}</span>}
           </Link>
           {branchMatch && (
-            <ul className="shl-rail__sub" aria-label={`${branchMatch.name} sheets`}>
+            <ul
+              className="shl-rail__sub"
+              aria-label={`${branchMatch.params.name} sheets`}
+            >
               <li>
-                <Link to={`/branch/${encodeURIComponent(branchMatch.name!)}`}>
+                <Link
+                  to={`/branch/${encodeURIComponent(branchMatch.params.name!)}`}
+                  aria-current="page"
+                >
                   Schema
                 </Link>
               </li>
@@ -59,13 +71,16 @@ export function Rail() {
           )}
         </li>
         <li>
-          <Link to="/merges">
+          <Link to="/merges" aria-current={onMerges ? "page" : undefined}>
             Merges {data && <span className="shl-ct">{data.merges.length}</span>}
           </Link>
           {mergeMatch && (
             <ul className="shl-rail__sub" aria-label="Merge sheets">
               <li>
-                <Link to={`/merge/${encodeURIComponent(mergeMatch.id!)}`}>
+                <Link
+                  to={`/merge/${encodeURIComponent(mergeMatch.params.id!)}`}
+                  aria-current="page"
+                >
                   Review
                 </Link>
               </li>
