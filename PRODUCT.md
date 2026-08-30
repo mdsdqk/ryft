@@ -30,85 +30,112 @@ code quality, tests, documentation, and setup experience.
 
 ## Product Purpose
 
-Put the database schema itself under version control — branch it, evolve it independently
-(add, drop, rename, retype columns; change constraints and indexes; create and drop
-tables), see exactly what diverged against the common ancestor, and merge it back with a
-typed conflict report and ordered, runnable Postgres DDL out the other side. Success is a
-merge that a text-level tool gets wrong — unrelated columns added to the same table, or a
-column dropped on one branch and indexed on another — resolved correctly, and the
-rename-rebase case handled without a conflict or a silent drop.
+ryft puts a Postgres schema under version control. A user signs in, lands in the database,
+and works with its schema the way they work with code: branch it, change the branch through
+a structured editor, see exactly how the branch has diverged from the trunk, open a merge
+request, resolve whatever conflicts the two sides created, and get ordered, runnable
+Postgres DDL for the merge.
+
+The object under version control is the schema — tables, columns, primary keys, foreign
+keys, unique constraints, indexes — not the migration files that describe it and not the
+row data inside it. Success is a merge that a text diff over a schema dump gets wrong: two
+people adding unrelated columns to the same table, one dropping a column the other indexed,
+or one renaming a column the other built on — each resolved correctly, the rename followed
+across the branch instead of read as a drop and an add.
 
 ## Positioning
 
-Object identity is a stable synthetic id carried by every table, column, constraint, and
-index, assigned at creation and preserved across rename and across merge. The three-way
-merge matches objects by id, not by name, so it follows a column across a rename. This is
-what lets **rename-rebase** work: one branch renames `email` to `email_address`, another
-adds a unique index on `email`, and the merge produces an index on `email_address` — not a
-conflict, not an error, not a dropped column. PlanetScale's `schemadiff` is the only real
-prior art for semantic three-way schema merge, and it matches by name, so it cannot do
-this. Every non-interactive state-based tool (Atlas, Skeema, Prisma, Alembic) renders a
-rename as drop-and-add. Every migration-file tool that advertises "merge" (Django,
-Alembic) is reconciling the migration DAG, a different problem wearing the same word.
+Every table, column, constraint, and index carries a stable synthetic id, assigned at
+creation and preserved across rename and across merge. The three-way merge matches objects
+by that id, not by name, so it follows a column across a rename. That is what makes
+**rename-rebase** work: one branch renames `email` to `email_address`, another adds a
+unique index on `email`, and the merge produces an index on `email_address` — not a
+conflict, not a dropped column.
+
+No other state-based schema tool does this. Atlas, Skeema, Prisma, and Alembic all read a
+rename as drop-and-add, which destroys the column. The migration-file tools that advertise
+"merge" (Django, Alembic) reconcile a DAG of migration files, not schemas. PlanetScale's
+`schemadiff` does semantic three-way schema diffing but matches objects by name, so it too
+cannot follow a rename. ryft's identity-by-id model is what makes a real three-way schema
+merge — and rename-rebase specifically — tractable.
+
+The conflict report is a typed data structure, not an interactive prompt, so the merge is
+usable from an API, an agent, or CI, not only from the UI.
 
 ## Operating Context
 
-- The schema under control is one Postgres namespace: tables, columns, primary keys,
-  foreign keys, unique constraints, and indexes. Row and table *data* is out of scope.
-- `main` is the trunk and the single shared ancestor. Every branch is cut from `main` and
-  merges back into `main`; branching from a non-`main` branch is unsupported in V0/V1.
-- The model is declarative / state-based, following PlanetScale: no commit graph, no
-  history. A branch is its current schema document plus a base snapshot of its parent
-  taken when the branch was cut. An operation log exists for undo and audit only and is
-  never read by the merge.
-- Schema evolution happens through a structured editor that records each edit — including
-  renames — as an operation. A per-branch SQL console and raw-SQL import are the stretch
-  ingestion path; on imported (id-less) schemas the model degrades to name matching like
-  every other tool, and showing that degradation honestly is part of the argument.
-- Merging is serialized through a merge queue: an MR is re-validated against `main`'s head
-  when it reaches the front, so the stale-base case and the concurrent-merge race become
-  one code path. For V0/V1 this is a serialized transaction with an optimistic version
-  check, not a job runner.
-- A pre-merge dry run (PlanetScale's shadow branch) applies the generated migration to an
-  ephemeral Neon branch seeded with `theirs` and introspects the result back — stretch.
+- **One database.** A ryft instance manages a single Postgres namespace. There is no
+  database selector — signing in lands the user directly in it. The schema under control is
+  that namespace's tables, columns, primary keys, foreign keys, unique constraints, and
+  indexes; row and table data is out of scope.
+- **`main` is the trunk.** Every branch is cut from `main` and merges back into `main`;
+  branching from a non-`main` branch is unsupported in V0/V1. The model is state-based:
+  no commit graph and no history. A branch is its current schema document plus a base
+  snapshot of `main` taken when the branch was cut. An operation log is kept for undo and
+  audit only and is never read by the merge.
+- **Identity is a username, no authentication.** The sign-in screen takes a username and
+  takes it as truth: a known username resumes that user, an unknown one creates a new user
+  and proceeds. No password, no session, no permission check. Impersonation is a documented
+  non-goal. `User` and `Organization` are modelled from the start because the customer is a
+  team; `engine/` never imports them.
+- **Schema editing is UI-only.** Evolution happens in a structured editor, not a SQL
+  console — each table is shown as an editable card, and rename / drop / add / retype /
+  constraint / index changes are made in place through form controls on the card. Every
+  edit is recorded as an operation. A per-branch SQL console and raw-SQL import are stretch
+  scope and are not expected to ship in V0/V1.
+- **The merge is serialized and re-validated.** An open merge request is checked against
+  `main`'s current head at merge time, so a stale base and a concurrent-merge race are the
+  same case. A pre-merge dry run against an ephemeral database is stretch.
+
+## Surfaces
+
+The product is this set of pages. The merge-review surface is built; the rest are planned
+and inherit its visual world (`DESIGN.md`).
+
+1. **Sign in** — a single field, a username; no password.
+2. **The dashboard/database** — the database's overview / dashboard, and the landing surface after
+   sign-in since there is no database to choose.
+3. **Branches** — every branch on the database; create a new branch from `main`; delete a
+   branch.
+4. **Merge requests** — every open merge request on the database.
+5. **Branch schema** — one branch's current schema, shown as editable table cards.
+6. **Divergence** — how a branch has grown or diverged from `main`.
+7. **Structured editor** — in-card form controls to rename / drop / add / retype a column,
+   change constraints and indexes, and create / drop tables. No SQL editor.
+8. **Merge review** *(built)* — the three-way comparison, conflict queue, operation log,
+   and generated DDL. See `DESIGN.md` and `docs/design/shape-brief-v0-v1-flow.md`.
+9. **Empty states** — first-class for every list and page: no branches yet, no open merge
+   requests, an unchanged branch, a freshly seeded database.
 
 ## Capabilities and Constraints
 
-- **Conflict vocabulary** follows PlanetScale's *clear / subtle / overlap* severity
-  terms. Six recognised classes: divergent retype, add-vs-add, rename-vs-rename, divergent
-  index definition, drop-vs-modify (all *clear*), and dependency conflict (*subtle*). An
-  *overlap* — both sides making the identical change — is applied once and is not a
-  conflict.
-- **Commutativity post-condition**: before declaring a clean merge, the engine verifies
-  that applying each side's delta to `base` in either order yields the same document and
-  that it equals the merged document. A failure is reported as an unclassified divergence
-  and blocks the merge — the completeness check on the six enumerated classes.
-- **Type equivalence** is exact-match including parameters: `varchar(255)` ≠
-  `varchar(256)`, `numeric(10,2)` ≠ `numeric(10,3)`. There is no widening/safety lattice;
-  the engine does not know `int` → `bigint` is safer than `int` → `text`. Ranking retypes
-  by safety is a stretch item.
-- **Migrations** are forward-only, dependency-ordered, wrapped in a single transaction
-  (Postgres has transactional DDL). Renames render as `ALTER … RENAME`, never
-  drop-and-add. Every prefix of a migration must leave the schema structurally sound,
-  verified by step-by-step in-memory replay.
-- **Drops are blocked on dependents, not cascaded**: the user removes an index, unique,
-  primary key, or foreign key before dropping the column or table it depends on, as
-  explicit operations.
-- **Identity is a username with no authentication**. A landing screen takes a username;
-  unknown creates a user in the single seeded organisation, known resumes as that user. No
-  password, no session, no permission check; the current user id is held client-side and
-  trusted by the server. Impersonation is a documented non-goal. `User` and `Organization`
-  are modelled now because the target customer is a team and retrofitting an author column
-  later is a migration; `engine/` never imports them.
-- **Explicitly out of scope**: row/table data versioning, multiple namespaces, check
+- **Branches**: create from `main`, view schema, edit schema, delete. No branch rename in
+  V0/V1; no branch-of-branch.
+- **Schema operations**, all through the editor UI: add / drop / rename / retype a column;
+  add / drop / change a primary key, unique constraint, index, or foreign key; create /
+  drop a table. Drops are blocked on dependents rather than cascaded — the user removes the
+  dependent objects first, as their own operations.
+- **Type equivalence is exact-match**, parameters included (`varchar(255)` ≠
+  `varchar(256)`). There is no widening/safety lattice; ranking retypes by safety is
+  stretch.
+- **Merge output** is forward-only Postgres DDL, dependency-ordered, in a single
+  transaction; renames render as `ALTER … RENAME`, never drop-and-add. The engine will not
+  return a merged schema it cannot prove clean.
+- **Conflict handling**: divergent changes are sorted into named classes, each with a
+  severity — *clear*, *subtle*, or *overlap*, a vocabulary adopted from PlanetScale's
+  `schemadiff`. An identical change made on both sides is an *overlap*: applied once, not a
+  conflict. The resolution UI covers taking one side or specifying a target type or name.
+  The full class enumeration, the commutativity check, and the merge algorithm are
+  design-exploration detail in `docs/adr/0002-semantic-merge-engine.md` and
+  `docs/merge-engine.md`, not product scope here.
+- **Explicitly out of scope**: row/table data, multiple databases or namespaces, check
   constraints, enums and custom types, triggers, views, functions, partitions, row-level
-  security, branch-of-branch merges, down-migrations, live database introspection, and
-  executing generated migrations against a real database.
-- **Delivery bands**: V0 is the walking skeleton (seed, branch, edit, open MR, semantic
-  three-way diff, no-conflict merge, deployed). V1 adds conflict detection and
-  classification for all classes plus a resolution UI for divergent retype and
-  rename-rebase. Stretch: raw-SQL import with heuristic rename detection, drop-vs-modify
-  resolution UI, migration dry-run.
+  security, branch-of-branch merges, down-migrations, connecting to a real database, and
+  running the generated DDL anywhere.
+- **Delivery bands**: V0 is the walking skeleton (seed, branch, edit, open MR, three-way
+  diff, no-conflict merge, deployed). V1 adds conflict detection, classification, and the
+  resolution UI. Stretch, not expected to land: SQL console, raw-SQL import with heuristic
+  rename detection, migration dry-run.
 
 ## Brand Commitments
 
@@ -117,46 +144,55 @@ Alembic) is reconciling the migration DAG, a different problem wearing the same 
   the "why", leaves reversals visible — is a **directional reference** for UI copy (labels,
   empty states, conflict explanations, errors), not a hard constraint. Surface work may
   deviate where a surface genuinely calls for it.
+- The built merge-review surface's visual world ("The Revised Drawing" — a drafting-room
+  revision sheet; Diazo light / Cyanotype dark palettes) is recorded in `DESIGN.md` and
+  inherited by every later surface.
 
 ## Evidence on Hand
 
-- **Seed schema plus worked branch examples** under `examples/` (`seed.schema.ts`,
-  `branched.schema.ts`, `branched.log.ts`) — a small realistic schema and a
-  `contact-fields` branch exercising rename + dependent index, feeding the engine tests.
-- **Core engine types** in `engine/schema.ts` (schema document) and
-  `src/domain/operations.ts` (operation log); user/org types in `src/domain/users.ts`.
-- **Prior-art research** against ten schema tools, recorded in
-  `.scratch/schema-vcs/tickets/0000-prior-art-renames-and-merge.md` and its findings file,
-  and the PlanetScale Vitess branching architecture reference under `docs/.local/`.
+- **First surface, built**: the merge-review screen under `web/` (React SPA), with
+  `DESIGN.md` and `.impeccable/design.json` recording its visual world, and reference
+  mockups under `docs/design/mockups/`.
+- **Engine**: `engine/schema.ts` + `engine/operations.ts` (types), `engine/diff.ts`
+  (`diffSnapshots`) and `engine/apply.ts` (`applyDelta`) implemented; `classify` and
+  `threeWayMerge` specified in `docs/adr/0002-semantic-merge-engine.md` and
+  `docs/merge-engine.md` but not yet written.
+- **Seed schema plus worked branch examples** under `examples/`; user/org domain types in
+  `src/domain/`.
+- **Prior-art research** against ten schema tools in
+  `.scratch/schema-vcs/tickets/0000-prior-art-renames-and-merge.md` and its findings file.
 - **Decision record**: `decisions.md` (running log with the required brief at the top),
-  `CONTEXT.md` (glossary), `docs/adr/0001-core-representation.md`, and the wayfinding map
-  and ticket tree under `.scratch/schema-vcs/`.
+  `CONTEXT.md` (glossary), `docs/adr/0001-core-representation.md` and
+  `docs/adr/0002-semantic-merge-engine.md`, and the wayfinding map and ticket tree under
+  `.scratch/schema-vcs/`.
 - No real customers, testimonials, usage metrics, press, or benchmark data exist; future
-  work must not fabricate any. The deployed instance is a demo seeded with one
-  organisation and three users.
+  work must not fabricate any. The deployed instance is a demo seeded with one organisation
+  and a few users.
 
 ## Product Principles
 
 - **Reconcile the schema, not the files that describe it.** The artifact under version
   control is the schema state; migration files are output, not input.
-- **Identity lives in a stable id, never in a name.** Every correctness property that
-  matters — following an object across a rename, rename-rebase, the shrinking of the
-  non-commutative surface — falls out of this one choice.
-- **Never claim a clean merge the engine cannot prove.** The six conflict classes are only
-  as complete as their enumeration; the commutativity post-condition is the oracle that
-  catches what the enumeration missed.
+- **Build the whole spine, narrow.** Branch, edit, diverge, merge, DDL — end to end — and
+  leave everything outside that path out rather than half-building it.
+- **Identity lives in a stable id, never a name.** Following an object across a rename,
+  rename-rebase, and a smaller conflict surface all fall out of this one choice.
+- **Never claim a clean merge the tool cannot prove.**
 - **One operation, one intent.** Drops block on dependents rather than cascading, so every
   recorded edit is independently meaningful and undo is unambiguous.
 - **Model the team even in the single-user slice.** Branches and merge requests are
-  authored by named people; the three-way merge story is only legible with a person on
-  each side.
+  authored by named people; the three-way merge story is only legible with a person on each
+  side.
+- **Empty states are part of the product**, not an afterthought — every list and page
+  ships its zero state.
 - **Ship V0 before V1.** A functional product missing conflict resolution beats a
   non-functional complete one.
-- **Degrade honestly.** On id-less imported input the model falls back to name matching
-  like every other tool, and the product says so rather than implying parity.
+- **Degrade honestly.** On id-less imported input (stretch) the model falls back to name
+  matching like every other tool, and the product says so rather than implying parity.
 
 ## Accessibility & Inclusion
 
-Target **WCAG 2.1 AA**. The diff and merge surfaces must be fully keyboard-operable with
-visible focus, meet AA contrast, and expose conflict controls (take ours / take theirs /
-choose target type) with screen-reader-accessible names and state.
+Target **WCAG 2.1 AA**. Every surface must be fully keyboard-operable with visible focus
+and meet AA contrast; the diff, editor, and merge surfaces must expose their controls
+(edit a column, take ours / take theirs / choose a target type) with screen-reader-
+accessible names and state, and never convey status by colour alone.

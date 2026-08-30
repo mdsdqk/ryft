@@ -1,0 +1,200 @@
+/*
+ * ryft theme — two committed palettes.
+ *
+ *   Light · Diazo      the drafting-room ammonia print: bone ground, prussian ink
+ *   Dark  · Cyanotype   the blueprint negative: blue-black ground, pale linework
+ *
+ * Light is the default (:root). Dark applies when the viewer explicitly asks
+ * (:root[data-theme="dark"]) OR when the OS prefers dark and no explicit choice
+ * was made (:root:not([data-theme="light"]) under the media query).
+ *
+ * Every colour is a role token. Provenance across the whole app is three of them:
+ *   --ours    the source branch      --theirs  the target branch      --conflict
+ */
+
+:root {
+  color-scheme: light;
+
+  --bg: #e4ded0;
+  --sheet: #faf7ef;
+  --sheet-2: #f0ebdd;
+  --panel: #fffdf7;
+
+  --ink: #1e1b16;
+  --ink-soft: #4a4438;
+  --ink-faint: #635a46;
+
+  --line: #c9bfa6;
+  --line-strong: #a89a78;
+
+  --ours: #153a5e;
+  --ours-wash: rgba(21, 58, 94, 0.08);
+  --theirs: #9a3c0b;
+  --theirs-wash: rgba(154, 60, 11, 0.1);
+
+  /* conflict text vs. conflict edge — see craft floor: text ≥ 4.5:1, borders 3:1 */
+  --conflict: #8f1a17;
+  --conflict-edge: #b52621;
+  --conflict-wash: rgba(181, 38, 33, 0.07);
+
+  --ok: #2f6a3c;
+  --ok-wash: rgba(47, 106, 60, 0.08);
+
+  --focus: #0b5cff;
+
+  --shadow-sheet: 0 24px 60px -34px rgba(30, 27, 22, 0.55);
+
+  --ff-display: "Saira Condensed", "Arial Narrow", system-ui, sans-serif;
+  --ff-mono: "Spline Sans Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --step: 4px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0a121d;
+  --sheet: #0f1b2b;
+  --sheet-2: #132539;
+  --panel: #0c1826;
+
+  --ink: #e4eef8;
+  --ink-soft: #a7bccf;
+  --ink-faint: #8299ac;
+
+  --line: #284159;
+  --line-strong: #3a5670;
+
+  --ours: #78c1ec;
+  --ours-wash: rgba(120, 193, 236, 0.12);
+  --theirs: #e2b782;
+  --theirs-wash: rgba(226, 183, 130, 0.12);
+
+  --conflict: #ff9385;
+  --conflict-edge: #ff7a68;
+  --conflict-wash: rgba(255, 122, 104, 0.12);
+
+  --ok: #8fd6a4;
+  --ok-wash: rgba(143, 214, 164, 0.12);
+
+  --focus: #9cc8ff;
+
+  --shadow-sheet: 0 24px 70px -30px rgba(0, 0, 0, 0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0a121d;
+    --sheet: #0f1b2b;
+    --sheet-2: #132539;
+    --panel: #0c1826;
+
+    --ink: #e4eef8;
+    --ink-soft: #a7bccf;
+    --ink-faint: #8299ac;
+
+    --line: #284159;
+    --line-strong: #3a5670;
+
+    --ours: #78c1ec;
+    --ours-wash: rgba(120, 193, 236, 0.12);
+    --theirs: #e2b782;
+    --theirs-wash: rgba(226, 183, 130, 0.12);
+
+    --conflict: #ff9385;
+    --conflict-edge: #ff7a68;
+    --conflict-wash: rgba(255, 122, 104, 0.12);
+
+    --ok: #8fd6a4;
+    --ok-wash: rgba(143, 214, 164, 0.12);
+
+    --focus: #9cc8ff;
+
+    --shadow-sheet: 0 24px 70px -30px rgba(0, 0, 0, 0.7);
+  }
+}
+
+/* ── reset ─────────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--ff-display);
+  font-size: 15px;
+  line-height: 1.42;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* ── browser surfaces — themed, not left to the UA ─────────────────────── */
+
+::selection {
+  background: var(--ours);
+  color: var(--sheet);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* keyboard users get the ring; pointer users do not */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 2px solid var(--sheet);
+  border-radius: 0;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:where(pre, code, kbd) {
+  font-family: var(--ff-mono);
+  font-feature-settings: "tnum" 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

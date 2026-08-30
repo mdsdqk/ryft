@@ -58,11 +58,17 @@ marketing register; no gamified "merge!" moment; no full-row red/green diff wash
 
 - Schema: 3–40 tables; a reviewed table has 5–40 columns plus 2–15 indexes/constraints.
 - A merge request: 0 changes (nothing to merge) · 1–5 typical · 20+ operations in a rewrite.
-- Conflicts: 0 (fast-forward) · 1–2 typical · 4+ spanning all classes (divergent retype,
-  add-vs-add, rename-vs-rename, divergent index definition, drop-vs-modify, dependency).
+- Conflicts: 0 (fast-forward) · 1–2 typical · 4+ spanning all classes. Seven classes
+  (`docs/merge-engine.md` §5): divergent retype, add-vs-add, rename-vs-rename, divergent
+  index definition, drop-vs-modify, dependency conflict, and **divergent definition** — a
+  clear-severity catch-all for a divergent default / primary key / unique / foreign-key
+  change. Six are *clear*; dependency conflict is the one *subtle* class.
 - Material states: no-changes, clean / fast-forward, held-on-conflict,
   held-on-commutativity-failure (unclassified divergence), resolved-and-merged,
-  stale-base re-validation when an MR reaches the front of the merge queue.
+  stale-base re-validation when an MR reaches the front of the merge queue. The
+  commutativity check proves order-independence only — a merge that is stable but produces a
+  structurally invalid document (a duplicate name, a nullable primary-key member, a dangling
+  reference) is caught by a separate validation pass (ticket 0008), not held here.
 - Downstream gating is real: one unresolved rename can freeze the index and FK that
   reference it — surfaced in Zone A and Zone D.
 
