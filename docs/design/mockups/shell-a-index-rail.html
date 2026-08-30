@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ryft shell — A · the sheet-index rail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#e4ded0; --sheet:#faf7ef; --sheet-2:#f0ebdd; --panel:#fffdf7;
+    --ink:#1e1b16; --ink-soft:#4a4438; --ink-faint:#635a46;
+    --line:#c9bfa6; --line-strong:#a89a78;
+    --ours:#153a5e; --theirs:#9a3c0b;
+    --conflict:#8f1a17; --conflict-edge:#b52621; --conflict-wash:rgba(181,38,33,.07);
+    --ok:#2f6a3c; --ok-wash:rgba(47,106,60,.08);
+    --focus:#0b5cff;
+    --shadow-sheet:0 24px 60px -34px rgba(30,27,22,.55);
+    --ff-display:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+    --ff-mono:"Spline Sans Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--ff-display);font-size:15px;line-height:1.42;-webkit-font-smoothing:antialiased}
+  .mono{font-family:var(--ff-mono);font-feature-settings:"tnum" 1}
+
+  /* ── app bar ─────────────────────────────────────────────────────────── */
+  .appbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;
+    padding:10px clamp(16px,4vw,40px);background:var(--bg);border-bottom:1px solid var(--line-strong)}
+  .appbar .brand{font-weight:700;font-size:18px;letter-spacing:.12em;text-transform:lowercase}
+  .appbar .spacer{flex:1}
+  .appbar .who{font-family:var(--ff-mono);font-size:11px;color:var(--ink-soft);letter-spacing:.04em}
+  .appbar .theme{display:flex;border:1px solid var(--line-strong)}
+  .appbar .theme button{padding:6px 11px;font-family:var(--ff-mono);font-size:11px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-soft);background:none;border:none;border-right:1px solid var(--line-strong);cursor:pointer}
+  .appbar .theme button:last-child{border-right:none}
+  .appbar .theme button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
+
+  /* ── shell layout: rail + content ────────────────────────────────────── */
+  .shell{display:grid;grid-template-columns:232px minmax(0,1fr);align-items:start}
+
+  /* the sheet-index rail — a drafting binder's tab column on the bare ground */
+  .rail{position:sticky;top:47px;align-self:start;padding:clamp(16px,4vw,40px) 0 40px clamp(16px,4vw,40px);
+    border-right:2px solid var(--ink);min-height:calc(100vh - 47px)}
+  .rail__set{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--ink-faint);padding:0 14px 10px 2px}
+  .rail__db{font-family:var(--ff-display);font-weight:700;font-size:19px;letter-spacing:.06em;text-transform:uppercase;
+    padding:0 14px 4px 2px}
+  .rail__conn{font-family:var(--ff-mono);font-size:10px;color:var(--ink-soft);padding:0 14px 18px 2px;border-bottom:1px dashed var(--line);margin-bottom:14px}
+  .rail__nav{list-style:none;display:flex;flex-direction:column;gap:2px}
+  .rail__nav a{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+    font-family:var(--ff-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-soft);text-decoration:none;padding:8px 12px 8px 2px}
+  .rail__nav a .ct{font-size:10px;letter-spacing:.04em;color:var(--ink-faint)}
+  .rail__nav a[aria-current="page"]{color:var(--ink);border:1px solid currentColor;padding-left:11px}
+  .rail__nav a:hover:not([aria-current="page"]){color:var(--ink)}
+  .rail__sub{list-style:none;margin:4px 0 8px 0;padding-left:14px;border-left:1px solid var(--line)}
+  .rail__sub a{font-size:10px;letter-spacing:.1em;padding:6px 12px 6px 10px;color:var(--ink-faint)}
+  .rail__hint{margin-top:22px;font-family:var(--ff-mono);font-size:9px;line-height:1.7;color:var(--ink-faint);
+    padding:12px 14px 0 2px;border-top:1px dashed var(--line);max-width:20ch}
+
+  /* ── content area ───────────────────────────────────────────────────── */
+  .stage{padding:clamp(16px,4vw,40px)}
+  .sheet{max-width:1100px;background:var(--sheet);border:2px solid var(--ink);position:relative;box-shadow:var(--shadow-sheet)}
+  .sheet::before{content:"";position:absolute;inset:7px;border:1px solid var(--line-strong);pointer-events:none}
+
+  .tstrip{display:grid;grid-template-columns:1fr auto;border-bottom:2px solid var(--ink)}
+  .tstrip__id{padding:20px 24px 16px}
+  .tstrip__k{font-family:var(--ff-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+  .tstrip__h1{font-family:var(--ff-display);font-weight:700;font-size:clamp(22px,3vw,30px);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+  .tstrip__sub{font-family:var(--ff-mono);font-size:12px;color:var(--ink-soft);margin-top:7px}
+  .tstrip__act{border-left:2px solid var(--ink);display:flex;align-items:center;padding:0 20px}
+
+  .btn{font-family:var(--ff-mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+    border:1.5px solid var(--ink);background:var(--sheet);color:var(--ink);padding:8px 13px;cursor:pointer}
+  .btn--primary{background:var(--ink);color:var(--sheet)}
+
+  .body{padding:22px 24px 26px}
+  .zone{margin-bottom:22px}
+  .zone:last-child{margin-bottom:0}
+  .zone__k{display:flex;align-items:center;gap:10px;font-family:var(--ff-mono);font-size:11px;font-weight:600;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px}
+  .zone__k .ct{color:var(--ink-faint);letter-spacing:.04em}
+
+  /* overview facts — the drafting title block, read-only */
+  .facts{border:1.5px solid var(--ink);background:var(--panel);display:grid;grid-template-columns:1fr 1fr}
+  .facts>div{display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px 12px;
+    font-family:var(--ff-mono);font-size:11px;border-bottom:1px solid var(--line)}
+  .facts>div:nth-child(odd){border-right:1px solid var(--line)}
+  .facts>div:nth-last-child(-n+2){border-bottom:none}
+  .facts dt{letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+  .facts dd{font-weight:600}
+
+  /* list rows */
+  .rows{border:1.5px solid var(--line-strong);background:var(--panel)}
+  .row{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;
+    padding:11px 13px;border-bottom:1px dashed var(--line);font-family:var(--ff-mono);font-size:11.5px}
+  .row:last-child{border-bottom:none}
+  .row a{color:var(--ink);text-decoration:none;font-weight:600;font-size:12.5px}
+  .row a:hover{text-decoration:underline;text-underline-offset:2px}
+  .row .meta{color:var(--ink-faint);font-size:10px;margin-top:3px;display:block;letter-spacing:.02em}
+  .tri{color:var(--ours);font-weight:700;white-space:nowrap}
+  .tri--none{color:var(--ink-faint);font-weight:400}
+  .status{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:0 0 auto}
+  .dot--held{background:var(--conflict-edge)}
+  .status--held{color:var(--conflict)}
+
+  .caption{max-width:1100px;margin:16px auto 0;font-family:var(--ff-mono);font-size:11px;line-height:1.7;color:var(--ink-soft)}
+  .caption b{color:var(--ink)}
+
+  @media (max-width:900px){
+    .shell{grid-template-columns:1fr}
+    .rail{position:static;min-height:0;border-right:none;border-bottom:2px solid var(--ink);
+      padding:16px;display:grid;grid-template-columns:1fr;gap:4px}
+    .rail__nav{flex-direction:row;flex-wrap:wrap}
+    .rail__sub,.rail__hint{display:none}
+  }
+</style>
+</head>
+<body>
+  <header class="appbar">
+    <span class="brand">ryft</span>
+    <span class="spacer"></span>
+    <span class="who">grace</span>
+    <div class="theme" role="group" aria-label="Colour theme">
+      <button aria-pressed="true">Light</button><button>Dark</button><button>System</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="rail" aria-label="Database sheets">
+      <div class="rail__set">ryft&nbsp;· schema under version control</div>
+      <div class="rail__db">public</div>
+      <div class="rail__conn">postgres&nbsp;· 5&nbsp;tables · main @ rev&nbsp;41</div>
+      <ul class="rail__nav">
+        <li><a href="#" aria-current="page">Database</a></li>
+        <li>
+          <a href="#">Branches <span class="ct">4</span></a>
+        </li>
+        <li><a href="#">Merges <span class="ct">1</span></a></li>
+      </ul>
+      <p class="rail__hint">Open a branch or a merge and its sheets nest here — schema, divergence, history.</p>
+    </nav>
+
+    <div class="stage">
+      <article class="sheet">
+        <header class="tstrip">
+          <div class="tstrip__id">
+            <div class="tstrip__k">Database</div>
+            <h1 class="tstrip__h1">public</h1>
+            <div class="tstrip__sub">postgres&nbsp;· schema <b>public</b> · trunk <b>main</b> at revision 41</div>
+          </div>
+          <div class="tstrip__act"><button class="btn btn--primary">New branch</button></div>
+        </header>
+
+        <div class="body">
+          <section class="zone">
+            <div class="zone__k">Overview</div>
+            <dl class="facts">
+              <div><dt>Tables</dt><dd>5</dd></div>
+              <div><dt>Columns</dt><dd>34</dd></div>
+              <div><dt>Indexes</dt><dd>6</dd></div>
+              <div><dt>Constraints</dt><dd>9</dd></div>
+              <div><dt>Main changed</dt><dd>2026&#8209;02&#8209;08</dd></div>
+              <div><dt>Open merges</dt><dd>1</dd></div>
+            </dl>
+          </section>
+
+          <section class="zone">
+            <div class="zone__k">Open merges <span class="ct">1</span></div>
+            <div class="rows">
+              <div class="row">
+                <div>
+                  <a href="#">contact-fields&nbsp;&rarr;&nbsp;main</a>
+                  <span class="meta">grace · opened 2026-02-11 · 3 operations</span>
+                </div>
+                <span class="status status--held"><span class="dot dot--held"></span>Held · 1 conflict</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="zone">
+            <div class="zone__k">Branches <span class="ct">4</span></div>
+            <div class="rows">
+              <div class="row">
+                <div><a href="#">contact-fields</a><span class="meta">grace · cut 2026-02-10</span></div>
+                <span class="tri">&#9651;&nbsp;3</span>
+              </div>
+              <div class="row">
+                <div><a href="#">post-metrics</a><span class="meta">ravi · cut 2026-02-09</span></div>
+                <span class="tri">&#9651;&nbsp;4</span>
+              </div>
+              <div class="row">
+                <div><a href="#">drop-legacy-tags</a><span class="meta">mara · cut 2026-02-07</span></div>
+                <span class="tri">&#9651;&nbsp;2</span>
+              </div>
+              <div class="row">
+                <div><a href="#">audit-timestamps</a><span class="meta">ravi · cut 2026-02-12</span></div>
+                <span class="tri tri--none">no changes</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </article>
+
+      <p class="caption"><b>A · the sheet-index rail.</b> A permanent left column on the bare ground, ruled off with the same 2px ink line the sheet uses. Destinations are mono, tracked, uppercase; the current one is boxed exactly like the revision dial's current step. Inside a branch or a merge, its sub-sheets (schema / divergence / history) indent under it. Strong wayfinding; costs ~230px of width; reads as a bound drawing set.</p>
+    </div>
+  </div>
+</body>
+</html>
