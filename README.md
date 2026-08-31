@@ -49,5 +49,7 @@ usable from CI or an agent, an exhaustive scenario catalogue). Ticket 0010 adds 
 server surface and the **V0 backend**: a Hono API persisting the golden-path demo on Neon,
 with a 15-test in-process integration suite (`docs/scope.md` for the band breakdown).
 
-Not yet wired: `web/src/data/` still reads a fixture rather than the API, and the structured
-editor screen is a placeholder. That is the next iteration (`docs/adr/0010-the-build.md` §7).
+Wired now: `web/src/data/` reads the API through an HTTP `DataSource` (`web/src/data/http.ts`)
+and the sign-in gate calls `POST /api/session` — the dashboard, `/branches`, `/merges`, and the
+rail run on real persisted data (`VITE_DATA_SOURCE=fixture` restores the offline fixture). Still
+a placeholder: the structured editor screen (`docs/adr/0010-the-build.md` §7).

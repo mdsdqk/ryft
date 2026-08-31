@@ -47,7 +47,11 @@ pnpm --filter @ryft/api db:push       # apply api/drizzle/*.sql to DATABASE_URL
 # every day
 pnpm --filter @ryft/api dev           # http://localhost:8787
 curl -sX POST localhost:8787/api/workspace/reset | jq   # seed the workspace
+pnpm --filter @ryft/web dev           # http://localhost:5180 (proxies /api → :8787)
 ```
+
+The web dev server proxies `/api` to `:8787` (`web/vite.config.ts`), so the SPA talks to the
+real API. `VITE_DATA_SOURCE=fixture pnpm --filter @ryft/web dev` restores the offline fixture.
 
 ### Tests
 
@@ -73,9 +77,10 @@ vercel deploy --prod            # or connect the GitHub repo and push
 curl -X POST https://<app>.vercel.app/api/workspace/reset
 ```
 
-The deployed **web app** is still the fixture-bound frontend (unchanged this iteration); the
-**API** at `/api/*` is live and exercised by the `curl` walk in §5 and the golden-path test.
-Wiring the two is the follow-up iteration (ADR 0010 §7).
+The deployed **web app** reads the live **API** at `/api/*` through `web/src/data/http.ts` (the
+`DataSource` seam) and `POST /api/session`; the same origin serves both. The `curl` walk in §5
+and the golden-path test exercise the API directly. The structured editor remains unbuilt
+(ADR 0010 §7).
 
 ## 3. Identity
 
