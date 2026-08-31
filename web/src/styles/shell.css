@@ -159,61 +159,7 @@
   font-feature-settings: "tnum" 1;
 }
 
-/* ── sign-in gate ────────────────────────────────────────────────────── */
-
-.shl-signin {
-  width: 100%;
-  max-width: 460px;
-  margin-top: clamp(8px, 6vh, 64px);
-  align-self: flex-start;
-}
-.shl-signin__body {
-  padding: 22px 24px 26px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-}
-.shl-signin__label {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.shl-signin__input {
-  align-self: stretch;
-  width: 100%;
-  min-width: 0;
-  font-family: var(--ff-mono);
-  /* 16px floor: iOS Safari force-zooms a focused input set smaller than this */
-  font-size: 16px;
-  color: var(--ink);
-  background: var(--sheet);
-  border: 1px solid var(--line-strong);
-  border-radius: 0;
-  padding: 9px 11px;
-}
-.shl-signin__input:hover {
-  border-color: var(--ink);
-}
-.shl-signin__body .mr-btn {
-  margin-top: 4px;
-}
-.shl-signin__body .mr-btn:disabled {
-  color: var(--ink-faint);
-  border-color: var(--line-strong);
-  background: var(--sheet-2);
-  cursor: not-allowed;
-}
-.shl-signin__note {
-  font-family: var(--ff-mono);
-  font-size: 10.5px;
-  line-height: 1.6;
-  color: var(--ink-soft);
-  max-width: 52ch;
-}
+/* The signed-out username gate is a surface: SignIn.tsx + surfaces/SignIn.css. */
 
 /* ── responsive: rail becomes a top strip ────────────────────────────── */
 
@@ -256,8 +202,7 @@
  * styling lives in surfaces/kit/kit.css and the shared .mr-shell in app.css. */
 
 @media (forced-colors: active) {
-  .shl-rail__nav a[aria-current="page"],
-  .shl-signin__input {
+  .shl-rail__nav a[aria-current="page"] {
     border: 1px solid CanvasText;
   }
   .shl-rail {
