@@ -10,26 +10,21 @@
  */
 
 import type { CreateBranchArgs, DataSource } from "./source.ts";
-import type { Database } from "./types.ts";
 import * as branches from "./branches.ts";
+import { database, overviewExerciseEmpty } from "./database.ts";
 import * as merges from "./merges.ts";
-
-const database: Database = {
-  name: "public",
-  connection: "postgres",
-  tables: 5,
-  columns: 34,
-  indexes: 6,
-  constraints: 9,
-  trunk: "main",
-  trunkRevision: 41,
-  trunkChangedOn: "2026-02-08",
-};
 
 const clone = <T>(v: T): T => structuredClone(v);
 
 export const fixtureSource: DataSource = {
   getOverview: async () => {
+    if (overviewExerciseEmpty()) {
+      return {
+        database: clone(database),
+        branches: [],
+        merges: [],
+      };
+    }
     const open = merges.listOpen();
     return {
       database: clone(database),
