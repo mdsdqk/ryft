@@ -1,15 +1,17 @@
 /**
- * The one data source the UI reads. Fixture-backed for V0; to wire the real
- * backend, implement `DataSource` against the Hono API and swap it in here —
- * nothing else changes (docs/design/app-flow-work-breakdown.md, decision 5).
+ * The one data source the UI reads. The real backend (`./http.ts`, the Hono API)
+ * is the default; set `VITE_DATA_SOURCE=fixture` to fall back to the in-memory
+ * `./fixture.ts` (the offline path the `web/scripts/` screenshot runs use).
  *
- * Import from `../data` — never from `./fixture` directly.
+ * Import from `../data` — never from `./http` or `./fixture` directly.
  */
 
 import type { DataSource } from "./source.ts";
 import { fixtureSource } from "./fixture.ts";
+import { httpSource } from "./http.ts";
 
-export const source: DataSource = fixtureSource;
+export const source: DataSource =
+  import.meta.env.VITE_DATA_SOURCE === "fixture" ? fixtureSource : httpSource;
 
 export type { DataSource } from "./source.ts";
 export type {

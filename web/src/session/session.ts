@@ -102,6 +102,16 @@ function getSnapshot(): string | null {
   return current;
 }
 
+/**
+ * The current username outside React — the HTTP data layer reads this to set the
+ * `x-ryft-user` header on every call (`web/src/data/http.ts`). Hooks still go
+ * through {@link useSession}; this is only for module code that has no component
+ * to sit in.
+ */
+export function currentUsername(): string | null {
+  return current;
+}
+
 function signIn(name: string): void {
   const clean = normalizeUsername(name);
   if (!clean || clean === current) return;
@@ -119,10 +129,11 @@ function signIn(name: string): void {
  * a username is taken as given (PRODUCT.md — "identity is a username, no
  * authentication"), validated for shape, written to the store, and we are in.
  *
- * V1 swaps the body for `POST /session` (`{ username }` → `{ user, organization }`,
+ * The body is `POST /api/session` (`{ username }` → `{ user, organization }`,
  * docs/backend-contract.md): create-or-resume, no password, no token. Every
- * caller and every state in `<SignIn>` already handles the promise, a
- * `SignInError` rejection, and the retry — nothing else on the surface changes.
+ * caller and every state in `<SignIn>` handles the promise, a `SignInError`
+ * rejection, and the retry — the shape of both is settled by the two client-side
+ * guards below plus whatever the API reports.
  */
 export async function authenticate(name: string): Promise<void> {
   const clean = normalizeUsername(name);
@@ -134,6 +145,29 @@ export async function authenticate(name: string): Promise<void> {
       `A username is ${USERNAME_MAX} characters or fewer.`,
       { field: true },
     );
+  }
+
+  let res: Response;
+  try {
+    res = await fetch("/api/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: clean }),
+    });
+  } catch {
+    throw new SignInError(
+      "Could not reach the workspace. Check your connection and try again.",
+      { field: false },
+    );
+  }
+  if (!res.ok) {
+    const message = await res
+      .json()
+      .then((body: { error?: string }) => body?.error ?? null)
+      .catch(() => null);
+    throw new SignInError(message ?? "Could not sign in.", {
+      field: res.status === 422,
+    });
   }
   signIn(clean);
 }
