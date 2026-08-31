@@ -1,0 +1,208 @@
+/*
+ * Database overview — co-located with Dashboard.tsx. Tokens from theme.css;
+ * the border ladder and square corners from DESIGN.md. The create plate
+ * mirrors /branches (same field, same Cut); this file owns the dashboard's
+ * copy of it so the two surfaces can ship in parallel without sharing CSS.
+ */
+
+/* ── create plate in the title strip ─────────────────────────────────── */
+
+.db-create {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: min(280px, 100%);
+}
+.db-create__label {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.db-create__row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+.db-create__input {
+  flex: 1 1 12ch;
+  min-width: 0;
+  font-family: var(--ff-mono);
+  font-feature-settings: "tnum" 1;
+  font-size: 16px;
+  line-height: 1.2;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  padding: 7px 10px;
+  caret-color: var(--ink);
+}
+.db-create__input::placeholder {
+  color: var(--ink-faint);
+}
+@media (hover: hover) {
+  .db-create__input:hover:not(:disabled) {
+    border-color: var(--ink);
+  }
+}
+.db-create__input:disabled {
+  color: var(--ink-faint);
+  background: var(--sheet-2);
+  cursor: not-allowed;
+}
+.db-create__err {
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--conflict);
+  max-width: 36ch;
+}
+
+.db .kit-sheet__action {
+  align-items: stretch;
+  padding: 14px 18px;
+}
+.db .kit-sheet__action .mr-btn:disabled {
+  color: var(--ink-faint);
+  border-color: var(--line-strong);
+  background: var(--sheet-2);
+  cursor: not-allowed;
+}
+
+/* ── live notice: visually reserved, announced to AT ─────────────────── */
+
+.db-live {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ok);
+  min-height: 1.45em;
+  margin: 0 0 12px;
+}
+
+/* ── path + lists ────────────────────────────────────────────────────── */
+
+.db {
+  min-width: 0;
+}
+.db .mr-titlestrip__path {
+  overflow-wrap: anywhere;
+}
+.db .kit-tri {
+  color: var(--ink-soft);
+}
+.db .kit-tri--none {
+  color: var(--ink-faint);
+}
+.db .kit-pill {
+  justify-self: end;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 28ch;
+}
+.db a.mr-btn {
+  text-decoration: none;
+  width: fit-content;
+}
+.db a.mr-btn:focus-visible {
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .db a.mr-btn:hover {
+    background: var(--sheet-2);
+    border-color: var(--ink);
+  }
+}
+
+/* ── overview as a drawing title-block, not a two-column stat grid ─── */
+
+.db .kit-facts {
+  grid-template-columns: 1fr;
+}
+.db .kit-facts > div {
+  grid-template-columns: 140px 1fr;
+  gap: 0;
+  padding: 0;
+  font-size: 10px;
+  border-inline-end: none;
+}
+.db .kit-facts > div:nth-child(odd) {
+  border-inline-end: none;
+}
+.db .kit-facts > div:nth-last-child(-n + 2) {
+  border-bottom: 1px solid var(--line);
+}
+.db .kit-facts > div:last-child {
+  border-bottom: none;
+}
+.db .kit-facts dt,
+.db .kit-facts dd {
+  padding: 6px 8px;
+}
+.db .kit-facts dt {
+  border-inline-end: 1px solid var(--line);
+  white-space: nowrap;
+}
+.db .kit-facts dd {
+  font-feature-settings: "tnum" 1;
+  font-weight: 400;
+  text-align: start;
+}
+
+@media (max-width: 640px) {
+  .db .kit-facts {
+    grid-template-columns: 1fr;
+  }
+  .db .kit-facts > div:nth-child(odd) {
+    border-inline-end: none;
+  }
+}
+
+/* ── per-zone empty: the list frame stays; one sentence + the action ─── */
+
+.db-empty {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+  align-items: start;
+  padding: 14px 13px;
+}
+.db-empty__msg {
+  margin: 0;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink);
+  max-width: 62ch;
+}
+
+@media (max-width: 1100px) {
+  .db .kit-sheet__action {
+    border-inline-start: none;
+    border-top: 2px solid var(--ink);
+  }
+  .db-create {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .db .kit-pill {
+    justify-self: start;
+  }
+}
+
+@media (forced-colors: active) {
+  .db-create__input {
+    outline: 1px solid CanvasText;
+    border-color: CanvasText;
+  }
+  .db a.mr-btn {
+    outline: 1px solid CanvasText;
+  }
+}
