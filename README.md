@@ -1,13 +1,13 @@
 # ryft
 
 Version control for a Postgres schema: branch it, change it through a structured editor that
-records renames as renames, see exactly what diverged, and merge it back with a **semantic
-three-way merge** that follows a column across a rename by stable id — so an index added on
+records edits, see exactly what diverged, and merge it back with a **semantic
+three-way merge** that follows changes by stable ids — so an index added on
 one branch rebases onto a column the other branch renamed, instead of erroring or being
 dropped.
 
 Row data is out of scope. The schema document is the artifact under version control; the
-generated Postgres DDL is a *rendering* of what a merge does, not a migration you run.
+generated Postgres DDL is a *rendering* of what a merge does.
 
 Full framing, the alternatives weighed, and everything deliberately cut: **`decisions.md`**
 (its brief answers the problem statement). Design is locked in **`docs/adr/`**.
