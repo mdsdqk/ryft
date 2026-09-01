@@ -123,6 +123,10 @@ resolutions routes**:
 `POST /merge-requests`, `GET /merge-requests/:id`, `POST /merge-requests/:id/merge`,
 `DELETE /merge-requests/:id`.
 
+Added after WU-E settled its shape: `DELETE /branches/:name/operations?after=<seq>` — undo
+by truncate-and-replay (`docs/backend-contract.md` §3). The endpoint table left undo to WU-E;
+this is that decision landing in the V0 API.
+
 **V1, not built here:** `POST /merge-requests/:id/resolutions` and its `DELETE`; the
 `queued` / `held` status transitions, FIFO promotion, `previewed_main_version` tracking, and
 the `409` kick-back body (ADR 0004 §3–§4); `validateDocument` on the merge path (ADR 0008

@@ -131,3 +131,44 @@ describe("failure paths", () => {
     expect(r.status).toBe(403);
   });
 });
+
+describe("undo — DELETE /branches/:name/operations?after=<seq>", () => {
+  beforeEach(async () => {
+    await app.request("/api/workspace/reset", { method: "POST" });
+    await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "titles" }) });
+    await app.request("/api/branches/titles/operations", { method: "POST", headers: grace, body: JSON.stringify({ ops: titlesOps }) });
+  });
+
+  const log = async () =>
+    (await j(await app.request("/api/branches/titles/operations", { headers: grace }))) as unknown as Array<{ seq: number }>;
+
+  it("drops the ops past <seq>, rebuilds head, and bumps head_version", async () => {
+    const r = await app.request("/api/branches/titles/operations?after=1", { method: "DELETE", headers: grace });
+    expect(r.status).toBe(200);
+    const body = await j(r);
+    expect(body.headVersion).toBe(2); // 1 from the apply batch, +1 for the undo
+
+    // only seq 1 survives, and head reflects just that first rename
+    expect((await log()).map((e) => e.seq)).toEqual([1]);
+    const detail = await j(await app.request("/api/branches/titles", { headers: grace }));
+    const posts = (detail.head as { tables: Array<{ id: string; columns: { name: string }[] }> }).tables.find(
+      (t) => t.id === seedIds.posts.table,
+    )!;
+    expect(posts.columns.map((c) => c.name)).toContain("content"); // seq 1 rename kept
+    expect((detail.divergence as number)).toBe(1);
+  });
+
+  it("after=0 clears the branch back to its cut", async () => {
+    await app.request("/api/branches/titles/operations?after=0", { method: "DELETE", headers: grace });
+    expect((await log()).length).toBe(0);
+    const detail = await j(await app.request("/api/branches/titles", { headers: grace }));
+    expect(detail.divergence).toBe(0);
+  });
+
+  it("422 without a valid after, 404 for an unknown branch, 403 for main", async () => {
+    expect((await app.request("/api/branches/titles/operations", { method: "DELETE", headers: grace })).status).toBe(422);
+    expect((await app.request("/api/branches/titles/operations?after=-1", { method: "DELETE", headers: grace })).status).toBe(422);
+    expect((await app.request("/api/branches/ghost/operations?after=0", { method: "DELETE", headers: grace })).status).toBe(404);
+    expect((await app.request("/api/branches/main/operations?after=0", { method: "DELETE", headers: grace })).status).toBe(403);
+  });
+});

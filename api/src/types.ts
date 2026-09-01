@@ -89,4 +89,10 @@ export type OperationsResponse = {
   warnings: Array<{ reason: string; message: string; objectId: string }>;
 };
 
+/** `DELETE /branches/:name/operations?after=<seq>` — the rebuilt head after an undo. */
+export type UndoResponse = {
+  head: SchemaDocument;
+  headVersion: number;
+};
+
 export type { LogEntry };

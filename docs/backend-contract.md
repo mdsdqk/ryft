@@ -173,9 +173,11 @@ Base path `/api`. All bodies and responses are JSON. `Actor` = the resolved `x-r
 |---|---|---|---|
 | `POST /branches/:name/operations` | `{ ops: Operation[] }` | `{ head: SchemaDocument, appliedSeqs: number[], headVersion: number }` | Applies `ops` in order through `applyOperation` (ADR 0004 §8). One transaction: any failure rolls the whole batch back. `422` on a dependency violation — see below. Each applied op is appended to `operations` as a `LogEntry` (`authorId = Actor`, `at = now()`, `seq` continuing the branch counter); `head_version` is bumped once. `409` if `:name` has a non-terminal MR and the branch is frozen for review (V0: not frozen — edits stay allowed; the MR's `ours` refreshes on promotion). |
 | `GET /branches/:name/operations` | — | `LogEntry[]` | Whole log, ascending `seq`. History sub-sheet (V1); endpoint available now. |
+| `DELETE /branches/:name/operations?after=<seq>` | — | `{ head: SchemaDocument, headVersion: number }` | Undo. Drops every log entry with `seq > after` and rebuilds `head` by replaying the surviving prefix from `base_snapshot` — the same fold `POST .../operations` runs. `after=0` clears the branch back to its cut. `head_version` is bumped once. One transaction. `403` for `main`; `404` for an unknown branch; `422` if `after` is missing or not an integer `≥ 0`. |
 
-Undo is **not specified by this ticket** — WU-E decides it (inverse ops through
-`POST .../operations`, or a `DELETE .../operations?after=<seq>`).
+WU-E settled undo as `DELETE .../operations?after=<seq>` (truncate-and-replay), not inverse
+ops through `POST .../operations` — replay keeps `head` byte-identical to a shorter history
+and needs no inverse-op derivation. The structured editor's LIFO undo passes `last.seq - 1`.
 
 ### Merge requests
 

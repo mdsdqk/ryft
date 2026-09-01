@@ -8,18 +8,19 @@
  *  DELETE /branches/:name          drop a working branch
  *  POST   /branches/:name/operations   apply a batch through applyOperation
  *  GET    /branches/:name/operations   the whole log, ascending seq
+ *  DELETE /branches/:name/operations?after=<seq>   undo: drop every op past <seq>
  */
 
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, gt, lte } from "drizzle-orm";
 import { applyOperation, OperationBlockedError } from "../../../engine/apply-operation.js";
 import type { Operation } from "../../../engine/operations.js";
 import type { SchemaDocument } from "../../../engine/schema.js";
 import type { Env } from "../app.js";
 import { branches, mergeRequests, operations } from "../db/schema.js";
 import { assembleBranchDetail, listBranchSummaries } from "../views.js";
-import type { LogEntry, OperationsResponse } from "../types.js";
+import type { LogEntry, OperationsResponse, UndoResponse } from "../types.js";
 
 export const branchRoutes = new Hono<Env>();
 
@@ -155,5 +156,49 @@ branchRoutes.post("/branches/:name/operations", async (c) => {
   });
 
   const res: OperationsResponse = { head, appliedSeqs, headVersion, warnings };
+  return c.json(res);
+});
+
+branchRoutes.delete("/branches/:name/operations", async (c) => {
+  const db = c.get("db");
+  const name = c.req.param("name");
+
+  if (name === "main") throw new HTTPException(403, { message: "main has no editable log" });
+
+  const [branch] = await db.select().from(branches).where(eq(branches.name, name));
+  if (!branch) throw new HTTPException(404, { message: `no branch "${name}"` });
+
+  // `?after=<seq>` — keep the log up to and including <seq>, drop everything
+  // past it. `after=0` clears the branch back to its cut. The structured
+  // editor's LIFO undo passes `last.seq - 1` (`docs/backend-contract.md` §3).
+  const afterRaw = c.req.query("after");
+  const after = Number(afterRaw);
+  if (afterRaw === undefined || !Number.isInteger(after) || after < 0) {
+    throw new HTTPException(422, { message: "after must be an integer ≥ 0 (the last seq to keep)" });
+  }
+
+  // Rebuild head by replaying the surviving prefix from base_snapshot — the
+  // same fold `POST .../operations` runs, so head is byte-identical to what a
+  // shorter edit history would have produced. These ops applied cleanly once,
+  // so a replay cannot raise OperationBlockedError.
+  const kept = await db
+    .select()
+    .from(operations)
+    .where(and(eq(operations.branchName, name), lte(operations.seq, after)))
+    .orderBy(asc(operations.seq));
+
+  let head = branch.baseSnapshot;
+  for (const row of kept) {
+    if (row.op.type === "merge") continue; // markers never land on a working branch
+    head = applyOperation(head, row.op as Operation).head;
+  }
+
+  const headVersion = branch.headVersion + 1;
+  await db.transaction(async (tx) => {
+    await tx.delete(operations).where(and(eq(operations.branchName, name), gt(operations.seq, after)));
+    await tx.update(branches).set({ head, headVersion }).where(eq(branches.name, name));
+  });
+
+  const res: UndoResponse = { head, headVersion };
   return c.json(res);
 });
