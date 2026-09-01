@@ -33,7 +33,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function send<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
     headers: {
@@ -49,6 +49,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(res.status, body as ApiError["body"]);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+}
+
+/**
+ * In-flight GETs are shared: two components mounting on the same screen (the
+ * rail and a surface both read `/overview`), or React re-invoking an effect,
+ * collapse to one network call. Cleared on settle, so a failure is retried and
+ * the next call is fresh. Only GET — mutations must never share.
+ */
+const inflight = new Map<string, Promise<unknown>>();
+
+function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (method !== "GET") return send<T>(path, init);
+
+  const key = `${currentUsername() ?? ""} ${path}`;
+  const existing = inflight.get(key) as Promise<T> | undefined;
+  if (existing) return existing;
+
+  const pending = send<T>(path, init).finally(() => inflight.delete(key));
+  inflight.set(key, pending);
+  return pending;
 }
 
 /** `POST /api/branches` / `GET /api/branches/:name` — the fields we project from. */

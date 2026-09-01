@@ -3,22 +3,21 @@
  * opening a branch or a merge nests that item's sub-sheets under it. The current
  * sheet is boxed, the same marker the revision dial uses for its current step.
  *
- * The database line and the counts come from the data seam. With the fixture
- * they resolve before the first frame is meaningfully visible; once a real API
- * is wired, hoist this read to the app root so the rail and the dashboard share
- * one fetch.
+ * The database line and the counts come from `useOverview` — one `getOverview`
+ * read hoisted to `OverviewProvider` in the shell, shared with the `/db`
+ * dashboard so the screen fetches `/overview` once.
  */
 
 import { Link, useLocation, useMatch } from "react-router";
 
-import { source, useResource } from "../data/index.ts";
+import { useOverview } from "./overview.tsx";
 
 export function Rail() {
   const { pathname, search } = useLocation();
   const freshlySeeded =
     (pathname === "/db" || pathname === "/") &&
     new URLSearchParams(search).has("empty");
-  const { data } = useResource(() => source.getOverview(), [freshlySeeded]);
+  const { data } = useOverview();
   const db = data?.database;
   const branchCount = freshlySeeded ? 0 : data?.branches.length;
   const mergeCount = freshlySeeded ? 0 : data?.merges.length;
