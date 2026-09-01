@@ -19,6 +19,9 @@ export type {
   BranchSummary,
   MergeSummary,
   Overview,
+  BranchDetail,
+  BranchOperationEntry,
+  ApplyOpsResult,
 } from "./types.ts";
 export type { CreateBranchArgs } from "./source.ts";
 export { useResource, type Resource } from "./useResource.ts";
@@ -27,4 +30,5 @@ export {
   BranchHeldError,
   heldByMergeMessage,
 } from "./branches.ts";
+export { BranchNotFoundError } from "./branchSchema.ts";
 export { mergeStatusLabel, mergeStatusTone } from "./merges.ts";

@@ -1,0 +1,562 @@
+/*
+ * Branch workspace — co-located with the branch/ surface. Tokens from
+ * theme.css; the border ladder and square corners from DESIGN.md. E1 styles the
+ * read-only Schema sub-sheet: the two-column body, the table card, and the
+ * operation timeline. No motion.
+ */
+
+/* ── two-column body: cards · operations ─────────────────────────────── */
+
+.bw-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+.bw-main {
+  min-width: 0;
+  padding: 22px 24px 26px;
+  border-inline-end: 2px solid var(--ink);
+}
+.bw-main__k,
+.bw-ops__k {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 12px;
+}
+.bw-main__ct,
+.bw-ops__ct {
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.bw-ops__ct {
+  margin-inline-start: auto;
+}
+
+.bw-rail {
+  min-width: 0;
+  background: var(--sheet-2);
+  padding: 20px;
+}
+
+/* ── table card ─────────────────────────────────────────────────────── */
+
+.bw-cards {
+  display: grid;
+  gap: 20px;
+}
+.bw-card {
+  border: 1.5px solid var(--ink);
+  background: var(--panel);
+}
+.bw-card__strip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  background: var(--sheet);
+  border-bottom: 1.5px solid var(--ink);
+}
+.bw-card__name {
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.bw-card__id {
+  font-family: var(--ff-mono);
+  font-feature-settings: "tnum" 1;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+
+/* ── object groups ─────────────────────────────────────────────────── */
+
+.bw-group__k {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 7px 12px;
+  background: var(--sheet-2);
+  border-bottom: 1px solid var(--line);
+}
+.bw-group + .bw-group .bw-group__k {
+  border-top: 1px solid var(--line);
+}
+
+.bw-row {
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 12px;
+  border-bottom: 1px dashed var(--line);
+  font-family: var(--ff-mono);
+  font-feature-settings: "tnum" 1;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.bw-row:last-child {
+  border-bottom: none;
+}
+/* a changed row is ringed and washed in the --ours role — DESIGN.md's
+ * "crisp rectangular ring around any row that diverged", plus the △N mark, so
+ * the state never rests on the wash alone */
+.bw-row--changed {
+  background: var(--ours-wash);
+  outline: 1.5px solid var(--ours);
+  outline-offset: -1.5px;
+}
+
+/* editable row: the whole spec is one button; an `edit` hint appears on
+ * hover / keyboard focus (grill Q8) and opens the row's editor in place */
+.bw-row--btn {
+  width: 100%;
+  text-align: start;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.bw-row__edit {
+  justify-self: end;
+  visibility: hidden;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.bw-row--btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.bw-row--btn:focus-visible .bw-row__edit {
+  visibility: visible;
+}
+@media (hover: hover) {
+  .bw-row--btn:hover {
+    background: var(--sheet-2);
+  }
+  .bw-row--btn:hover .bw-row__edit {
+    visibility: visible;
+  }
+}
+.bw-row__name {
+  min-width: 0;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.bw-row__pk {
+  margin-inline-start: 6px;
+  font-weight: 400;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.bw-row__spec {
+  min-width: 0;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+.bw-row__mark {
+  justify-self: end;
+  white-space: nowrap;
+}
+.bw-row__none {
+  padding: 9px 12px;
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+
+/* ── operation timeline ────────────────────────────────────────────── */
+
+.bw-ops__empty {
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.bw-ops__list {
+  list-style: none;
+  position: relative;
+  padding-inline-start: 16px;
+  max-height: 320px;
+  overflow: auto;
+}
+.bw-ops__list::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 3px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--line-strong);
+}
+.bw-ops__entry {
+  position: relative;
+  padding: 0 0 12px 8px;
+  font-family: var(--ff-mono);
+  font-feature-settings: "tnum" 1;
+  font-size: 10.5px;
+}
+.bw-ops__entry:last-child {
+  padding-bottom: 0;
+}
+.bw-ops__entry::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -13px;
+  top: 3px;
+  width: 7px;
+  height: 7px;
+  background: var(--sheet-2);
+  border: 1.5px solid var(--ours);
+}
+.bw-ops__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bw-ops__tag {
+  font-weight: 700;
+  color: var(--ours);
+}
+.bw-ops__who {
+  font-size: 9.5px;
+  color: var(--ink-faint);
+}
+.bw-ops__desc {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* the title-strip action is a link styled as a button */
+.kit-sheet__action a.mr-btn {
+  text-decoration: none;
+}
+
+/* the contextual merge-request action (E4) */
+.bw-mraction {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.bw-mraction__err {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--conflict);
+  max-width: 30ch;
+}
+
+/* ── divergence sub-sheet (E3) ────────────────────────────────────── */
+
+.bw-divergence {
+  padding: 22px 24px 26px;
+}
+.bw-divergence__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.bw-divergence__head .bw-main__k {
+  margin-bottom: 0;
+}
+.bw-divergence__head a.mr-btn {
+  text-decoration: none;
+}
+.bw-divergence .mr-filters {
+  margin-top: 16px;
+}
+@media (max-width: 640px) {
+  .bw-divergence {
+    padding: 16px;
+  }
+}
+
+/* ── card strip actions (E2) ──────────────────────────────────────── */
+
+.bw-card__right {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.bw-card__acts {
+  display: flex;
+  gap: 6px;
+}
+.bw-mini {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid var(--line-strong);
+  background: var(--sheet);
+  color: var(--ink-soft);
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.bw-mini--danger {
+  color: var(--conflict);
+  border-color: var(--conflict-edge);
+}
+@media (hover: hover) {
+  .bw-mini:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+  .bw-mini--danger:hover {
+    border-color: var(--conflict);
+    color: var(--conflict);
+  }
+}
+
+/* ── in-place editor panel (E2 — the Form pattern) ────────────────── */
+
+.bw-ed {
+  padding: 12px;
+  background: var(--sheet);
+  border-top: 1.5px solid var(--ours);
+  border-bottom: 1.5px solid var(--ours);
+}
+.bw-ed--warn {
+  border-color: var(--conflict-edge);
+  background: var(--conflict-wash);
+}
+.bw-ed--strip {
+  border-top: none;
+}
+.bw-ed__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+.bw-fld {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.bw-fld > span {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.bw-fld--wide .bw-in {
+  width: 24ch;
+}
+.bw-fld--strip {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+.bw-in {
+  font-family: var(--ff-mono);
+  font-feature-settings: "tnum" 1;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  padding: 5px 7px;
+}
+input.bw-in {
+  width: 20ch;
+  max-width: 100%;
+}
+input.bw-in::placeholder {
+  color: var(--ink-faint);
+}
+@media (hover: hover) {
+  .bw-in:hover {
+    border-color: var(--ink);
+  }
+}
+.bw-ed__drop {
+  align-self: flex-end;
+}
+.bw-ed__msg {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.bw-ed__err {
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--conflict);
+  margin-top: 8px;
+}
+.bw-ed__note {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+.bw-ed__note::before {
+  content: "note — ";
+  color: var(--ink-faint);
+}
+.bw-ed__deps {
+  list-style: none;
+  margin: 6px 0 0;
+  display: grid;
+  gap: 3px;
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  color: var(--ink-soft);
+}
+.bw-ed__kind {
+  color: var(--ink-faint);
+}
+.bw-ed__row,
+.bw-ed__foot {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.bw-ed__cols {
+  border: 1px solid var(--line-strong);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.bw-ed__cols legend {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 0 4px;
+}
+.bw-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.bw-check--inline {
+  align-self: flex-end;
+}
+.bw-check input {
+  accent-color: var(--ours);
+}
+
+.bw-card--new {
+  outline: 1.5px solid var(--ours);
+  outline-offset: -1.5px;
+}
+
+/* ── undo (E2 — LIFO, grill Q6) ──────────────────────────────────── */
+
+.bw-undo {
+  margin-top: 14px;
+  width: 100%;
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  border: 1.5px solid var(--line-strong);
+  background: var(--sheet);
+  color: var(--ink-soft);
+  padding: 7px 9px;
+  cursor: pointer;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+@media (hover: hover) {
+  .bw-undo:hover:not(:disabled) {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+}
+.bw-undo:disabled {
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+/* ── responsive ────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  .bw-grid {
+    grid-template-columns: 1fr;
+  }
+  .bw-main {
+    border-inline-end: none;
+    border-bottom: 2px solid var(--ink);
+  }
+}
+@media (max-width: 640px) {
+  .bw-main,
+  .bw-rail {
+    padding: 16px;
+  }
+  /* stack the card strip so the table name is never squeezed mid-word */
+  .bw-card__strip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .bw-card__right {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 560px) {
+  .bw-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .bw-row__spec {
+    grid-column: 1 / -1;
+    margin-top: 3px;
+  }
+  /* no hover on touch — the whole row button is the tap target */
+  .bw-row__edit {
+    display: none;
+  }
+  .bw-row__mark {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (forced-colors: active) {
+  .bw-card,
+  .bw-card__strip {
+    border-color: CanvasText;
+  }
+  .bw-row--changed {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+}

@@ -14,9 +14,10 @@ import { Link, useLocation, useMatch } from "react-router";
 import { source, useResource } from "../data/index.ts";
 
 export function Rail() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const { data } = useResource(() => source.getOverview());
   const db = data?.database;
+  const branchSheet = new URLSearchParams(search).get("sheet") ?? "schema";
 
   const branchMatch = useMatch("/branch/:name");
   const mergeMatch = useMatch("/merge/:id");
@@ -56,13 +57,18 @@ export function Rail() {
               <li>
                 <Link
                   to={`/branch/${encodeURIComponent(branchMatch.params.name!)}`}
-                  aria-current="page"
+                  aria-current={branchSheet === "schema" ? "page" : undefined}
                 >
                   Schema
                 </Link>
               </li>
               <li>
-                <span aria-disabled="true">Divergence</span>
+                <Link
+                  to={`/branch/${encodeURIComponent(branchMatch.params.name!)}?sheet=divergence`}
+                  aria-current={branchSheet === "divergence" ? "page" : undefined}
+                >
+                  Divergence
+                </Link>
               </li>
               <li>
                 <span aria-disabled="true">History</span>

@@ -8,8 +8,14 @@
  * the session store; there is no token and no cookie.
  */
 
+import type { SchemaDocument } from "@engine/schema.js";
+import type { Operation } from "@engine/operations.js";
+import { OperationBlockedError } from "@engine/apply-operation.js";
+import type { OpError } from "@engine/validate.js";
+
 import { currentUsername } from "../session/session.ts";
 import { BranchHeldError, heldByMergeMessage } from "./branches.ts";
+import { BranchNotFoundError } from "./branchSchema.ts";
 import type { DataSource } from "./source.ts";
 import type { BranchSummary, MergeSummary, Overview } from "./types.ts";
 import { invalidateData } from "./watch.ts";
@@ -105,4 +111,144 @@ export const httpSource: DataSource = {
     }
     invalidateData();
   },
+
+  async getBranchDetail(name) {
+    let detail: BranchDetailBody;
+    try {
+      detail = await request<BranchDetailBody>(
+        `/branches/${encodeURIComponent(name)}`,
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw new BranchNotFoundError(name);
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    }
+    return {
+      name: detail.name,
+      author: detail.author,
+      cutOn: detail.cutOn,
+      head: detail.head,
+      base: detail.base,
+      divergence: detail.divergence,
+      ...(detail.openMergeRequestId
+        ? { openMergeId: detail.openMergeRequestId }
+        : {}),
+    };
+  },
+
+  async listBranchOperations(name) {
+    let log: LogEntryBody[];
+    try {
+      log = await request<LogEntryBody[]>(
+        `/branches/${encodeURIComponent(name)}/operations`,
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw new BranchNotFoundError(name);
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    }
+    // The endpoint returns raw `LogEntry` with a bare `authorId`; a display
+    // name resolver is not on the seam yet (E2). Until it is, surface the id —
+    // the fixture path, which dev and screenshots use, resolves it properly.
+    return log
+      .filter((e): e is LogEntryBody & { op: Operation } => e.op.type !== "merge")
+      .map((e) => ({ seq: e.seq, at: e.at, author: e.authorId, op: e.op }));
+  },
+
+  async applyOperations(name, ops) {
+    try {
+      return await request<{
+        head: SchemaDocument;
+        appliedSeqs: number[];
+        headVersion: number;
+      }>(`/branches/${encodeURIComponent(name)}/operations`, {
+        method: "POST",
+        body: JSON.stringify({ ops }),
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw new BranchNotFoundError(name);
+      }
+      if (err instanceof ApiError && err.status === 422) {
+        // ADR 0004 §8 body — a precondition failure. Rebuild the engine's error
+        // so the editor's `OperationBlockedError` handling is source-agnostic.
+        const body = err.body as { error?: string; dependents?: OpError["dependents"] };
+        const opError: OpError = {
+          reason: body.dependents ? "drop-blocked" : "target-not-found",
+          message: body.error ?? "The edit was refused.",
+          ...(body.dependents ? { dependents: body.dependents } : {}),
+        };
+        throw new OperationBlockedError(opError, ops[0]!);
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    } finally {
+      invalidateData();
+    }
+  },
+
+  async undoAfter(name, seq) {
+    try {
+      return await request<{ head: SchemaDocument; headVersion: number }>(
+        `/branches/${encodeURIComponent(name)}/operations?after=${seq}`,
+        { method: "DELETE" },
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw new BranchNotFoundError(name);
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    } finally {
+      invalidateData();
+    }
+  },
+
+  async createMergeRequest(source) {
+    try {
+      const res = await request<{ id: string; queue: { status: "open" | "queued" | "held" | "merged" } }>(
+        "/merge-requests",
+        { method: "POST", body: JSON.stringify({ source }) },
+      );
+      invalidateData();
+      return { id: res.id, status: res.queue.status };
+    } catch (err) {
+      // 409 — a non-terminal request already has this source. Recover its id
+      // from the body so the caller can navigate to it rather than surface an
+      // error the UI is designed never to show.
+      if (err instanceof ApiError && err.status === 409) {
+        const body = err.body as { id?: string; mergeRequestId?: string };
+        const id = body.id ?? body.mergeRequestId;
+        if (id) {
+          invalidateData();
+          return { id, status: "open" as const };
+        }
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    }
+  },
+};
+
+/** `GET /branches/:name` — the two raw documents plus resolved domain facts. */
+type BranchDetailBody = {
+  name: string;
+  author: string;
+  cutOn: string;
+  head: SchemaDocument;
+  base: SchemaDocument;
+  divergence: number;
+  openMergeRequestId: string | null;
+};
+
+/** `GET /branches/:name/operations` — one row of the branch log. */
+type LogEntryBody = {
+  seq: number;
+  at: string;
+  authorId: string;
+  op: Operation | { type: "merge" };
 };

@@ -16,7 +16,8 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "paths": {
-      "@engine/*": ["../engine/*"]
+      "@engine/*": ["../engine/*"],
+      "@examples/*": ["../examples/*"]
     }
   },
   "include": ["src", "vite.config.ts"]

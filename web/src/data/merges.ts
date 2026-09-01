@@ -8,6 +8,7 @@
  */
 
 import type { MergeSummary } from "./types.ts";
+import { invalidateData } from "./watch.ts";
 
 const clone = <T>(v: T): T => structuredClone(v);
 
@@ -58,6 +59,34 @@ export function listOpen(): MergeSummary[] {
   return clone(open)
     .filter((m) => m.id.trim() !== "" && m.source.trim() !== "")
     .sort(byQueue);
+}
+
+let nextId = 4;
+const todayIso = (): string => new Date().toISOString().slice(0, 10);
+
+/**
+ * Open a merge request for `source → main` (WU-E · E4). Idempotent: if one is
+ * already open for `source` it is returned unchanged, so the caller can never
+ * trip the API's `409`. `status` is `open` when the queue is empty of active
+ * requests, else `queued` (ADR 0004 §3) — V0 treats the fixture queue as always
+ * having room, so a new request is `open`.
+ */
+export function createFor(source: string, operations: number): { id: string } {
+  const existing = open.find((m) => m.source === source);
+  if (existing) return { id: existing.id };
+  const created: MergeSummary = {
+    id: String(nextId++),
+    source,
+    target: "main",
+    author: "grace",
+    openedOn: todayIso(),
+    operations,
+    status: "clean",
+    conflicts: 0,
+  };
+  open = [...open, created];
+  invalidateData();
+  return { id: created.id };
 }
 
 /** StatusPill tone: colour never carries the state alone — the label does. */

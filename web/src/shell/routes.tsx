@@ -12,7 +12,7 @@ import { SignIn } from "../surfaces/SignIn.tsx";
 import { Dashboard } from "../surfaces/Dashboard.tsx";
 import { Branches } from "../surfaces/Branches.tsx";
 import { Merges } from "../surfaces/Merges.tsx";
-import { BranchWorkspace } from "../surfaces/BranchWorkspace.tsx";
+import { BranchWorkspace } from "../surfaces/branch/BranchWorkspace.tsx";
 import { MergeReviewRoute } from "../surfaces/MergeReviewRoute.tsx";
 import { PlannedSheet } from "../surfaces/PlannedSheet.tsx";
 
