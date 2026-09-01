@@ -106,6 +106,7 @@ are in `docs/backend-contract.md` §4. **V1 rows from that table are omitted** �
 | `DELETE /branches/:name` | Unchanged. `403` for `main`; `409` if a non-terminal MR has this `source`. |
 | `POST /branches/:name/operations` | `ops` applied in order through `applyOperation`; progressive `validateOperation` (batch semantics — `docs/robustness.md` §5). One transaction. `422` body per `docs/backend-contract.md` §5 on the first `OpError`. `OpWarning[]` returned with the success body. No MR-freeze interaction (V0 branches are never frozen). |
 | `GET /branches/:name/operations` | Unchanged. Whole log, ascending `seq`. |
+| `DELETE /branches/:name/operations?after=<seq>` | Undo (WU-E). Drops entries past `<seq>`, replays the surviving prefix from `base_snapshot`, bumps `head_version` once. `403` `main`; `404` unknown branch; `422` missing / non-integer / negative `after`. Returns `{ head, headVersion }`. |
 | `GET /merge-requests` | Unchanged shape. Non-terminal first, ascending `created_at`. `position`/`ahead`/`behind` are informational, always `1`/`0`/`0` in V0. |
 | `POST /merge-requests` | Freezes `base = source.base_snapshot`, `ours = source.head`, `theirs = main.head`. Status is always `open` — no `queued` state, no guard on an existing open MR (ADR 0010 §4). `409` only if a non-terminal MR already has this `source`. |
 | `GET /merge-requests/:id` | Recomputes `report` + `migration` every call. `queue = { status, position: 1, ahead: 0, behind: 0 }`; `stale: false`; `droppedResolutions: []` (all V1-inert in V0). |
@@ -149,6 +150,10 @@ curl -s $BASE/branches/main -H "x-ryft-user: grace" | jq '.head.tables[0].column
 curl -sX POST $BASE/branches -d '{"name":"titles"}' -H "x-ryft-user: grace" -H 'content-type: application/json'
 curl -sX POST $BASE/branches/titles/operations -H "x-ryft-user: grace" -H 'content-type: application/json' \
   -d @titles-ops.json        # renameColumn posts.body→content, retypeColumn comments.flags int→bigint, addIndex posts.published
+
+# 4b. undo everything back to the cut, then re-apply the batch — head rebuilds from base_snapshot
+curl -sX DELETE "$BASE/branches/titles/operations?after=0" -H "x-ryft-user: grace" | jq '.headVersion'
+curl -sX POST $BASE/branches/titles/operations -H "x-ryft-user: grace" -H 'content-type: application/json' -d @titles-ops.json
 
 # 5. open and merge
 MR2=$(curl -sX POST $BASE/merge-requests -d '{"source":"titles"}' -H "x-ryft-user: grace" -H 'content-type: application/json' | jq -r '.id')
