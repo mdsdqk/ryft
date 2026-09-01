@@ -8,8 +8,9 @@
  */
 
 import type { Operation } from "@engine/operations.js";
-import type { SchemaDocument } from "@engine/schema.js";
+import type { ColumnType, SchemaDocument } from "@engine/schema.js";
 
+import type { MergeReview } from "../merge-review/model.ts";
 import type {
   ApplyOpsResult,
   BranchDetail,
@@ -60,4 +61,20 @@ export interface DataSource {
   createMergeRequest(
     source: string,
   ): Promise<{ id: string; status: "open" | "queued" | "held" | "merged" }>;
+
+  /** One merge request's review model; throws `MergeRequestNotFoundError` on a miss. */
+  getMergeReview(id: string): Promise<MergeReview>;
+  /**
+   * Record a conflict choice (`docs/backend-contract.md` §3). `type` is
+   * required iff `choice === "type"`. Returns the review recomputed with the
+   * resolution applied.
+   */
+  postResolution(
+    id: string,
+    conflictId: string,
+    choice: "ours" | "theirs" | "type",
+    type?: ColumnType,
+  ): Promise<MergeReview>;
+  /** Drop a recorded choice, reopening the conflict. */
+  deleteResolution(id: string, conflictId: string): Promise<MergeReview>;
 }

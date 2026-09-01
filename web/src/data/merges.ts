@@ -12,6 +12,13 @@ import { invalidateData } from "./watch.ts";
 
 const clone = <T>(v: T): T => structuredClone(v);
 
+export class MergeRequestNotFoundError extends Error {
+  override name = "MergeRequestNotFoundError";
+  constructor(id: string) {
+    super(`No merge request "${id}".`);
+  }
+}
+
 /**
  * Worked-example queue. `1` is the contact-fields review the merge-review
  * surface already ships. The other two exist so the list can show a clean

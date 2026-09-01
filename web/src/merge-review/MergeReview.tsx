@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MergeReview as MergeReviewModel } from "./model.ts";
 import { effectiveStatus, openConflicts } from "./model.ts";
 import { statusLabel } from "./format.ts";
+import { source } from "../data/index.ts";
 
 import { ComparisonTable } from "./components/ComparisonTable.tsx";
 import { ConflictQueue } from "./components/ConflictQueue.tsx";
@@ -14,7 +15,15 @@ import { TitleBlock } from "./components/TitleBlock.tsx";
 const FILTER_ID = "mr-filter-changes";
 const ZONE_IDS = { a: "mr-zone-a", b: "mr-zone-b", c: "mr-zone-c", d: "mr-zone-d" } as const;
 
-export function MergeReview({ base }: { base: MergeReviewModel }) {
+/** A queue option id → the API's resolution `choice`. `"custom"` has no
+ * type-picker UI yet, so it stays a client-only pick — see `resolve()`. */
+function choiceFor(optionId: string): "ours" | "theirs" | null {
+  if (optionId === "ours") return "ours";
+  if (optionId === "theirs") return "theirs";
+  return null;
+}
+
+export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId?: string }) {
   // seed the working resolutions from any the incoming review already carries
   const [resolutions, setResolutions] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -74,22 +83,47 @@ export function MergeReview({ base }: { base: MergeReviewModel }) {
     return firstOpen?.id ?? picked?.id ?? review.conflicts[0]?.id ?? "";
   }, [review.conflicts, selectedConflictId]);
 
-  const resolve = useCallback((conflictId: string, optionId: string) => {
-    setResolutions((prev) => ({ ...prev, [conflictId]: optionId }));
-    setSelectedConflictId(null); // let the derived active advance to the next open one
-    requestAnimationFrame(() =>
-      document.querySelector<HTMLElement>(".mr-queue__list")?.focus(),
-    );
-  }, []);
+  const resolve = useCallback(
+    (conflictId: string, optionId: string) => {
+      setResolutions((prev) => ({ ...prev, [conflictId]: optionId }));
+      setSelectedConflictId(null); // let the derived active advance to the next open one
+      requestAnimationFrame(() =>
+        document.querySelector<HTMLElement>(".mr-queue__list")?.focus(),
+      );
 
-  const reopen = useCallback((conflictId: string) => {
-    setResolutions((prev) => {
-      const next = { ...prev };
-      delete next[conflictId];
-      return next;
-    });
-    setSelectedConflictId(conflictId);
-  }, []);
+      // Persist when this review is backed by a real merge request. `choiceFor`
+      // is null for "custom" (no type-picker UI yet) — that pick stays local.
+      const choice = mergeId ? choiceFor(optionId) : null;
+      if (!choice) return;
+      source.postResolution(mergeId!, conflictId, choice).catch(() => {
+        // revert the optimistic pick so the screen doesn't claim a resolution
+        // the server never recorded
+        setResolutions((prev) => {
+          const next = { ...prev };
+          delete next[conflictId];
+          return next;
+        });
+      });
+    },
+    [mergeId],
+  );
+
+  const reopen = useCallback(
+    (conflictId: string) => {
+      setResolutions((prev) => {
+        const next = { ...prev };
+        delete next[conflictId];
+        return next;
+      });
+      setSelectedConflictId(conflictId);
+
+      if (!mergeId) return;
+      source.deleteResolution(mergeId, conflictId).catch(() => {
+        /* best-effort — the next full reload reconciles either way */
+      });
+    },
+    [mergeId],
+  );
 
   const move = useCallback(
     (delta: number) => {
@@ -171,10 +205,11 @@ export function MergeReview({ base }: { base: MergeReviewModel }) {
             <b className="mr-o">{review.source}</b> → <b className="mr-t">{review.target}</b> · common
             base <code>{review.base}</code>
           </p>
-          <p className="mr-titlestrip__demo">
-            Demonstration review — every queued request opens this one worked
-            sample until fetch-by-id lands with the API
-          </p>
+          {!mergeId && (
+            <p className="mr-titlestrip__demo">
+              Demonstration review — a worked sample, not this merge request's own data
+            </p>
+          )}
         </div>
         <RevisionDial status={status} detail={dialDetail} />
       </header>
