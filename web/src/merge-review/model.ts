@@ -16,14 +16,20 @@ import type { Operation } from "@engine/operations.js";
 
 export type Side = "ours" | "theirs";
 
-/** PlanetScale's vocabulary, adopted (CONTEXT.md § Diff and merge). */
+/**
+ * PlanetScale's vocabulary, adopted (CONTEXT.md § Diff and merge), plus the
+ * engine's named catch-all (`engine/merge-types.ts` `divergent-definition` —
+ * a divergence classify recognises but that isn't one of the six named
+ * classes, e.g. two branches setting a table's primary key differently).
+ */
 export type ConflictClass =
   | "divergent-retype"
   | "add-vs-add"
   | "rename-vs-rename"
   | "divergent-index"
   | "drop-vs-modify"
-  | "dependency";
+  | "dependency"
+  | "divergent-definition";
 
 export type Severity = "clear" | "subtle";
 
