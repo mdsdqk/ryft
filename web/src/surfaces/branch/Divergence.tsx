@@ -7,12 +7,21 @@
  */
 
 import { useMemo } from "react";
+import { Link, useSearchParams } from "react-router";
 
 import type { BranchDetail } from "../../data/index.ts";
 import { ComparisonGrid, EmptyState } from "../kit/index.ts";
 import { toDivergenceSections } from "./divergenceModel.tsx";
 
+function schemaHref(name: string, search: string): string {
+  const next = new URLSearchParams(search);
+  next.delete("sheet");
+  const q = next.toString();
+  return `/branch/${encodeURIComponent(name)}${q ? `?${q}` : ""}`;
+}
+
 export function Divergence({ detail }: { detail: BranchDetail }) {
+  const [params] = useSearchParams();
   const { sections, changeCount } = useMemo(
     () => toDivergenceSections(detail.base, detail.head),
     [detail.base, detail.head],
@@ -21,9 +30,19 @@ export function Divergence({ detail }: { detail: BranchDetail }) {
   if (detail.divergence === 0) {
     return (
       <div className="bw-divergence">
-        <EmptyState title="Divergence">
-          This branch matches <code>main</code> — nothing to merge. Edit the schema
-          to diverge it.
+        <EmptyState
+          title={
+            <>
+              This branch matches <code>main</code>.
+            </>
+          }
+          action={
+            <Link className="mr-btn" to={schemaHref(detail.name, params.toString())}>
+              Go to Schema
+            </Link>
+          }
+        >
+          Edit the schema on the Schema tab; changes show here as they land.
         </EmptyState>
       </div>
     );

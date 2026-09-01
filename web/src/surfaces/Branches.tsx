@@ -12,7 +12,7 @@
  *
  * STORY: see every cut, name a new one from main, delete one that is not held.
  * An open merge request names why delete is refused. Empty keeps the sheet and
- * the trunk row.
+ * the trunk row; the working-list slot is the first-run notice + Create branch.
  *
  * FIRST VIEWPORT: title strip "Branches" + demonstration tag; right cell is
  * the create plate (label, name field, Cut). Body: trunk first, then working
@@ -44,7 +44,7 @@ import {
   useResource,
   type BranchSummary,
 } from "../data/index.ts";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useSession } from "../session/session.ts";
 import {
   EmptyState,
@@ -98,6 +98,8 @@ function focusSoon(getEl: () => HTMLElement | null | undefined): void {
 
 export function Branches() {
   const { username } = useSession();
+  const [params, setSearchParams] = useSearchParams();
+  const forceEmpty = params.has("empty");
   const { data, loading, error, reload } = useResource(() =>
     source.listBranches(),
   );
@@ -150,8 +152,8 @@ export function Branches() {
     );
   }
 
-  const working = data.filter((b) => !b.trunk);
   const trunk = data.find((b) => b.trunk);
+  const working = forceEmpty ? [] : data.filter((b) => !b.trunk);
   const trunkName = trunk?.name ?? "main";
   const workingNames = working.map((b) => b.name);
   const countLine =
@@ -160,6 +162,16 @@ export function Branches() {
       : `${working.length.toLocaleString()} working branch${working.length === 1 ? "" : "es"} · cut from ${trunkName}`;
 
   const onCreated = (name: string) => {
+    if (forceEmpty) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("empty");
+          return next;
+        },
+        { replace: true },
+      );
+    }
     setNotice(`Branch ${name} cut from ${trunkName}.`);
     setPending(null);
     focusSoon(() => createRef.current);
@@ -174,6 +186,11 @@ export function Branches() {
         (neighbor ? deleteBtns.current.get(neighbor) : undefined) ??
         createRef.current,
     );
+  };
+
+  const focusCreate = () => {
+    createRef.current?.focus();
+    createRef.current?.scrollIntoView({ block: "nearest" });
   };
 
   return (
@@ -203,12 +220,12 @@ export function Branches() {
           </p>
 
           <SheetList label="Branches">
-            {data.map((branch) => (
+            {trunk && (
               <BranchRow
-                key={branch.name}
-                branch={branch}
+                key={trunk.name}
+                branch={trunk}
                 trunk={trunkName}
-                pending={pending?.name === branch.name ? pending : null}
+                pending={pending?.name === trunk.name ? pending : null}
                 busy={busy}
                 onArm={onArm}
                 onDisarm={onDisarm}
@@ -216,7 +233,40 @@ export function Branches() {
                 onDeleted={onDeleted}
                 setDeleteBtn={setDeleteBtn}
               />
-            ))}
+            )}
+            {working.length === 0 ? (
+              <EmptyState
+                layout="row"
+                title="No branches yet."
+                action={
+                  <button
+                    className="mr-btn"
+                    type="button"
+                    onClick={focusCreate}
+                  >
+                    Create branch
+                  </button>
+                }
+              >
+                Every branch starts from <code>main</code>. Cut one to change
+                the schema without touching the trunk.
+              </EmptyState>
+            ) : (
+              working.map((branch) => (
+                <BranchRow
+                  key={branch.name}
+                  branch={branch}
+                  trunk={trunkName}
+                  pending={pending?.name === branch.name ? pending : null}
+                  busy={busy}
+                  onArm={onArm}
+                  onDisarm={onDisarm}
+                  onBusy={setBusy}
+                  onDeleted={onDeleted}
+                  setDeleteBtn={setDeleteBtn}
+                />
+              ))
+            )}
           </SheetList>
         </SurfaceBody>
       </SurfaceSheet>

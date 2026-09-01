@@ -15,8 +15,13 @@ import { source, useResource } from "../data/index.ts";
 
 export function Rail() {
   const { pathname, search } = useLocation();
-  const { data } = useResource(() => source.getOverview());
+  const freshlySeeded =
+    (pathname === "/db" || pathname === "/") &&
+    new URLSearchParams(search).has("empty");
+  const { data } = useResource(() => source.getOverview(), [freshlySeeded]);
   const db = data?.database;
+  const branchCount = freshlySeeded ? 0 : data?.branches.length;
+  const mergeCount = freshlySeeded ? 0 : data?.merges.length;
   const branchSheet = new URLSearchParams(search).get("sheet") ?? "schema";
 
   const branchMatch = useMatch("/branch/:name");
@@ -47,7 +52,7 @@ export function Rail() {
             aria-current={onBranches ? "page" : undefined}
           >
             Branches{" "}
-            {data && <span className="shl-ct">{data.branches.length}</span>}
+            {data && <span className="shl-ct">{branchCount}</span>}
           </Link>
           {branchMatch && (
             <ul
@@ -78,7 +83,7 @@ export function Rail() {
         </li>
         <li>
           <Link to="/merges" aria-current={onMerges ? "page" : undefined}>
-            Merges {data && <span className="shl-ct">{data.merges.length}</span>}
+            Merges {data && <span className="shl-ct">{mergeCount}</span>}
           </Link>
           {mergeMatch && (
             <ul className="shl-rail__sub" aria-label="Merge sheets">

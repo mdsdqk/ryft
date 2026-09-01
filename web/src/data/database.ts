@@ -12,11 +12,13 @@ import type { Database } from "./types.ts";
 
 /**
  * V0 exercise: `/db?empty` is a freshly seeded database — no working branches,
- * no open merges. Read from the URL so the rail (which also calls
- * `getOverview`) and the sheet show the same counts.
+ * no open merges. Scoped to the dashboard path so `/merges?empty` and
+ * `/branches?empty` (list-only exercises) do not zero the rail.
  */
 export function overviewExerciseEmpty(): boolean {
   if (typeof window === "undefined") return false;
+  const path = window.location.pathname;
+  if (path !== "/db" && path !== "/") return false;
   return new URLSearchParams(window.location.search).has("empty");
 }
 
