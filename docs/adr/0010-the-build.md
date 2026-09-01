@@ -89,14 +89,20 @@ source.
 ## 3. Deploy: `web/` static + `api/` as one Vercel function
 
 `web/` builds to static assets served from the CDN. `api/` deploys as a single Vercel Node
-serverless function: `api/index.ts` default-exports a Node `(req, res)` handler that runs the
-`api/_server/app.ts` Hono app through `getRequestListener` (`@hono/node-server`) — the same
-Node↔Web-`fetch` bridge `_server/dev.ts` uses via `serve()`. (`hono/vercel`'s `handle` and a
-bare `fetch`-style export are only reliably picked up on the `edge` runtime; on `nodejs` a
-returned `Response` is dropped with a build warning.) A root `vercel.json` sets the build
-command to build `@ryft/web`, the output directory to `web/dist`, and rewrites `/api/(.*)` to
-the function so every API path lands on the one handler and Hono routes internally.
-`DATABASE_URL` is a Vercel project env var.
+serverless function: `api/index.ts` exports one Web handler (`(request: Request) => Response`,
+`app.fetch`) per HTTP method — `GET`, `POST`, … A bare default export is misclassified on the
+`nodejs` runtime as the Node `(req, res) => void` form and its returned `Response` dropped
+with a build warning; per-method exports are routed by verb and honour their return. A root
+`vercel.json` sets the build command to build `@ryft/web`, the output directory to
+`web/dist`, and rewrites `/api/(.*)` to the function so every API path lands on the one
+handler and Hono routes internally. `DATABASE_URL` is a Vercel project env var.
+
+**Neon on serverless.** `api/_server/db/client.ts` sets `neonConfig.poolQueryViaFetch = true`
+so one-shot queries go over Neon's stateless HTTP endpoint. A `Pool` cached at module scope
+otherwise holds a WebSocket that dies while Vercel has the function frozen between
+invocations, and the next request hangs on the dead socket until the platform times it out.
+`db.transaction(...)` (the merge path, ADR 0010 §5) still opens a fresh WebSocket per
+transaction via `pool.connect()`.
 
 **One file under `api/`, not a tree.** Vercel's zero-config turns *every* code file under
 `api/` into its own Serverless Function, and the Hobby plan caps a deployment at 12 — the
