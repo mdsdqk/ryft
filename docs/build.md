@@ -13,25 +13,27 @@ and `docs/first-run.md` §4 (the golden path).
 
 ```
 api/                       new pnpm workspace package (§ ADR 0010 §1)
-  package.json             hono · drizzle-orm · @neondatabase/serverless
+  package.json             hono · drizzle-orm · @neondatabase/serverless · typescript
   tsconfig.json            extends root; NodeNext ESM, .js specifiers
-  drizzle.config.ts        drizzle-kit: schema → api/drizzle/*.sql
+  drizzle.config.ts        drizzle-kit: schema → api/drizzle/*.sql  (.vercelignore'd)
   drizzle/                 committed generated SQL — applied to Neon and to pglite
-  index.ts                 export default handle(app)   (Vercel function entry)
-  src/
+  index.ts                 export default handle(app) — the ONLY file under api/,
+                           so the only Vercel function (Hobby caps a deploy at 12)
+  _server/                 the app; `_`-prefixed → a support dir, not functions
     app.ts                 the Hono app + identity middleware
     db/schema.ts           the six Drizzle tables (docs/backend-contract.md §1)
     db/client.ts           drizzle(Neon) from DATABASE_URL; injectable for tests
     seed.ts                inserts examples/seed.workspace.ts  (+ ?bare)
     views.ts               Overview / BranchDetail / MergeRequestResponse assembly
     routes/session.ts
-    routes/workspace.ts
+    routes/overview.ts
     routes/branches.ts
     routes/merge-requests.ts
     dev.ts                 @hono/node-server for local dev
     __tests__/             pglite-backed, app.request(...)
 web/                       unchanged — still fixture-bound this iteration
 vercel.json                web static + /api/(.*) → the function
+.vercelignore              keeps api/drizzle.config.ts from becoming a function
 ```
 
 ## 2. Running it
@@ -41,6 +43,7 @@ vercel.json                web static + /api/(.*) → the function
 ```
 # one-time
 cp api/.env.example api/.env          # set DATABASE_URL (a free Neon branch or local pg)
+cp web/.env.example web/.env          # optional — every web var has a default
 pnpm install
 pnpm --filter @ryft/api db:push       # apply api/drizzle/*.sql to DATABASE_URL
 
@@ -161,4 +164,4 @@ curl -s $BASE/merge-requests/$MR2 -H "x-ryft-user: grace" | jq '.report.verdict'
 curl -sX POST $BASE/merge-requests/$MR2/merge -H "x-ryft-user: grace" | jq '.status, .migration.sql'
 ```
 
-The same walk is `api/src/__tests__/golden-path.test.ts`, asserted structurally.
+The same walk is `api/_server/__tests__/golden-path.test.ts`, asserted structurally.
