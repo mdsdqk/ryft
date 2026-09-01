@@ -40,11 +40,11 @@ import {
   mergeStatusLabel,
   mergeStatusTone,
   source,
-  useResource,
   type BranchSummary,
   type MergeSummary,
 } from "../data/index.ts";
 import { invalidateData } from "../data/watch.ts";
+import { useOverview } from "../shell/overview.tsx";
 import { Link, useSearchParams } from "react-router";
 import { useSession } from "../session/session.ts";
 import {
@@ -136,17 +136,22 @@ export function Dashboard() {
   const forceLong = params.has("long");
   const forceBusy = params.has("busy");
 
-  const { data, loading, error, reload } = useResource(
-    () =>
-      forceError
-        ? Promise.reject(new Error(LOAD_ERROR))
-        : source.getOverview(),
-    [forceError, forceEmpty],
-  );
+  // The overview read is shared with the rail (`OverviewProvider`). `?error` is
+  // a local exercise override — no refetch, just synthesize the failed state.
+  const shared = useOverview();
+  const data = forceError ? null : shared.data;
+  const error = forceError ? new Error(LOAD_ERROR) : shared.error;
+  const loading = !forceError && shared.loading;
+  const reload = shared.reload;
 
-  // Fixture `getOverview` reads `?empty` from the URL; bump the epoch so every
-  // subscriber (this sheet, the rail) refetches when the exercise flag toggles.
+  // Fixture `getOverview` reads `?empty` from the URL; when that flag actually
+  // toggles, bump the epoch so the rail re-reads too. Guarded against firing on
+  // mount — an unconditional invalidate there made every overview subscriber
+  // (this sheet + the rail) refetch right after their first load.
+  const prevEmpty = useRef(forceEmpty);
   useEffect(() => {
+    if (prevEmpty.current === forceEmpty) return;
+    prevEmpty.current = forceEmpty;
     invalidateData();
   }, [forceEmpty]);
 

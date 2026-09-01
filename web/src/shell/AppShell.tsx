@@ -12,6 +12,7 @@ import { useTheme } from "../theme/useTheme.ts";
 import { useSession } from "../session/session.ts";
 import { Rail } from "./Rail.tsx";
 import { AppRoutes } from "./routes.tsx";
+import { OverviewProvider } from "./overview.tsx";
 
 const KEYS: Array<[string, string]> = [
   ["J / K", "next / previous conflict"],
@@ -136,12 +137,14 @@ export function AppShell() {
       </header>
 
       {username ? (
-        <div className="shl-shell">
-          <Rail />
-          <main id="main" className="shl-stage" tabIndex={-1} ref={mainRef}>
-            <AppRoutes />
-          </main>
-        </div>
+        <OverviewProvider>
+          <div className="shl-shell">
+            <Rail />
+            <main id="main" className="shl-stage" tabIndex={-1} ref={mainRef}>
+              <AppRoutes />
+            </main>
+          </div>
+        </OverviewProvider>
       ) : (
         <main
           id="main"
