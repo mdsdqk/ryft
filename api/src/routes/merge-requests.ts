@@ -103,7 +103,13 @@ mergeRequestRoutes.post("/merge-requests/:id/merge", async (c) => {
       .update(branches)
       .set({ head: merged, headVersion: main.headVersion + 1 })
       .where(eq(branches.name, main.name));
-    await tx.insert(operations).values({ branchName: main.name, seq, at: now, authorId: actor.id, op: marker });
+    await tx.insert(operations).values({
+      branchName: main.name,
+      seq,
+      at: now, // defaulted column set explicitly — assert the row shape (see api/src/seed.ts)
+      authorId: actor.id,
+      op: marker,
+    } as typeof operations.$inferInsert);
     await tx
       .update(mergeRequests)
       .set({

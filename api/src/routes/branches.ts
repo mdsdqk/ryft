@@ -145,13 +145,16 @@ branchRoutes.post("/branches/:name/operations", async (c) => {
   await db.transaction(async (tx) => {
     await tx.update(branches).set({ head, headVersion }).where(eq(branches.name, name));
     await tx.insert(operations).values(
-      (ops as Operation[]).map((op, k) => ({
-        branchName: name,
-        seq: startSeq + k,
-        at: now,
-        authorId: actor.id,
-        op,
-      })),
+      (ops as Operation[]).map(
+        (op, k) =>
+          ({
+            branchName: name,
+            seq: startSeq + k,
+            at: now, // defaulted column set explicitly — assert the row shape (see api/src/seed.ts)
+            authorId: actor.id,
+            op,
+          }) as typeof operations.$inferInsert,
+      ),
     );
   });
 
