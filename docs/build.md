@@ -41,6 +41,7 @@ vercel.json                web static + /api/(.*) → the function
 ```
 # one-time
 cp api/.env.example api/.env          # set DATABASE_URL (a free Neon branch or local pg)
+cp web/.env.example web/.env          # optional — every web var has a default
 pnpm install
 pnpm --filter @ryft/api db:push       # apply api/drizzle/*.sql to DATABASE_URL
 
