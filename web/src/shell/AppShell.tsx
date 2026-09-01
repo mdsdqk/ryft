@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useMatch, useNavigate } from "react-router";
 
 import { useTheme } from "../theme/useTheme.ts";
 import { useSession } from "../session/session.ts";
@@ -14,12 +14,30 @@ import { Rail } from "./Rail.tsx";
 import { AppRoutes } from "./routes.tsx";
 
 const KEYS: Array<[string, string]> = [
-  ["J / K", "next / previous conflict — on the merge-review screen"],
+  ["J / K", "next / previous conflict"],
   ["1 / 2 / 3", "take ours / take theirs / specify — on the active conflict"],
   ["/", "jump to the comparison filter"],
   ["G then A–D", "jump to a zone"],
   ["Tab", "every control, in reading order"],
 ];
+
+/** The surface name for the document title, from the matched route. */
+function useDocumentTitle(pathname: string, username: string | null): void {
+  const branch = useMatch("/branch/:name");
+  const mergeById = useMatch("/merge/:id");
+  const mergeBare = useMatch("/merge");
+  const onMerge = mergeById != null || mergeBare != null;
+  useEffect(() => {
+    let surface = "";
+    if (!username) surface = "Sign in";
+    else if (pathname === "/" || pathname === "/db") surface = "Database";
+    else if (pathname.startsWith("/branches")) surface = "Branches";
+    else if (pathname.startsWith("/merges")) surface = "Merge requests";
+    else if (branch) surface = decodeURIComponent(branch.params.name ?? "Branch");
+    else if (onMerge) surface = "Merge review";
+    document.title = surface ? `ryft — ${surface}` : "ryft";
+  }, [pathname, username, branch, onMerge]);
+}
 
 export function AppShell() {
   const { resolved, choice, setChoice } = useTheme();
@@ -27,6 +45,11 @@ export function AppShell() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [keysOpen, setKeysOpen] = useState(false);
+  const mergeByIdMatch = useMatch("/merge/:id");
+  const mergeBareMatch = useMatch("/merge");
+  const onMergeReview = mergeByIdMatch != null || mergeBareMatch != null;
+
+  useDocumentTitle(pathname, username);
 
   // move focus to the content region on an actual route change, so keyboard and
   // screen-reader users are not stranded on the link they just followed. Compare
@@ -54,23 +77,25 @@ export function AppShell() {
 
         <div className="app-bar__spacer" />
 
-        <details
-          className="app-bar__keys"
-          open={keysOpen}
-          onToggle={(e) => setKeysOpen((e.target as HTMLDetailsElement).open)}
-        >
-          <summary>Keyboard</summary>
-          <dl className="keymap">
-            {KEYS.map(([k, v]) => (
-              <div key={k}>
-                <dt>
-                  <kbd>{k}</kbd>
-                </dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </details>
+        {onMergeReview && (
+          <details
+            className="app-bar__keys"
+            open={keysOpen}
+            onToggle={(e) => setKeysOpen((e.target as HTMLDetailsElement).open)}
+          >
+            <summary>Keyboard</summary>
+            <dl className="keymap">
+              {KEYS.map(([k, v]) => (
+                <div key={k}>
+                  <dt>
+                    <kbd>{k}</kbd>
+                  </dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+        )}
 
         <div className="app-bar__theme" role="group" aria-label="Colour theme">
           {(

@@ -186,6 +186,43 @@
   background: var(--conflict-edge);
 }
 
+/* ── comparison grid — outer table section (Divergence; merge-review passes
+ *    a single untitled section and never renders this) ──────────────────── */
+
+.cmpgrid-section + .cmpgrid-section {
+  border-top: 2px solid var(--ink);
+}
+.cmpgrid-section__hd {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: start;
+  padding: 9px 10px;
+  background: var(--sheet-2);
+  border-bottom: 1.5px solid var(--ink);
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+@media (hover: hover) {
+  .cmpgrid-section__hd:hover {
+    background: var(--panel);
+  }
+}
+/* nested kind headers inside a titled section don't also stick */
+.cmpgrid-section .mr-cmp__grouphd {
+  position: static;
+  z-index: auto;
+  border-top: none;
+}
+
 /* ── responsive ──────────────────────────────────────────────────────── */
 
 @media (max-width: 1100px) {

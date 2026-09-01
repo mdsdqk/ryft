@@ -295,3 +295,62 @@ describe("foreign keys", () => {
     ).toEqual(["fk-action-loosened"]);
   });
 });
+
+describe("synthetic object ids (WU-E — client-minted ids on add/create)", () => {
+  it("addColumn — a malformed id blocks with invalid-identifier", () => {
+    expect(
+      errors(
+        run({
+          type: "addColumn",
+          tableId: U.table,
+          column: { id: "not a valid id", name: "nickname", type: { kind: "text" }, nullable: true, default: null },
+        }),
+      ),
+    ).toContain("invalid-identifier");
+  });
+
+  it("addColumn — reusing an existing object id blocks with name-taken", () => {
+    expect(
+      errors(
+        run({
+          type: "addColumn",
+          tableId: U.table,
+          column: { id: U.email, name: "nickname", type: { kind: "text" }, nullable: true, default: null },
+        }),
+      ),
+    ).toContain("name-taken");
+  });
+
+  it("addIndex — reusing an existing object id blocks (previously unchecked)", () => {
+    expect(
+      errors(
+        run({
+          type: "addIndex",
+          tableId: U.table,
+          index: { id: U.pk, name: "users_extra_idx", columnIds: [U.email], unique: false },
+        }),
+      ),
+    ).toContain("name-taken");
+  });
+
+  it("createTable — a malformed table id blocks", () => {
+    expect(
+      errors(
+        run({
+          type: "createTable",
+          table: { id: "Bad_TableID", name: "attachments", columns: [], primaryKey: null, foreignKeys: [], uniques: [], indexes: [] },
+        }),
+      ),
+    ).toContain("invalid-identifier");
+  });
+
+  it("addIndex — a well-formed fresh id is still silent", () => {
+    expect(
+      run({
+        type: "addIndex",
+        tableId: P.table,
+        index: { id: "idx_posts_published_ab12cd34", name: "posts_published_idx", columnIds: [P.published], unique: false },
+      }),
+    ).toEqual([]);
+  });
+});

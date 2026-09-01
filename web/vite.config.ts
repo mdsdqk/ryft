@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@engine": fileURLToPath(new URL("../engine", import.meta.url)),
+      "@examples": fileURLToPath(new URL("../examples", import.meta.url)),
     },
   },
   // Prod serves web and API from one origin (vercel.json rewrites /api/*). In dev

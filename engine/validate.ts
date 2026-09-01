@@ -126,6 +126,31 @@ function identProblem(name: string): string | null {
   return null;
 }
 
+// ── synthetic object ids (WU-E: client-minted ids for add/create ops) ──────
+
+const OBJECT_ID = /^(tbl|col|pk|fk|uq|idx)_[a-z0-9_]+$/;
+
+/** `null` if the id is a well-formed synthetic id, else why not. */
+function idProblem(id: string): string | null {
+  return OBJECT_ID.test(id)
+    ? null
+    : `must match ^(tbl|col|pk|fk|uq|idx)_<slug>_<suffix>`;
+}
+
+/** Every object id currently in the document — the set a fresh id must avoid. */
+function allObjectIds(doc: SchemaDocument): Set<string> {
+  const s = new Set<string>();
+  for (const t of doc.tables) {
+    s.add(t.id);
+    for (const c of t.columns) s.add(c.id);
+    if (t.primaryKey) s.add(t.primaryKey.id);
+    for (const i of t.indexes) s.add(i.id);
+    for (const u of t.uniques) s.add(u.id);
+    for (const f of t.foreignKeys) s.add(f.id);
+  }
+  return s;
+}
+
 // ── column types (`docs/robustness.md` §2, "type valid") ───────────────────
 
 const TYPE_KINDS: ReadonlySet<string> = new Set<ColumnTypeKind>([
@@ -240,6 +265,12 @@ export function validateOperation(doc: SchemaDocument, op: Operation): OpDiagnos
     const p = identProblem(name);
     if (p) err("invalid-identifier", `${what} "${name}" ${p}`);
   };
+  /** A client-minted id on an add/create op — shape, then freshness. */
+  const checkFreshId = (id: string, what: string) => {
+    const p = idProblem(id);
+    if (p) err("invalid-identifier", `${what} id "${id}" ${p}`);
+    else if (allObjectIds(doc).has(id)) err("name-taken", `${what} id ${id} is already in use`);
+  };
   const checkType = (t: ColumnType, what: string) => {
     const p = typeProblem(t);
     if (p) err("invalid-type", `${what} ${p}`);
@@ -255,8 +286,8 @@ export function validateOperation(doc: SchemaDocument, op: Operation): OpDiagnos
     case "createTable": {
       const t = op.table;
       checkIdent(t.name, "table name");
+      checkFreshId(t.id, "table");
       if (doc.tables.some((x) => x.name === t.name)) err("name-taken", `a table named "${t.name}" already exists`);
-      if (doc.tables.some((x) => x.id === t.id)) err("name-taken", `table id ${t.id} is already in use`);
       const seenCol = new Set<string>();
       for (const c of t.columns) {
         checkIdent(c.name, "column name");
@@ -310,11 +341,9 @@ export function validateOperation(doc: SchemaDocument, op: Operation): OpDiagnos
       const t = table(doc, op.tableId);
       if (!t) return [{ reason: "target-not-found", message: `no table ${op.tableId}` }];
       checkIdent(op.column.name, "column name");
+      checkFreshId(op.column.id, "column");
       if (t.columns.some((c) => c.name === op.column.name)) {
         err("name-taken", `"${t.name}" already has a column named "${op.column.name}"`);
-      }
-      if (t.columns.some((c) => c.id === op.column.id)) {
-        err("name-taken", `column id ${op.column.id} is already in use on "${t.name}"`);
       }
       checkType(op.column.type, `column "${op.column.name}" type`);
       checkDefault(op.column.default, `column "${op.column.name}"`);
@@ -455,6 +484,7 @@ export function validateOperation(doc: SchemaDocument, op: Operation): OpDiagnos
       if (!t) return [{ reason: "target-not-found", message: `no table ${op.tableId}` }];
       const obj = op.type === "addIndex" ? op.index : op.unique;
       checkIdent(obj.name, op.type === "addIndex" ? "index name" : "constraint name");
+      checkFreshId(obj.id, op.type === "addIndex" ? "index" : "unique");
       if (op.type === "addIndex" && indexNameTaken(doc, obj.name, obj.id)) {
         err("name-taken", `an index named "${obj.name}" already exists`);
       }
@@ -519,6 +549,7 @@ export function validateOperation(doc: SchemaDocument, op: Operation): OpDiagnos
       const t = table(doc, op.tableId);
       if (!t) return [{ reason: "target-not-found", message: `no table ${op.tableId}` }];
       checkIdent(op.fk.name, "constraint name");
+      checkFreshId(op.fk.id, "foreign key");
       if (nameTakenOnTable(t, op.fk.name, op.fk.id)) {
         err("name-taken", `"${t.name}" already has a constraint named "${op.fk.name}"`);
       }

@@ -193,8 +193,12 @@ button {
   *,
   *::before,
   *::after {
-    animation-duration: 0.001ms !important;
+    /* stop looping and long motion — one-shots jump to their end state — but
+     * keep a short cross-fade so a status change is still perceptible, and let
+     * the live regions carry the rest. Not a blanket 0ms kill. */
     animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+    animation-duration: 1ms !important;
+    transition-duration: 90ms !important;
+    transition-timing-function: ease-out !important;
   }
 }

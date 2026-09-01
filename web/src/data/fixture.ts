@@ -11,6 +11,7 @@
 
 import type { CreateBranchArgs, DataSource } from "./source.ts";
 import * as branches from "./branches.ts";
+import * as branchSchema from "./branchSchema.ts";
 import { database, overviewExerciseEmpty } from "./database.ts";
 import * as merges from "./merges.ts";
 
@@ -39,4 +40,9 @@ export const fixtureSource: DataSource = {
   deleteBranch: async (name: string) => {
     branches.deleteBranch(name, database, merges.listOpen());
   },
+  getBranchDetail: (name: string) => branchSchema.getBranchDetail(name),
+  listBranchOperations: (name: string) => branchSchema.listBranchOperations(name),
+  applyOperations: (name, ops) => branchSchema.applyOperations(name, ops),
+  undoAfter: (name, seq) => branchSchema.undoAfter(name, seq),
+  createMergeRequest: (name) => branchSchema.createMergeRequest(name),
 };

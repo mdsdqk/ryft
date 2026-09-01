@@ -186,8 +186,10 @@ export function Dashboard() {
   }
 
   const { database: db } = data;
-  const merges = data.merges;
-  let branches = [...data.branches].sort(byRecent);
+  // `?empty` is deterministic here, not just through the data seam (parity with
+  // /merges, which filters locally)
+  const merges = forceEmpty ? [] : data.merges;
+  let branches = forceEmpty ? [] : [...data.branches].sort(byRecent);
   if (forceBusy) branches = padBusy(branches);
   if (forceLong) branches = withLongName(branches);
 

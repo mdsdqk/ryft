@@ -12,6 +12,17 @@
   overflow-wrap: anywhere;
 }
 
+.mg-demo-note {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  border: 1px dashed var(--line-strong);
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  max-width: 62ch;
+}
+
 .mg a.mr-btn {
   text-decoration: none;
 }

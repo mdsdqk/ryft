@@ -13,3 +13,12 @@ export { FactList, type Fact } from "./FactList.tsx";
 export { StatusPill, type StatusTone } from "./StatusPill.tsx";
 export { Tri } from "./Tri.tsx";
 export { EmptyState, Loading } from "./EmptyState.tsx";
+export {
+  ComparisonGrid,
+  type GridColHead,
+  type GridCell,
+  type GridRow,
+  type GridGroup,
+  type GridSection,
+  type GridFilter,
+} from "./ComparisonGrid.tsx";
