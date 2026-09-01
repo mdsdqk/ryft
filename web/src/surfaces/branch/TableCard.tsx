@@ -15,6 +15,7 @@ import { useState } from "react";
 
 import type { Table } from "@engine/schema.js";
 
+import { EmptyState } from "../kit/index.ts";
 import { AddColumnForm, AddIndexForm } from "./AddForms.tsx";
 import { ColumnEditor } from "./ColumnEditor.tsx";
 import { RevTriangle } from "./RevTriangle.tsx";
@@ -261,7 +262,11 @@ export function TableCard({
 
       <div className="bw-group">
         <p className="bw-group__k">Indexes</p>
-        {indexRows.length === 0 && open?.kind !== "add-index" && <p className="bw-row__none">no indexes</p>}
+        {indexRows.length === 0 && open?.kind !== "add-index" && (
+          <EmptyState layout="inline" title="No indexes on this table.">
+            {editable ? "Add one with + index on this card." : null}
+          </EmptyState>
+        )}
         {table.indexes.map((ix) => {
           const seq = markOf(ix.id);
           const isOpen = open?.kind === "index" && open.id === ix.id;
@@ -299,7 +304,9 @@ export function TableCard({
       <div className="bw-group">
         <p className="bw-group__k">Constraints</p>
         {constraintRows.length === 0 ? (
-          <p className="bw-row__none">no constraints</p>
+          <EmptyState layout="inline" title="No constraints on this table.">
+            Primary key, unique, and foreign-key constraints appear here.
+          </EmptyState>
         ) : (
           constraintRows.map((r) => <ReadRow key={r.id} r={r} seq={markOf(r.id)} />)
         )}

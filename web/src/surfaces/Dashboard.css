@@ -163,24 +163,6 @@
   }
 }
 
-/* ── per-zone empty: the list frame stays; one sentence + the action ─── */
-
-.db-empty {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 1fr;
-  align-items: start;
-  padding: 14px 13px;
-}
-.db-empty__msg {
-  margin: 0;
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--ink);
-  max-width: 62ch;
-}
-
 @media (max-width: 1100px) {
   .db .kit-sheet__action {
     border-inline-start: none;

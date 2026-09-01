@@ -10,7 +10,8 @@
  * (Clean / Held · N / Stale base), never colour alone.
  *
  * STORY: see every open request; enter one to review it. Opening a request
- * lives on the branch workspace. Empty keeps the sheet and points at /branches.
+ * lives on the branch workspace. Empty keeps the sheet and points at
+ * /branches with the first-run copy.
  *
  * FIRST VIEWPORT: title strip "Merges" + demonstration tag + queue count.
  * No right-cell action. Body: oldest row first, source → main opens
@@ -131,15 +132,14 @@ export function Merges() {
       <SurfaceSheet title="Merges" demo subtitle={countLine(rows.length)}>
         {empty ? (
           <EmptyState
+            title="No open merge requests."
             action={
               <Link className="mr-btn" to="/branches">
-                To the branches
+                View branches
               </Link>
             }
           >
-            Open one from a branch that has diverged from{" "}
-            <code>main</code>. That action lives on the branch workspace, not
-            here.
+            Open one from a branch that has diverged from <code>main</code>.
           </EmptyState>
         ) : (
           <SurfaceBody>

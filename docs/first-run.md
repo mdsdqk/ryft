@@ -59,7 +59,7 @@ frame stays (`PRODUCT.md` § Empty states; work-breakdown WU-F).
 | Dashboard · recent branches | no branches | No branches yet. | — | **Create branch** |
 | Dashboard · open merges | none open | Nothing waiting to merge. | — | — |
 | Divergence sub-sheet | branch equals `main` | This branch matches `main`. | Edit the schema on the Schema tab; changes show here as they land. | **Go to Schema** |
-| Branch schema · a table card | no indexes | No indexes on this table. | Add one from a column's menu. | *(inline)* |
+| Branch schema · a table card | no indexes | No indexes on this table. | Add one with `+ index` on this card. | *(inline)* |
 | Branch schema · a table card | no constraints | No constraints on this table. | Primary key, unique, and foreign-key constraints appear here. | *(inline)* |
 | Freshly seeded database | `main` only, no branches or merges | *(the dashboard keeps its facts panel; the branches and merges panels show their own zero states above)* | — | **Create branch** |
 

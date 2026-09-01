@@ -12,8 +12,8 @@
  * Trunk name links out to the branch workspace.
  *
  * STORY: orient. What is this database, what is main's shape, what is in
- * flight. Cut a branch from here. Empty lists keep their zone headings and
- * name the one action that changes them.
+ * flight. Cut a branch from here. Empty lists keep their zone headings:
+ * merges name the zero, branches offer Create branch into the title plate.
  *
  * FIRST VIEWPORT: title strip names the database + demonstration tag; right
  * cell is Cut from main. Body: Overview facts, Open merges, recent Branches
@@ -33,7 +33,6 @@ import {
   useRef,
   useState,
   type FormEvent,
-  type ReactNode,
   type Ref,
 } from "react";
 import {
@@ -130,7 +129,7 @@ function branchMeta(branch: BranchSummary): string {
 
 export function Dashboard() {
   const { username } = useSession();
-  const [params] = useSearchParams();
+  const [params, setSearchParams] = useSearchParams();
   const forceEmpty = params.has("empty");
   const forceError = params.has("error");
   const forceLoading = params.has("loading");
@@ -145,8 +144,8 @@ export function Dashboard() {
     [forceError, forceEmpty],
   );
 
-  // the rail also reads getOverview; bump the epoch when ?empty toggles so
-  // both surfaces agree without editing Rail.tsx (WU-E owns that file).
+  // Fixture `getOverview` reads `?empty` from the URL; bump the epoch so every
+  // subscriber (this sheet, the rail) refetches when the exercise flag toggles.
   useEffect(() => {
     invalidateData();
   }, [forceEmpty]);
@@ -198,14 +197,28 @@ export function Dashboard() {
   const trunkPath = `/branch/${encodeURIComponent(db.trunk)}`;
 
   const onCreated = (name: string) => {
+    if (forceEmpty) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("empty");
+          return next;
+        },
+        { replace: true },
+      );
+    }
     setNotice(`Branch ${name} cut from ${db.trunk}.`);
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => createRef.current?.focus());
+      requestAnimationFrame(() => {
+        createRef.current?.focus();
+        createRef.current?.scrollIntoView({ block: "nearest" });
+      });
     });
   };
 
   const focusCreate = () => {
     createRef.current?.focus();
+    createRef.current?.scrollIntoView({ block: "nearest" });
   };
 
   return (
@@ -264,15 +277,7 @@ export function Dashboard() {
           <Zone title="Open merges" count={merges.length}>
             <SheetList label="Open merges">
               {merges.length === 0 ? (
-                <ZoneEmpty
-                  action={
-                    <Link className="mr-btn" to="/branches">
-                      To the branches
-                    </Link>
-                  }
-                >
-                  No open merge requests.
-                </ZoneEmpty>
+                <EmptyState layout="row" title="Nothing waiting to merge." />
               ) : (
                 merges.map((m) => (
                   <Row
@@ -294,19 +299,19 @@ export function Dashboard() {
           <Zone title="Branches" count={branches.length}>
             <SheetList label="Recent branches">
               {preview.length === 0 ? (
-                <ZoneEmpty
+                <EmptyState
+                  layout="row"
+                  title="No branches yet."
                   action={
                     <button
-                      className="mr-btn mr-btn--ghost"
+                      className="mr-btn"
                       type="button"
                       onClick={focusCreate}
                     >
-                      Cut from main
+                      Create branch
                     </button>
                   }
-                >
-                  No working branches.
-                </ZoneEmpty>
+                />
               ) : (
                 <>
                   {preview.map((b) => (
@@ -331,21 +336,6 @@ export function Dashboard() {
         </SurfaceBody>
       </SurfaceSheet>
     </div>
-  );
-}
-
-function ZoneEmpty({
-  children,
-  action,
-}: {
-  children: ReactNode;
-  action?: ReactNode;
-}) {
-  return (
-    <li className="kit-row db-empty">
-      <p className="db-empty__msg">{children}</p>
-      {action}
-    </li>
   );
 }
 

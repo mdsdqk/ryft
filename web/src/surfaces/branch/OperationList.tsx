@@ -7,6 +7,7 @@
  */
 
 import type { BranchOperationEntry } from "../../data/index.ts";
+import { EmptyState } from "../kit/index.ts";
 import { summarizeOp, type NameOf } from "./format.ts";
 
 const TIME = new Intl.DateTimeFormat(undefined, {
@@ -33,7 +34,7 @@ export function OperationList({
         <span className="bw-ops__ct">{entries.length}</span>
       </h2>
       {entries.length === 0 ? (
-        <p className="bw-ops__empty">No edits on this branch yet.</p>
+        <EmptyState layout="inline">No edits on this branch yet.</EmptyState>
       ) : (
         <ol className="bw-ops__list">
           {entries.map((e) => (

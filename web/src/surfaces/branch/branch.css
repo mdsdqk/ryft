@@ -176,20 +176,10 @@
   justify-self: end;
   white-space: nowrap;
 }
-.bw-row__none {
-  padding: 9px 12px;
-  font-family: var(--ff-mono);
-  font-size: 10.5px;
-  color: var(--ink-faint);
-}
-
 /* ── operation timeline ────────────────────────────────────────────── */
 
-.bw-ops__empty {
-  font-family: var(--ff-mono);
-  font-size: 10.5px;
-  line-height: 1.5;
-  color: var(--ink-soft);
+.bw-ops .kit-empty--inline {
+  padding: 0;
 }
 .bw-ops__list {
   list-style: none;

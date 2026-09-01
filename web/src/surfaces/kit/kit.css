@@ -135,6 +135,77 @@
   text-decoration: none;
 }
 
+/* ── empty notice — sheet (`.mr-shell`), list row, or card group ─────── */
+
+.kit-empty--row {
+  align-items: start;
+}
+.kit-empty__copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.kit-empty__title,
+.kit-empty__msg {
+  margin: 0;
+  font-family: var(--ff-mono);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  max-width: 62ch;
+}
+.kit-empty__title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.kit-empty__msg {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.kit-empty__msg code,
+.kit-empty__title code {
+  font-size: 0.95em;
+  color: var(--ink);
+}
+.kit-empty--inline {
+  display: grid;
+  gap: 4px;
+  padding: 9px 12px;
+}
+.kit-empty--inline .kit-empty__title {
+  font-size: 10.5px;
+  color: var(--ink);
+}
+.kit-empty--inline .kit-empty__msg {
+  font-size: 10.5px;
+}
+.mr-shell .kit-empty__title {
+  font-size: 13px;
+}
+.kit-empty__action {
+  min-width: 0;
+  max-width: 100%;
+}
+.kit-empty--row .kit-empty__action {
+  justify-self: end;
+}
+.kit-empty__action .mr-btn,
+.mr-shell .kit-empty__action .mr-btn {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  justify-content: center;
+}
+.kit-empty a.mr-btn,
+.mr-shell a.mr-btn {
+  text-decoration: none;
+}
+.kit-empty a.mr-btn:focus-visible,
+.mr-shell a.mr-btn:focus-visible {
+  text-decoration: none;
+}
+
 @media (hover: hover) {
   a.kit-row__link:hover {
     text-decoration: underline;
@@ -142,6 +213,11 @@
   }
   .kit-row--more a:hover {
     color: var(--ink);
+  }
+  .kit-empty a.mr-btn:hover,
+  .mr-shell a.mr-btn:hover {
+    background: var(--sheet-2);
+    border-color: var(--ink);
   }
 }
 
@@ -252,6 +328,9 @@
   .kit-row > :not(.kit-row__main) {
     margin-top: 6px;
   }
+  .kit-empty--row .kit-empty__action {
+    justify-self: start;
+  }
 }
 
 @media (forced-colors: active) {
@@ -260,6 +339,10 @@
     border: 1px solid CanvasText;
   }
   .kit-pill__dot {
+    outline: 1px solid CanvasText;
+  }
+  .kit-empty .mr-btn,
+  .mr-shell .mr-btn {
     outline: 1px solid CanvasText;
   }
 }

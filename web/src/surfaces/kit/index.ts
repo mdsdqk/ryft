@@ -12,7 +12,7 @@ export { SheetList, Row, MoreRow } from "./SheetList.tsx";
 export { FactList, type Fact } from "./FactList.tsx";
 export { StatusPill, type StatusTone } from "./StatusPill.tsx";
 export { Tri } from "./Tri.tsx";
-export { EmptyState, Loading } from "./EmptyState.tsx";
+export { EmptyState, Loading, type EmptyLayout } from "./EmptyState.tsx";
 export {
   ComparisonGrid,
   type GridColHead,
