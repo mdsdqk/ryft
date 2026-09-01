@@ -17,8 +17,9 @@ api/                       new pnpm workspace package (§ ADR 0010 §1)
   tsconfig.json            extends root; NodeNext ESM, .js specifiers
   drizzle.config.ts        drizzle-kit: schema → api/drizzle/*.sql  (.vercelignore'd)
   drizzle/                 committed generated SQL — applied to Neon and to pglite
-  index.ts                 export default handle(app) — the ONLY file under api/,
-                           so the only Vercel function (Hobby caps a deploy at 12)
+  index.ts                 Node (req,res) handler → getRequestListener(app.fetch);
+                           the ONLY file under api/, so the only Vercel function
+                           (Hobby caps a deploy at 12)
   _server/                 the app; `_`-prefixed → a support dir, not functions
     app.ts                 the Hono app + identity middleware
     db/schema.ts           the six Drizzle tables (docs/backend-contract.md §1)
