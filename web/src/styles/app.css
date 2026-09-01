@@ -124,12 +124,12 @@
 .app-bar__signout {
   flex: 0 0 auto;
   font-family: var(--ff-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-soft);
   border: 1px solid var(--line-strong);
-  padding: 5px 9px;
+  padding: 6px 10px;
 }
 @media (forced-colors: active) {
   .app-bar__signout {
@@ -543,6 +543,11 @@ kbd {
 .mr-cell--empty {
   color: var(--line-strong);
 }
+/* per-cell column label — only shown once the grid stacks (≤1100px), where the
+ * side-by-side headers no longer sit above the value */
+.mr-cell__col {
+  display: none;
+}
 .mr-cell__detail {
   display: block;
   margin-top: 2px;
@@ -663,13 +668,13 @@ kbd {
   align-items: center;
   gap: 6px;
   font-family: var(--ff-mono);
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   border: 1.5px solid var(--ink);
   background: var(--sheet);
   color: var(--ink);
-  padding: 7px 11px;
+  padding: 8px 12px;
 }
 .mr-btn--primary {
   background: var(--ink);
@@ -1089,11 +1094,27 @@ kbd {
   .mr-cf__grid {
     grid-template-columns: 1fr;
   }
+  /* stacked: name the column on each value cell, in its role colour */
+  .mr-cell__col {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .mr-row > .mr-cell:nth-of-type(2) .mr-cell__col {
+    color: var(--ours);
+  }
+  .mr-row > .mr-cell:nth-of-type(3) .mr-cell__col {
+    color: var(--theirs);
+  }
 }
 
 @media (max-width: 640px) {
   .app-bar {
     flex-wrap: wrap;
+    row-gap: 10px;
   }
   .mr-titlestrip__demo {
     margin-top: 12px;
@@ -1107,6 +1128,18 @@ kbd {
   .mr-fab__status {
     padding-inline-start: 16px;
     padding-inline-end: 16px;
+  }
+  /* touch: floor the app-bar controls to a comfortable target on small screens,
+   * without lifting the dense plate type elsewhere */
+  .app-bar__theme button {
+    padding: 10px 13px;
+  }
+  .app-bar__signout {
+    padding: 10px 13px;
+  }
+  .mr-btn,
+  .mr-chip {
+    padding: 10px 13px;
   }
 }
 

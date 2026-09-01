@@ -98,7 +98,15 @@ export function ComparisonTable({
   filterId: string;
   onOpenConflict: (conflictId: string) => void;
 }) {
-  const [filter, setFilter] = useState<Filter>("changes");
+  const changedCount = review.rows.filter(isChanged).length;
+  const conflictCount = review.rows.filter((r) => r.resolution.state === "conflict").length;
+
+  // The primary action on a held merge is resolving the active conflict
+  // (index.html), so open on the conflicts — Zone A is evidence, Zone B is the
+  // decision. Fall back to "changes" when nothing conflicts.
+  const [filter, setFilter] = useState<Filter>(
+    conflictCount > 0 ? "conflicts" : "changes",
+  );
 
   const shown = useMemo(
     () =>
@@ -109,9 +117,6 @@ export function ComparisonTable({
       }),
     [review.rows, filter],
   );
-
-  const changedCount = review.rows.filter(isChanged).length;
-  const conflictCount = review.rows.filter((r) => r.resolution.state === "conflict").length;
 
   const sections: GridSection[] = useMemo(() => {
     const groups = GROUP_ORDER.map((g) => {
@@ -168,8 +173,8 @@ export function ComparisonTable({
           </>
         }
         gutterLabel="Object · stable id"
-        left={{ label: `On ${review.source} — ours`, tone: "ours" }}
-        right={{ label: `On ${review.target} — theirs`, tone: "theirs" }}
+        left={{ label: `On ${review.source} — ours`, shortLabel: "on ours", tone: "ours" }}
+        right={{ label: `On ${review.target} — theirs`, shortLabel: "on theirs", tone: "theirs" }}
         baseNote={
           <>
             common ancestor <code>{review.base}</code> — every row below is measured against it

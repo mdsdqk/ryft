@@ -309,13 +309,13 @@
 }
 .bw-mini {
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: 10.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   border: 1px solid var(--line-strong);
   background: var(--sheet);
   color: var(--ink-soft);
-  padding: 3px 7px;
+  padding: 5px 9px;
   cursor: pointer;
 }
 .bw-mini--danger {
@@ -377,12 +377,14 @@
 .bw-in {
   font-family: var(--ff-mono);
   font-feature-settings: "tnum" 1;
-  font-size: 12px;
+  /* 16px on real form controls so iOS Safari does not zoom the sheet on focus;
+   * plate type elsewhere stays 9–11px */
+  font-size: 16px;
   color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--line-strong);
   border-radius: 0;
-  padding: 5px 7px;
+  padding: 6px 8px;
 }
 input.bw-in {
   width: 20ch;
@@ -485,12 +487,12 @@ input.bw-in::placeholder {
   margin-top: 14px;
   width: 100%;
   font-family: var(--ff-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.03em;
   border: 1.5px solid var(--line-strong);
   background: var(--sheet);
   color: var(--ink-soft);
-  padding: 7px 9px;
+  padding: 8px 10px;
   cursor: pointer;
   text-align: start;
   overflow-wrap: anywhere;
@@ -530,6 +532,15 @@ input.bw-in::placeholder {
   }
   .bw-card__right {
     justify-content: flex-start;
+  }
+  /* touch: floor the card actions to a real target */
+  .bw-mini {
+    padding: 9px 11px;
+    font-size: 11px;
+  }
+  .bw-card__acts {
+    gap: 8px;
+    flex-wrap: wrap;
   }
 }
 @media (max-width: 560px) {

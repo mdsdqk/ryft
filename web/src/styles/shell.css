@@ -69,12 +69,12 @@
   gap: 10px;
   min-width: 0;
   font-family: var(--ff-mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
+  font-size: 12px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-soft);
   text-decoration: none;
-  padding: 8px 10px 8px 2px;
+  padding: 9px 10px 9px 4px;
   border: 1px solid transparent;
   overflow-wrap: anywhere;
 }
@@ -182,9 +182,11 @@
   .shl-rail__nav {
     flex-direction: row;
     flex-wrap: wrap;
+    gap: 4px;
   }
   .shl-rail__nav a {
     justify-content: flex-start;
+    padding: 10px 12px;
   }
   .shl-rail__sub {
     border-inline-start: none;

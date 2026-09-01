@@ -19,7 +19,12 @@ import { useState, type ReactNode } from "react";
 
 type Tone = "ours" | "theirs" | "neutral";
 
-export type GridColHead = { label: ReactNode; tone?: Tone };
+export type GridColHead = {
+  label: ReactNode;
+  tone?: Tone;
+  /** shown as a per-cell prefix once the grid stacks to one column */
+  shortLabel?: ReactNode;
+};
 
 /** A value cell. `null` renders the muted em-dash "not present" cell. */
 export type GridCell =
@@ -64,10 +69,30 @@ function toneClass(tone: Tone | undefined): string | undefined {
   return undefined;
 }
 
-function Cell({ cell, defaultTone }: { cell: GridCell; defaultTone: Tone }) {
-  if (cell === null) return <div className="mr-cell mr-cell--empty">—</div>;
+function Cell({
+  cell,
+  defaultTone,
+  colLabel,
+}: {
+  cell: GridCell;
+  defaultTone: Tone;
+  colLabel?: ReactNode;
+}) {
+  const prefix = colLabel != null && (
+    <span className="mr-cell__col" aria-hidden="true">
+      {colLabel}
+    </span>
+  );
+  if (cell === null) {
+    return (
+      <div className="mr-cell mr-cell--empty">
+        {prefix}—
+      </div>
+    );
+  }
   return (
     <div className="mr-cell">
+      {prefix}
       {cell.label != null && (
         <span className={`mr-rl mr-rl--${cell.labelTone ?? defaultTone}`}>{cell.label}</span>
       )}
@@ -76,15 +101,15 @@ function Cell({ cell, defaultTone }: { cell: GridCell; defaultTone: Tone }) {
   );
 }
 
-function Row({ row }: { row: GridRow }) {
+function Row({ row, leftCol, rightCol }: { row: GridRow; leftCol?: ReactNode; rightCol?: ReactNode }) {
   return (
     <div className={["mr-row", row.rowClass].filter(Boolean).join(" ")}>
       <div className="mr-row__obj">
         <span className="mr-row__nm">{row.objectLabel}</span>
         <span className="mr-row__id">{row.objectId}</span>
       </div>
-      <Cell cell={row.left} defaultTone="ours" />
-      <Cell cell={row.right} defaultTone="theirs" />
+      <Cell cell={row.left} defaultTone="ours" colLabel={leftCol} />
+      <Cell cell={row.right} defaultTone="theirs" colLabel={rightCol} />
       {row.leader && (
         <p className={`mr-row__leader mr-row__leader--${row.leader.tone}`}>↳ {row.leader.text}</p>
       )}
@@ -147,7 +172,15 @@ export function ComparisonGrid({
           <Chevron open={!isCollapsed} />
           <span>{g.title}</span>
         </button>
-        {!isCollapsed && g.rows.map((r) => <Row key={r.key} row={r} />)}
+        {!isCollapsed &&
+          g.rows.map((r) => (
+            <Row
+              key={r.key}
+              row={r}
+              leftCol={left.shortLabel}
+              rightCol={right.shortLabel}
+            />
+          ))}
       </div>
     );
   };

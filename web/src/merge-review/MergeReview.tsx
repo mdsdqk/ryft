@@ -96,6 +96,13 @@ export function MergeReview({ base }: { base: MergeReviewModel }) {
       const ids = base.conflicts.map((c) => c.id);
       const i = Math.max(0, ids.indexOf(activeConflictId));
       setSelectedConflictId(ids[(i + delta + ids.length) % ids.length]!);
+      // bring the queue into view if it isn't — J/K from the top of the sheet
+      // should not move an active card the reader cannot see
+      requestAnimationFrame(() =>
+        document
+          .getElementById(ZONE_IDS.b)
+          ?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+      );
     },
     [base.conflicts, activeConflictId],
   );
@@ -164,7 +171,10 @@ export function MergeReview({ base }: { base: MergeReviewModel }) {
             <b className="mr-o">{review.source}</b> → <b className="mr-t">{review.target}</b> · common
             base <code>{review.base}</code>
           </p>
-          <p className="mr-titlestrip__demo">Demonstration review — sample data</p>
+          <p className="mr-titlestrip__demo">
+            Demonstration review — every queued request opens this one worked
+            sample until fetch-by-id lands with the API
+          </p>
         </div>
         <RevisionDial status={status} detail={dialDetail} />
       </header>

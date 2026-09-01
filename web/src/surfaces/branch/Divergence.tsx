@@ -49,8 +49,8 @@ export function Divergence({ detail }: { detail: BranchDetail }) {
           </>
         }
         gutterLabel="Object · stable id"
-        left={{ label: "On main" }}
-        right={{ label: "On this branch — ours", tone: "ours" }}
+        left={{ label: "On main", shortLabel: "on main" }}
+        right={{ label: "On this branch — ours", shortLabel: "on this branch", tone: "ours" }}
         baseNote={
           <>
             measured against <code>main</code> as it stood when{" "}

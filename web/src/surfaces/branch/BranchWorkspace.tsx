@@ -101,17 +101,23 @@ export function BranchWorkspace() {
   }
 
   const { detail, operations } = data;
+  const isTrunk = detail.name === "main";
   const changes =
     detail.divergence === 0
       ? "no changes"
       : `${detail.divergence.toLocaleString()} operation${detail.divergence === 1 ? "" : "s"}`;
+  const subtitle = isTrunk
+    ? `the trunk · schema of record · last changed ${detail.cutOn}`
+    : `cut from main · ${detail.author} · ${detail.cutOn} · ${changes}`;
+
+  const showAction = !isTrunk && detail.divergence > 0;
 
   return (
     <SurfaceSheet
       title={detail.name}
       demo
-      subtitle={`cut from main · ${detail.author} · ${detail.cutOn} · ${changes}`}
-      action={<MergeRequestAction detail={detail} />}
+      subtitle={subtitle}
+      action={showAction ? <MergeRequestAction detail={detail} /> : undefined}
     >
       {sheet === "divergence" ? (
         <Divergence detail={detail} />
