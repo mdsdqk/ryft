@@ -106,7 +106,7 @@ mergeRequestRoutes.post("/merge-requests/:id/merge", async (c) => {
     await tx.insert(operations).values({
       branchName: main.name,
       seq,
-      at: now, // defaulted column set explicitly — assert the row shape (see api/src/seed.ts)
+      at: now, // defaulted column set explicitly — assert the row shape (see api/_server/seed.ts)
       authorId: actor.id,
       op: marker,
     } as typeof operations.$inferInsert);

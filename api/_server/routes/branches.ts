@@ -150,7 +150,7 @@ branchRoutes.post("/branches/:name/operations", async (c) => {
           ({
             branchName: name,
             seq: startSeq + k,
-            at: now, // defaulted column set explicitly — assert the row shape (see api/src/seed.ts)
+            at: now, // defaulted column set explicitly — assert the row shape (see api/_server/seed.ts)
             authorId: actor.id,
             op,
           }) as typeof operations.$inferInsert,

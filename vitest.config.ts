@@ -22,7 +22,7 @@ export default defineConfig({
       "engine/**/*.test.ts",
       "src/**/*.test.ts",
       "web/src/**/*.test.ts",
-      "api/src/**/*.test.ts",
+      "api/_server/**/*.test.ts",
     ],
     environment: "node",
   },

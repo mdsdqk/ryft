@@ -90,10 +90,23 @@ source.
 
 `web/` builds to static assets served from the CDN. `api/` deploys as a single Vercel Node
 serverless function: `api/index.ts` is `export default handle(app)` from `hono/vercel`,
-wrapping the app in `api/src/app.ts`. A root `vercel.json` sets the build command to build
+wrapping the app in `api/_server/app.ts`. A root `vercel.json` sets the build command to build
 `@ryft/web`, the output directory to `web/dist`, and rewrites `/api/(.*)` to the function so
 every API path lands on the one handler and Hono routes internally. `DATABASE_URL` is a
 Vercel project env var.
+
+**One file under `api/`, not a tree.** Vercel's zero-config turns *every* code file under
+`api/` into its own Serverless Function, and the Hobby plan caps a deployment at 12 — the
+`app.ts` + `routes/*` + `db/*` tree blew past that. The fix keeps the single-function design
+intact: `api/index.ts` is the lone file directly under `api/`, and the whole app moved to
+`api/_server/` — an underscore-prefixed dir is a *support* dir that a function may import but
+that Vercel never turns into functions. The one stray, `api/drizzle.config.ts` (a drizzle-kit
+CLI config, never imported at runtime), is listed in a root `.vercelignore`. `@vercel/node`
+traces `index.ts`'s imports and bundles `_server/**` into that one function.
+
+`api/package.json` also pins `typescript` so `@vercel/node`'s function typecheck uses the
+workspace compiler (5.9) rather than its older bundled one, which mis-inferred Drizzle's
+`$inferInsert` and rejected the seed's explicit-id inserts.
 
 Local development runs the same `app` under `@hono/node-server` via
 `pnpm --filter @ryft/api dev` (tsx watch), on a fixed port, with `DATABASE_URL` from a local
