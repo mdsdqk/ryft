@@ -9,10 +9,11 @@
 import { eq } from "drizzle-orm";
 import { diffSnapshots } from "../../engine/diff.js";
 import { threeWayMerge } from "../../engine/merge.js";
-import { emitMigration } from "../../engine/emit.js";
-import type { SchemaDocument } from "../../engine/schema.js";
+import { emitMigration, type Migration } from "../../engine/emit.js";
+import type { SchemaDocument, ColumnType } from "../../engine/schema.js";
+import type { MergeReport, Resolution } from "../../engine/merge-types.js";
 import type { Db } from "./db/client.js";
-import { branches, mergeRequests, operations, users } from "./db/schema.js";
+import { branches, mergeRequests, mergeRequestResolutions, operations, users } from "./db/schema.js";
 import type {
   Database,
   BranchDetail,
@@ -25,6 +26,72 @@ import type {
 const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
 
 type MrRow = typeof mergeRequests.$inferSelect;
+
+export type ResolvedMerge = {
+  merged: SchemaDocument | null;
+  report: MergeReport;
+  migration: Migration | null;
+  appliedResolutions: MergeRequestResponse["appliedResolutions"];
+  droppedResolutions: MergeRequestResponse["droppedResolutions"];
+};
+
+/**
+ * Run the three-way merge for `mr` with its stored resolutions folded in
+ * (ADR 0004 §6). A stored row is dropped — and reported in `droppedResolutions`
+ * — when its conflict is gone from the current bare report (`absent`) or its
+ * `conflict_snapshot` no longer matches (`changed`). The surviving rows are fed
+ * to `threeWayMerge` and echoed back as `appliedResolutions` so the client can
+ * render the resolved conflict cards (a resolved conflict drops out of
+ * `report.conflicts`).
+ */
+export async function resolveMerge(
+  db: Db,
+  mr: MrRow,
+  triple: { base: SchemaDocument; ours: SchemaDocument; theirs: SchemaDocument } = mr,
+): Promise<ResolvedMerge> {
+  const { base, ours, theirs } = triple;
+  const stored = await db
+    .select()
+    .from(mergeRequestResolutions)
+    .where(eq(mergeRequestResolutions.mrId, mr.id));
+
+  const { report: bare } = threeWayMerge(base, ours, theirs, []);
+  const currentById = new Map(bare.conflicts.map((c) => [c.id, c]));
+
+  const valid: Resolution[] = [];
+  const appliedResolutions: ResolvedMerge["appliedResolutions"] = [];
+  const droppedResolutions: ResolvedMerge["droppedResolutions"] = [];
+
+  for (const row of stored) {
+    const current = currentById.get(row.conflictId);
+    if (!current) {
+      droppedResolutions.push({ conflictId: row.conflictId, why: "absent" });
+      continue;
+    }
+    const snapshot = { base: current.base, ours: current.ours, theirs: current.theirs };
+    if (JSON.stringify(row.conflictSnapshot) !== JSON.stringify(snapshot)) {
+      droppedResolutions.push({ conflictId: row.conflictId, why: "changed" });
+      continue;
+    }
+    valid.push(
+      row.choice === "type"
+        ? { conflictId: row.conflictId, choice: "type", type: row.payload as ColumnType }
+        : row.choice === "ours"
+          ? { conflictId: row.conflictId, choice: "ours" }
+          : { conflictId: row.conflictId, choice: "theirs" },
+    );
+    appliedResolutions.push({
+      conflictId: row.conflictId,
+      choice: row.choice,
+      type: row.payload ?? null,
+      snapshot,
+    });
+  }
+
+  const { merged, report } = threeWayMerge(base, ours, theirs, valid);
+  const migration = merged ? emitMigration(theirs, merged) : null;
+  return { merged, report, migration, appliedResolutions, droppedResolutions };
+}
 
 function countObjects(doc: SchemaDocument): Pick<Database, "tables" | "columns" | "indexes" | "constraints"> {
   let columns = 0;
@@ -86,11 +153,18 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
   ]);
   const opCount = (branch: string) => ops.filter((o) => o.branchName === branch).length;
 
-  return mrRows
+  const nonTerminal = mrRows
     .filter((mr) => mr.status !== "merged")
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-    .map((mr) => {
-      const { report } = threeWayMerge(mr.base, mr.ours, mr.theirs, []);
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+  return Promise.all(
+    nonTerminal.map(async (mr) => {
+      const { report, appliedResolutions } = await resolveMerge(db, mr);
+      // `report.conflicts` is the engine's full detected set — it does not drop
+      // an entry once resolved (the engine `Conflict` carries no `resolvedWith`;
+      // only `verdict` reflects resolution). Count the ones still open.
+      const resolvedIds = new Set(appliedResolutions.map((r) => r.conflictId));
+      const openConflicts = report.conflicts.filter((c) => !resolvedIds.has(c.id)).length;
       return {
         id: mr.id,
         source: mr.sourceBranch,
@@ -99,9 +173,10 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
         openedOn: isoDate(mr.createdAt),
         operations: opCount(mr.sourceBranch),
         status: report.verdict === "clean" ? ("clean" as const) : ("held" as const),
-        conflicts: report.conflicts.length,
+        conflicts: openConflicts,
       };
-    });
+    }),
+  );
 }
 
 export async function assembleOverview(db: Db): Promise<Overview> {
@@ -140,11 +215,10 @@ export async function assembleBranchDetail(db: Db, name: string): Promise<Branch
   };
 }
 
-/** Recompute `report` + `migration` for a merge-request row; attach the V0 queue framing. */
+/** Recompute `report` + `migration` (with stored resolutions) for a merge-request row; attach the V0 queue framing. */
 export async function assembleMergeResponse(db: Db, mr: MrRow): Promise<MergeRequestResponse> {
   const names = await nameMap(db);
-  const { merged, report } = threeWayMerge(mr.base, mr.ours, mr.theirs, []);
-  const migration = merged ? emitMigration(mr.theirs, merged) : null;
+  const { report, migration, appliedResolutions, droppedResolutions } = await resolveMerge(db, mr);
 
   return {
     id: mr.id,
@@ -159,6 +233,7 @@ export async function assembleMergeResponse(db: Db, mr: MrRow): Promise<MergeReq
     migration,
     queue: { status: mr.status, position: 1, ahead: 0, behind: 0 },
     stale: false,
-    droppedResolutions: [],
+    appliedResolutions,
+    droppedResolutions,
   };
 }

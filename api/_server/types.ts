@@ -9,7 +9,7 @@
  * at the call sites that need them.
  */
 
-import type { SchemaDocument } from "../../engine/schema.js";
+import type { SchemaDocument, ColumnType } from "../../engine/schema.js";
 import type { MergeReport } from "../../engine/merge-types.js";
 import type { Migration } from "../../engine/emit.js";
 import type { LogEntry } from "../../src/domain/operations.js";
@@ -79,6 +79,18 @@ export type MergeRequestResponse = {
   migration: Migration | null;
   queue: { status: "queued" | "open" | "held" | "merged"; position: number; ahead: number; behind: number };
   stale: boolean;
+  /**
+   * The stored resolutions that are currently in force (ADR 0004 §6). A resolved
+   * conflict is absent from `report.conflicts`, so the client rebuilds its card
+   * from this — `conflictId` is `${class}:${sortedObjectIds}`; `snapshot` is the
+   * conflict's frozen `base`/`ours`/`theirs` payloads.
+   */
+  appliedResolutions: Array<{
+    conflictId: string;
+    choice: "ours" | "theirs" | "type";
+    type: ColumnType | null;
+    snapshot: { base: unknown; ours: unknown; theirs: unknown };
+  }>;
   droppedResolutions: Array<{ conflictId: string; why: "changed" | "absent" }>;
 };
 

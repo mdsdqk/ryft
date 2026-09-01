@@ -186,8 +186,8 @@ and needs no inverse-op derivation. The structured editor's LIFO undo passes `la
 | `GET /merge-requests` | — | `MergeSummary[]` | Non-terminal first, then merged; within non-terminal, ascending `created_at` (queue order). Each augmented with `position` / `ahead` / `behind`. |
 | `POST /merge-requests` | `{ source: string }` | `MergeRequestResponse` | `target` is always `main` in V0. Freezes `base = source.base_snapshot`, `ours = source.head`, `theirs = main.head`, `previewed_main_version = main.head_version`. Status is `open` if no active MR exists, else `queued` (ADR 0004 §3). Runs under the §4 row lock so two creates cannot both become `open`. `409` if a non-terminal MR already has this `source`. |
 | `GET /merge-requests/:id` | — | `MergeRequestResponse` | Recomputes `report`, `migration`, queue position, staleness (ADR 0004 §5). Raw engine output — no server-side projection (ADR 0004 §7). For a `queued` MR the frozen triple is stale by design; the client renders it read-only. |
-| `POST /merge-requests/:id/resolutions` | `{ conflictId: string, choice: "ours" \| "theirs" \| "type", type?: ColumnType }` | `MergeRequestResponse` | `409` unless status ∈ `{open, held}`. `422` if `conflictId` is not a current conflict or `choice` is not in its `resolutionModes`. Upserts by `(mr_id, conflict_id)`; stores `conflict_snapshot`. Returns the response recomputed with the resolution applied. |
-| `DELETE /merge-requests/:id/resolutions/:conflictId` | — | `MergeRequestResponse` | `409` unless status ∈ `{open, held}`. Removes the stored choice. |
+| `POST /merge-requests/:id/resolutions` | `{ conflictId: string, choice: "ours" \| "theirs" \| "type", type?: ColumnType }` | `MergeRequestResponse` | Shipped (moved forward from V1 — the table already existed and the merge transaction needed to honour resolutions anyway). `409` unless `status !== "merged"` (V0 has no `held`). `422` if `conflictId` is not a current conflict or `choice` is not in its `resolutionModes`. Upserts by `(mr_id, conflict_id)`; stores `conflict_snapshot`. Returns the response recomputed with the resolution applied. |
+| `DELETE /merge-requests/:id/resolutions/:conflictId` | — | `MergeRequestResponse` | Shipped. `409` unless `status !== "merged"`. Removes the stored choice; idempotent if absent. |
 | `POST /merge-requests/:id/merge` | — | `{ status: "merged", migration: Migration }` | The §4 transaction. `409` unless status ∈ `{open, held}` (a `queued` MR is not at the front). `409` with the kick-back body if re-validation is not clean — see below. |
 | `DELETE /merge-requests/:id` | — | `{ ok: true }` | Abandon. If the MR was active (`open` / `held`), promote the oldest `queued` MR to `open`. |
 
@@ -246,6 +246,16 @@ type MergeRequestResponse = {
     behind: number;
   };
   stale: boolean;             // main.head_version !== previewed_main_version
+  // stored resolutions currently in force — a resolved conflict is absent from
+  // `report.conflicts` (the engine Conflict carries no resolvedWith), so the
+  // client rebuilds its card from this row plus the conflictId's `${class}:
+  // ${sortedObjectIds}` encoding.
+  appliedResolutions: Array<{
+    conflictId: string;
+    choice: "ours" | "theirs" | "type";
+    type: ColumnType | null;
+    snapshot: { base: unknown; ours: unknown; theirs: unknown };
+  }>;
   droppedResolutions: Array<{ conflictId: string; why: "changed" | "absent" }>;
 };
 ```
