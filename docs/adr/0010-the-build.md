@@ -89,11 +89,14 @@ source.
 ## 3. Deploy: `web/` static + `api/` as one Vercel function
 
 `web/` builds to static assets served from the CDN. `api/` deploys as a single Vercel Node
-serverless function: `api/index.ts` is `export default handle(app)` from `hono/vercel`,
-wrapping the app in `api/_server/app.ts`. A root `vercel.json` sets the build command to build
-`@ryft/web`, the output directory to `web/dist`, and rewrites `/api/(.*)` to the function so
-every API path lands on the one handler and Hono routes internally. `DATABASE_URL` is a
-Vercel project env var.
+serverless function: `api/index.ts` default-exports a Node `(req, res)` handler that runs the
+`api/_server/app.ts` Hono app through `getRequestListener` (`@hono/node-server`) — the same
+Node↔Web-`fetch` bridge `_server/dev.ts` uses via `serve()`. (`hono/vercel`'s `handle` and a
+bare `fetch`-style export are only reliably picked up on the `edge` runtime; on `nodejs` a
+returned `Response` is dropped with a build warning.) A root `vercel.json` sets the build
+command to build `@ryft/web`, the output directory to `web/dist`, and rewrites `/api/(.*)` to
+the function so every API path lands on the one handler and Hono routes internally.
+`DATABASE_URL` is a Vercel project env var.
 
 **One file under `api/`, not a tree.** Vercel's zero-config turns *every* code file under
 `api/` into its own Serverless Function, and the Hobby plan caps a deployment at 12 — the
