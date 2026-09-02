@@ -171,7 +171,7 @@ Base path `/api`. All bodies and responses are JSON. `Actor` = the resolved `x-r
 
 | Method · path | Request | Response | Notes |
 |---|---|---|---|
-| `POST /branches/:name/operations` | `{ ops: Operation[] }` | `{ head: SchemaDocument, appliedSeqs: number[], headVersion: number }` | Applies `ops` in order through `applyOperation` (ADR 0004 §8). One transaction: any failure rolls the whole batch back. `422` on a dependency violation — see below. Each applied op is appended to `operations` as a `LogEntry` (`authorId = Actor`, `at = now()`, `seq` continuing the branch counter); `head_version` is bumped once. `409` if `:name` has a non-terminal MR and the branch is frozen for review (V0: not frozen — edits stay allowed; the MR's `ours` refreshes on promotion). |
+| `POST /branches/:name/operations` | `{ ops: Operation[] }` | `{ head: SchemaDocument, appliedSeqs: number[], headVersion: number }` | Applies `ops` in order through `applyOperation` (ADR 0004 §8). One transaction: any failure rolls the whole batch back. `422` on a per-op dependency violation, or `422 { error: "structural-validation-failed", errors }` if the batch applies op-by-op but `validateDocument` rejects the resulting head (ADR 0008 §5 backstop) — see below. Each applied op is appended to `operations` as a `LogEntry` (`authorId = Actor`, `at = now()`, `seq` continuing the branch counter); `head_version` is bumped once. `409` if `:name` has a non-terminal MR and the branch is frozen for review (V0: not frozen — edits stay allowed; the MR's `ours` refreshes on promotion). |
 | `GET /branches/:name/operations` | — | `LogEntry[]` | Whole log, ascending `seq`. History sub-sheet (V1); endpoint available now. |
 | `DELETE /branches/:name/operations?after=<seq>` | — | `{ head: SchemaDocument, headVersion: number }` | Undo. Drops every log entry with `seq > after` and rebuilds `head` by replaying the surviving prefix from `base_snapshot` — the same fold `POST .../operations` runs. `after=0` clears the branch back to its cut. `head_version` is bumped once. One transaction. `403` for `main`; `404` for an unknown branch; `422` if `after` is missing or not an integer `≥ 0`. |
 
@@ -286,6 +286,28 @@ now.
 Nothing in the batch is persisted. The editor lists the dependents and the user removes them
 first, each as its own operation (ADR 0001 §3 — drops are never cascaded).
 
+### The structural backstop (ADR 0008 §5)
+
+If every op applies cleanly but the resulting branch head fails `validateDocument`, the
+response is instead:
+
+```ts
+{
+  error: "structural-validation-failed",
+  errors: Array<{
+    reason: "duplicate-name" | "dangling-reference" | "nullable-primary-key-member"
+          | "unsafe-default" | "orphaned-foreign-key",
+    message: string,
+    objectId: string,
+  }>,
+}
+```
+
+Also `422`, nothing persisted. `validateOperation` should already have blocked any single-op
+route to an invalid whole, so this fires only on a gap in the per-op rules or a batch that
+composes to an incoherent document — there is no single failing op, so the body carries no
+`failedAt` / `op`. Same `StructuralError[]` shape as the merge path's `409` (§6).
+
 ---
 
 ## 6. `POST .../merge` — 409 body (the kick-back)
@@ -341,7 +363,7 @@ not moved to `held`.
 
 | Operation | Lock / atomicity |
 |---|---|
-| `POST /branches/:name/operations` | One transaction over the batch; rollback on any op failure. |
+| `POST /branches/:name/operations` | Fold the batch in memory (pure `applyOperation`), then `validateDocument` the resulting head; only a fully clean batch reaches the one write transaction. Rollback on any op failure. |
 | `POST /merge-requests` | `SELECT … FOR UPDATE` on the target `branches` row while checking for an active MR and inserting, so status assignment (`open` vs `queued`) is race-free. |
 | `POST /merge-requests/:id/merge` | One transaction: `FOR UPDATE` on the target row → re-read `source.head` → `threeWayMerge` → on `clean`, `validateDocument` the candidate; if that passes, write head + bump version + append merge marker + set `merged` + refresh triple + promote next. On not-clean, set `held` + refresh triple. On a structural failure, return `409` and write nothing. |
 | `DELETE /merge-requests/:id` | `FOR UPDATE` on the target row while removing the MR and promoting the next `queued` MR if the removed one was active. |
