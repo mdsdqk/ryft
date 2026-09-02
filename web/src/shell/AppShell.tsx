@@ -30,7 +30,7 @@ function useDocumentTitle(pathname: string, username: string | null): void {
   const onMerge = mergeById != null || mergeBare != null;
   useEffect(() => {
     let surface = "";
-    if (!username) surface = "Sign in";
+    if (!username) surface = "a schema merge that follows a rename";
     else if (pathname === "/" || pathname === "/db") surface = "Database";
     else if (pathname.startsWith("/branches")) surface = "Branches";
     else if (pathname.startsWith("/merges")) surface = "Merge requests";

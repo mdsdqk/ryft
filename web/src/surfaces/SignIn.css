@@ -6,28 +6,162 @@
 
 .si {
   width: 100%;
-  max-width: 420px;
-  margin-top: clamp(8px, 6vh, 64px);
-  align-self: flex-start;
+  max-width: 1080px;
+  align-self: center;
 }
 
-.si__body {
-  padding: 22px 24px 26px;
+/* SVG inset takes over while inking; ::before is the resting inset. */
+.si.mr-sheet::before {
+  transition: opacity 90ms var(--ease-mark);
+}
+.si--inking.mr-sheet::before {
+  opacity: 0;
+}
+
+.si__draw {
+  position: absolute;
+  inset: 7px;
+  width: calc(100% - 14px);
+  height: calc(100% - 14px);
+  overflow: visible;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+}
+.si--inking .si__draw {
+  opacity: 1;
+}
+.si__draw rect {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.si__cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  align-items: stretch;
+}
+
+/* ── claim ───────────────────────────────────────────────────────────── */
+
+.si__claim {
+  padding: 32px 32px 24px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  border-inline-end: 2px solid var(--ink);
+}
+
+.si__h1 {
+  font-family: var(--ff-display);
+  font-weight: 700;
+  font-size: clamp(30px, 4.2vw, 40px);
+  line-height: 1.05;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  max-width: 680px;
+  color: var(--ink);
+}
+
+.si__line {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.28em;
+}
+
+.si__w {
+  display: inline-block;
+}
+
+.si__sub {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 680px;
+  text-wrap: pretty;
+}
+
+/* ── proof miniature ─────────────────────────────────────────────────── */
+
+.si__proof {
+  min-width: 0;
+}
+
+.si__proof-k {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 8px;
+}
+
+@media (min-width: 641px) {
+  .si__cmp .mr-cmp__colhd,
+  .si__cmp .mr-row {
+    grid-template-columns: minmax(7rem, 0.85fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .si__cmp .mr-cmp__colhd span + span,
+  .si__cmp .mr-row > .mr-cell + .mr-cell,
+  .si__cmp .mr-row > .mr-row__obj + .mr-cell {
+    border-inline-start: 1px solid var(--line);
+    border-top: none;
+  }
+  .si__cmp .mr-row__leader {
+    grid-column: 2 / 4;
+    border-inline-start: 1px solid var(--line);
+  }
+  .si__cmp .mr-cell__col {
+    display: none;
+  }
+}
+
+.si__benefits {
+  list-style: none;
+  margin-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.si__benefits li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--line);
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.si__benefits b {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+/* ── gate ────────────────────────────────────────────────────────────── */
+
+.si__gate {
+  padding: 24px 24px 26px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 14px;
+  background: var(--sheet-2);
+  min-width: 0;
 }
 
-.si__lede {
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  line-height: 1.6;
-  color: var(--ink-soft);
-  max-width: 52ch;
+.si__plate {
+  margin-top: 0;
+  background: var(--panel);
 }
-
-/* ── the ruled entry ─────────────────────────────────────────────────── */
 
 .si__field {
   display: flex;
@@ -77,8 +211,6 @@
   }
 }
 
-/* ── plate-stamp action ──────────────────────────────────────────────── */
-
 .si__go {
   align-self: flex-start;
   margin-top: 2px;
@@ -89,8 +221,6 @@
   background: var(--sheet-2);
   cursor: not-allowed;
 }
-
-/* ── alert: one mechanical moment — a ruled line drawn left to right ──── */
 
 .si__error {
   font-family: var(--ff-mono);
@@ -110,19 +240,67 @@
   line-height: 1.6;
   color: var(--ink-soft);
   max-width: 52ch;
+  text-wrap: pretty;
   padding-top: 12px;
   border-top: 1px dashed var(--line);
 }
 
+.si__foot {
+  border-top: 2px solid var(--ink);
+  padding: 12px 24px 14px;
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--ink-faint);
+  text-wrap: pretty;
+}
+
 /* ── responsive ──────────────────────────────────────────────────────── */
 
-@media (max-width: 480px) {
-  .si__body {
+@media (max-width: 900px) {
+  .si__cols {
+    grid-template-columns: 1fr;
+  }
+  .si__claim {
+    border-inline-end: none;
+    border-bottom: 2px solid var(--ink);
+    padding: 24px 24px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .si__claim {
+    padding: 20px 16px 16px;
+  }
+  .si__gate {
     padding: 18px 16px 22px;
   }
   .si__error {
     margin-inline: -16px;
     padding-inline: 16px;
+  }
+  .si__foot {
+    padding-inline: 16px;
+  }
+  .si__h1 {
+    font-size: 30px;
+  }
+  .si__cmp .mr-cmp__colhd {
+    display: none;
+  }
+  .si__cmp .mr-row {
+    grid-template-columns: 1fr;
+  }
+  .si__cmp .mr-cell {
+    display: none;
+  }
+  .si__cmp .mr-row__leader {
+    grid-column: 1;
+    border-inline-start: none;
+    padding: 0 10px 10px;
+  }
+  .si__cmp .mr-cell__col {
+    display: block;
   }
 }
 
@@ -132,5 +310,8 @@
   }
   .si__input[aria-invalid="true"] {
     border-color: Highlight;
+  }
+  .si__draw rect {
+    stroke: CanvasText;
   }
 }

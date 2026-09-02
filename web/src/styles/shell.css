@@ -148,10 +148,13 @@
 #main:focus {
   outline: none;
 }
-/* signed-out: no rail, the gate sits centred near the top */
+/* signed-out: no rail; the arrival sheet fills and centres on the stage */
 .shl-stage--solo {
   display: flex;
   justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 47px);
+  padding: clamp(16px, 3vw, 32px);
 }
 
 .mono {
