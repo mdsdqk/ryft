@@ -96,6 +96,25 @@
 .bw-group + .bw-group .bw-group__k {
   border-top: 1px solid var(--line);
 }
+.bw-group__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--sheet-2);
+  border-bottom: 1px solid var(--line);
+  padding-inline-end: 8px;
+}
+.bw-group__head .bw-group__k {
+  border-bottom: none;
+  flex: 1;
+  background: transparent;
+}
+.bw-group + .bw-group .bw-group__head {
+  border-top: 1px solid var(--line);
+}
+.bw-group + .bw-group .bw-group__head .bw-group__k {
+  border-top: none;
+}
 
 .bw-row {
   display: grid;
@@ -312,6 +331,9 @@
   color: var(--conflict);
   border-color: var(--conflict-edge);
 }
+.bw-mini--create {
+  margin-inline-start: auto;
+}
 @media (hover: hover) {
   .bw-mini:hover {
     border-color: var(--ink);
@@ -363,6 +385,11 @@
   flex-direction: row;
   align-items: baseline;
   gap: 8px;
+}
+input.bw-in.bw-in--title {
+  font-weight: 600;
+  width: 20ch;
+  padding: 4px 6px;
 }
 .bw-in {
   font-family: var(--ff-mono);
@@ -434,6 +461,16 @@ input.bw-in::placeholder {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 10px;
+}
+.bw-ed__err--pad,
+.bw-ed__row--pad {
+  padding: 0 12px 12px;
+}
+.bw-ed__row--pad {
+  margin-top: 0;
+}
+.bw-ed__spacer {
+  flex: 1;
 }
 .bw-ed__cols {
   border: 1px solid var(--line-strong);

@@ -1,17 +1,20 @@
 /**
  * The blank card shown while the sheet's "+ create table" action is active
- * (grill Q14). Minimum to commit: a table name and one column — no primary key
- * in V0. Same drafting-card frame as a real table.
+ * (grill Q14). Minimum to commit: a table name and one named column. Extra
+ * columns (and their defaults) ride on the same `createTable` so the first-run
+ * tour can author `attachments` in one operation.
  */
 
 import { useEffect, useRef, useState } from "react";
 
 import { freshId } from "@engine/id.js";
 
-import { NewColumnFields } from "./AddForms.tsx";
+import { NewColumnFields, type ColumnDraft } from "./AddForms.tsx";
 import type { ApplyFn } from "./edit.ts";
 import { firstMessage } from "./edit.ts";
 import { typeForValue } from "./format.ts";
+
+const blankCol = (): ColumnDraft => ({ name: "", type: "text", nullable: true, default: "" });
 
 export function NewTableCard({
   apply,
@@ -21,16 +24,19 @@ export function NewTableCard({
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
-  const [col, setCol] = useState({ name: "id", type: "uuid", nullable: false });
+  const [cols, setCols] = useState<ColumnDraft[]>([
+    { name: "id", type: "uuid", nullable: false, default: "" },
+  ]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => ref.current?.focus(), []);
 
+  const named = cols.filter((c) => c.name.trim());
+
   const create = async () => {
     const tn = name.trim();
-    const cn = col.name.trim();
-    if (!tn || !cn) return;
+    if (!tn || !named.length) return;
     setBusy(true);
     setError(null);
     const outcome = await apply({
@@ -38,15 +44,13 @@ export function NewTableCard({
       table: {
         id: freshId("tbl", tn),
         name: tn,
-        columns: [
-          {
-            id: freshId("col", `${tn}_${cn}`),
-            name: cn,
-            type: typeForValue(col.type),
-            nullable: col.nullable,
-            default: null,
-          },
-        ],
+        columns: named.map((c) => ({
+          id: freshId("col", `${tn}_${c.name.trim()}`),
+          name: c.name.trim(),
+          type: typeForValue(c.type),
+          nullable: c.nullable,
+          default: c.default.trim() || null,
+        })),
         primaryKey: null,
         foreignKeys: [],
         uniques: [],
@@ -81,27 +85,36 @@ export function NewTableCard({
         </label>
       </header>
       <div className="bw-group">
-        <p className="bw-group__k">First column</p>
-        <div className="bw-ed bw-ed--add">
-          <NewColumnFields value={col} onChange={setCol} />
-          {error && (
-            <p className="bw-ed__err" role="alert">
-              {error}
-            </p>
-          )}
-          <div className="bw-ed__row">
-            <button className="mr-btn mr-btn--ghost" type="button" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              className="mr-btn mr-btn--primary"
-              type="button"
-              disabled={busy || !name.trim() || !col.name.trim()}
-              onClick={() => void create()}
-            >
-              {busy ? "Creating…" : "Create table"}
-            </button>
+        <p className="bw-group__k">Columns</p>
+        {cols.map((col, i) => (
+          <div key={i} className="bw-ed bw-ed--add">
+            <NewColumnFields
+              value={col}
+              onChange={(next) => setCols((all) => all.map((c, j) => (j === i ? next : c)))}
+            />
           </div>
+        ))}
+        {error && (
+          <p className="bw-ed__err bw-ed__err--pad" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="bw-ed__row bw-ed__row--pad">
+          <button className="bw-mini" type="button" onClick={() => setCols((c) => [...c, blankCol()])}>
+            + column
+          </button>
+          <span className="bw-ed__spacer" />
+          <button className="mr-btn mr-btn--ghost" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="mr-btn mr-btn--primary"
+            type="button"
+            disabled={busy || !name.trim() || !named.length}
+            onClick={() => void create()}
+          >
+            {busy ? "Creating…" : "Create table"}
+          </button>
         </div>
       </div>
     </article>
