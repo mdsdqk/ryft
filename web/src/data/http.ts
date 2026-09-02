@@ -317,7 +317,10 @@ export const httpSource: DataSource = {
         throw new MergeRequestNotFoundError(id);
       }
       if (err instanceof ApiError && err.status === 409 && err.body.error === "revalidation-failed") {
-        throw new MergeRevalidationError();
+        // the queue's kick-back body carries a plain-language `summary` naming
+        // what landed ahead (docs/backend-contract.md §6) — surface it verbatim.
+        const summary = typeof err.body.summary === "string" ? err.body.summary : undefined;
+        throw new MergeRevalidationError(summary);
       }
       if (err instanceof ApiError) throw new Error(err.message);
       throw err;

@@ -85,9 +85,11 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
   const open = openConflicts(review);
   const rebased = review.rows.filter((r) => r.leader?.tone === "ok").length;
   const released = review.status === "released";
-  // Release is gated on the *server* review, not the optimistic overlay —
-  // a local pick that hasn't landed yet would 409 the merge transaction.
-  const canRelease = Boolean(mergeId) && live.status !== "released" && isMergeable(live);
+  // Release is gated on the *server* review, not the optimistic overlay — a
+  // local pick that hasn't landed yet would 409 the merge transaction. Only the
+  // MR at the front of the queue is mergeable: `fromResponse` maps `open`/`held`
+  // → "in-check", `queued` → "received", `merged` → "released".
+  const canRelease = Boolean(mergeId) && live.status === "in-check" && isMergeable(live);
 
   const activeConflictId = useMemo(() => {
     const picked = review.conflicts.find((c) => c.id === selectedConflictId);
