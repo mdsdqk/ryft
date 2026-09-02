@@ -42,11 +42,14 @@ export type MergeSummary = {
   author: string;
   openedOn: string;
   operations: number;
+  /** 1-based place in the open queue (oldest first). */
+  position: number;
   /**
-   * `clean` — mergeable; `held` — blocked on conflicts; `stale` — `main`
-   * moved after this request opened. The list never conveys these by colour.
+   * `clean` — mergeable at the front; `held` — blocked on conflicts;
+   * `stale` — `main` moved after this request opened; `queued` — waiting
+   * behind the active request. The list never conveys these by colour.
    */
-  status: "clean" | "held" | "stale";
+  status: "clean" | "held" | "stale" | "queued";
   /** unresolved conflicts; 0 unless status is "held" */
   conflicts: number;
 };

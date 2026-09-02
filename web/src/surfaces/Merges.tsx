@@ -7,7 +7,7 @@
  *
  * OWN-WORLD: the drafting-room sheet. Hairline rows, dashed --line, mono data
  * with tnum. `source → main` is plain text. Status is a 9px dot plus the word
- * (Clean / Held · N / Stale base), never colour alone.
+ * (Clean / Held · N / Stale base / Queued · #N), never colour alone.
  *
  * STORY: see every open request; enter one to review it. Opening a request
  * lives on the branch workspace. Empty keeps the sheet and points at
