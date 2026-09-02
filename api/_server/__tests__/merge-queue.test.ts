@@ -347,7 +347,9 @@ describe("structural validation on the merge path (ADR 0008 §5)", () => {
     // main was not advanced by the failed merge
     const overview = (await j(await app.request("/api/overview", { headers: grace }))) as {
       database: { trunkRevision: number };
+      revisions: Array<{ n: number; sourceBranch: string }>;
     };
     expect(overview.database.trunkRevision).toBe(1); // only a's merge landed
+    expect(overview.revisions).toEqual([{ n: 1, sourceBranch: "a", at: expect.any(String), summary: expect.any(String) }]);
   });
 });

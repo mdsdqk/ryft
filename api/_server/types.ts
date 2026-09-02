@@ -52,10 +52,28 @@ export type MergeSummary = {
   closedOn?: string;
 };
 
+/**
+ * One entry in `main`'s revision history — a merge that has landed on trunk.
+ * Newest first, capped at ten by `GET /overview`. `n` is the real revision
+ * number, so the newest entry's `n` equals `Database.trunkRevision`.
+ */
+export type TrunkRevision = {
+  /** revision number — 1 for the first merge into `main` */
+  n: number;
+  /** the branch whose merge produced this revision */
+  sourceBranch: string;
+  /** ISO-8601 date the merge landed */
+  at: string;
+  /** the one fact the marker adds beyond `sourceBranch`/`at` — who ran the merge */
+  summary: string;
+};
+
 export type Overview = {
   database: Database;
   branches: BranchSummary[];
   merges: MergeSummary[];
+  /** `main`'s recent revisions — newest first, at most ten (ADR 0014) */
+  revisions: TrunkRevision[];
 };
 
 /**

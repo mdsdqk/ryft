@@ -12,6 +12,7 @@ import { threeWayMerge } from "../../engine/merge.js";
 import { emitMigration, type Migration } from "../../engine/emit.js";
 import type { SchemaDocument, ColumnType } from "../../engine/schema.js";
 import type { MergeReport, Resolution } from "../../engine/merge-types.js";
+import type { MergeMarker } from "../../src/domain/operations.js";
 import type { Db, DbOrTx } from "./db/client.js";
 import { branches, deletedBranches, mergeRequests, mergeRequestResolutions, operations, users } from "./db/schema.js";
 import type {
@@ -380,6 +381,35 @@ export async function listClosedMergeSummaries(db: Db): Promise<MergeSummary[]> 
   }));
 }
 
+/**
+ * `main`'s revision history — one entry per merge that has landed on trunk,
+ * newest first, capped at ten (`docs/backend-contract.md` §3–§4). The source is
+ * `main`'s `operations` rows whose `op` is a `MergeMarker`: ADR 0010 §5's merge
+ * transaction appends exactly one per successful merge. `n` is the real revision
+ * number — the 1-based position of the merge in `main`'s full marker sequence —
+ * so the newest entry's `n` equals `database.trunkRevision` even when older
+ * entries are trimmed. The marker carries only `sourceBranch`; `summary` states
+ * the one fact it adds beyond `sourceBranch`/`at` — who ran the merge, resolved
+ * to a display name.
+ */
+function trunkRevisions(
+  mainOps: (typeof operations.$inferSelect)[],
+  names: Map<string, string>,
+): Overview["revisions"] {
+  const markers = mainOps
+    .filter((o): o is typeof o & { op: MergeMarker } => o.op.type === "merge")
+    .sort((a, b) => a.seq - b.seq);
+  return markers
+    .map((o, i) => ({
+      n: i + 1,
+      sourceBranch: o.op.sourceBranch,
+      at: isoDate(o.at),
+      summary: names.has(o.authorId) ? `merged by ${names.get(o.authorId)!}` : "merged",
+    }))
+    .reverse()
+    .slice(0, 10);
+}
+
 export async function assembleOverview(db: Db): Promise<Overview> {
   const branchRows = await db.select().from(branches);
   const main = branchRows.find((b) => b.name === "main");
@@ -388,17 +418,26 @@ export async function assembleOverview(db: Db): Promise<Overview> {
   const mainOps = await db.select().from(operations).where(eq(operations.branchName, "main"));
   const lastChange = mainOps.reduce<Date>((acc, o) => (o.at > acc ? o.at : acc), main.createdAt);
 
+  // The trunk revision is the number of merges that have landed on `main` — the
+  // count of merge markers in its op log. `main.headVersion` happens to match
+  // today (the merge transaction bumps it and `main` cannot be edited directly),
+  // but `head_version` is a per-edit counter on working branches; deriving from
+  // the markers keeps the counter and the list below consistent by construction.
+  const names = await nameMap(db);
+  const revisions = trunkRevisions(mainOps, names);
+  const trunkRevision = mainOps.filter((o) => o.op.type === "merge").length;
+
   const database: Database = {
     name: main.head.database,
     connection: "postgres",
     ...countObjects(main.head),
     trunk: "main",
-    trunkRevision: main.headVersion,
+    trunkRevision,
     trunkChangedOn: isoDate(lastChange),
   };
 
   const [branchList, merges] = await Promise.all([listBranchSummaries(db), listOpenMergeSummaries(db)]);
-  return { database, branches: branchList, merges };
+  return { database, branches: branchList, merges, revisions };
 }
 
 export async function assembleBranchDetail(db: Db, name: string): Promise<BranchDetail | null> {
