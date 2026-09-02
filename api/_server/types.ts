@@ -43,7 +43,9 @@ export type MergeSummary = {
   author: string;
   openedOn: string;
   operations: number;
-  status: "clean" | "held" | "stale";
+  /** 1-based place in the open queue (oldest first). */
+  position: number;
+  status: "clean" | "held" | "stale" | "queued";
   conflicts: number;
 };
 

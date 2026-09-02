@@ -50,6 +50,16 @@ describe("the queue", () => {
 
     expect((await getMr(a.id as string)).queue).toMatchObject({ status: "open", position: 1, ahead: 0 });
     expect((await getMr(b.id as string)).queue).toMatchObject({ status: "queued", position: 2, ahead: 1, behind: 0 });
+
+    const list = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{
+      source: string;
+      status: string;
+      position: number;
+    }>;
+    expect(list).toEqual([
+      expect.objectContaining({ source: "a", status: "clean", position: 1 }),
+      expect.objectContaining({ source: "b", status: "queued", position: 2 }),
+    ]);
   });
 
   it("merging the front promotes the next queued MR to open", async () => {

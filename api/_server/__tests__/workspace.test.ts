@@ -33,7 +33,7 @@ describe("POST /workspace/reset", () => {
     expect(o.branches.find((b) => b.name === "main")?.trunk).toBe(true);
     expect(o.branches.find((b) => b.name === "contact-fields")?.divergence).toBe(3);
     expect(o.merges).toHaveLength(1);
-    expect(o.merges[0]).toMatchObject({ source: "contact-fields", status: "clean" });
+    expect(o.merges[0]).toMatchObject({ source: "contact-fields", status: "clean", position: 1 });
     // the branch summary carries the open merge request id
     expect(o.branches.find((b) => b.name === "contact-fields")?.openMergeId).toBe(o.merges[0]!.id);
   });

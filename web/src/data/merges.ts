@@ -33,8 +33,8 @@ export class MergeRevalidationError extends Error {
 
 /**
  * Worked-example queue. `1` is the contact-fields review the merge-review
- * surface already ships. The other two exist so the list can show a clean
- * request and a stale base in the same queue.
+ * surface already ships. The other two exist so the list can show a stale
+ * base and a queued request in the same queue.
  */
 let open: MergeSummary[] = [
   {
@@ -44,6 +44,7 @@ let open: MergeSummary[] = [
     author: "mara",
     openedOn: "2026-02-07",
     operations: 2,
+    position: 1,
     status: "stale",
     conflicts: 0,
   },
@@ -54,6 +55,7 @@ let open: MergeSummary[] = [
     author: "grace",
     openedOn: "2026-02-11",
     operations: 3,
+    position: 2,
     status: "held",
     conflicts: 1,
   },
@@ -64,7 +66,8 @@ let open: MergeSummary[] = [
     author: "ravi",
     openedOn: "2026-02-12",
     operations: 4,
-    status: "clean",
+    position: 3,
+    status: "queued",
     conflicts: 0,
   },
 ];
@@ -86,9 +89,8 @@ const todayIso = (): string => new Date().toISOString().slice(0, 10);
 /**
  * Open a merge request for `source → main` (WU-E · E4). Idempotent: if one is
  * already open for `source` it is returned unchanged, so the caller can never
- * trip the API's `409`. `status` is `open` when the queue is empty of active
- * requests, else `queued` (ADR 0004 §3) — V0 treats the fixture queue as always
- * having room, so a new request is `open`.
+ * trip the API's `409`. `status` is `clean` when the queue is empty of active
+ * requests, else `queued` (ADR 0004 §3).
  */
 export function createFor(source: string, operations: number): { id: string } {
   const existing = open.find((m) => m.source === source);
@@ -100,7 +102,8 @@ export function createFor(source: string, operations: number): { id: string } {
     author: "grace",
     openedOn: todayIso(),
     operations,
-    status: "clean",
+    position: open.length + 1,
+    status: open.length === 0 ? "clean" : "queued",
     conflicts: 0,
   };
   open = [...open, created];
@@ -113,11 +116,12 @@ export function mergeStatusTone(
   merge: MergeSummary,
 ): "ok" | "held" | "neutral" {
   if (merge.status === "held") return "held";
-  if (merge.status === "stale") return "neutral";
+  if (merge.status === "stale" || merge.status === "queued") return "neutral";
   return "ok";
 }
 
 export function mergeStatusLabel(merge: MergeSummary): string {
+  if (merge.status === "queued") return `Queued · #${merge.position}`;
   if (merge.status === "held") {
     const n = Math.max(0, merge.conflicts);
     if (n === 0) return "Held";

@@ -268,7 +268,7 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
   return Promise.all(
-    nonTerminal.map(async (row) => {
+    nonTerminal.map(async (row, idx) => {
       // the active MR resolves against live heads (ADR 0004 §5); a queued MR
       // keeps its provisional frozen triple.
       const mr = await refreshActiveTriple(db, row);
@@ -285,7 +285,16 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
         author: names.get(mr.authorId) ?? mr.authorId,
         openedOn: isoDate(mr.createdAt),
         operations: opCount(mr.sourceBranch),
-        status: report.verdict === "clean" ? ("clean" as const) : ("held" as const),
+        position: idx + 1,
+        // a queued MR's frozen triple can still be clean; the list must not
+        // call that mergeable. Front-of-queue rows keep clean/held from the
+        // live three-way.
+        status:
+          row.status === "queued"
+            ? ("queued" as const)
+            : report.verdict === "clean"
+              ? ("clean" as const)
+              : ("held" as const),
         conflicts: openConflicts,
       };
     }),
