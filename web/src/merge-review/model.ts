@@ -95,6 +95,17 @@ export type RowResolution =
 
 export type ObjectGroup = "columns" | "indexes" | "constraints";
 
+/**
+ * A pre-rendered destructive / risk advisory for a row (ADR 0008 §6). `kind` is
+ * "destructive" for an irreversible drop, "risk" for a legal-but-lossy edit;
+ * `message` is the verbatim `OpWarning.message` the engine composed. Never
+ * blocks — row data is out of scope, so every one of these is advisory.
+ */
+export interface RowWarning {
+  kind: "destructive" | "risk";
+  message: string;
+}
+
 export interface ComparisonRow {
   /** Stable id(s). Composite (add-vs-add) shows both. */
   objectId: string;
@@ -106,6 +117,8 @@ export interface ComparisonRow {
   resolution: RowResolution;
   /** Leader-line note under a cell — a rebase explanation, most often. */
   leader?: { text: string; tone: "ok" | "muted" };
+  /** Destructive / risk advisories from either side's delta. */
+  warnings?: RowWarning[];
 }
 
 export interface ConflictOption {
@@ -141,6 +154,9 @@ export interface DdlStatement {
   revision: number | null;
   side: Side | null;
   rebased?: boolean;
+  /** The engine's `DdlStatement.destructive` — a drop that tears down data
+   *  (`dropColumn` / `dropTable`). Marks the line in the fabrication order. */
+  destructive?: boolean;
 }
 
 export interface DdlBlocked {
@@ -170,6 +186,9 @@ export interface MergeReview {
   conflicts: Conflict[];
   revisions: RevisionRef[];
   autoMergedCount: number;
+  /** Rows carrying an irreversible `drop-destructive` — the "destructive
+   *  changes" roll-up (ADR 0008 §6). */
+  destructiveCount: number;
   fabricationOrder: FabricationOrder;
   commutativity: "pending" | "passed" | "failed";
 }

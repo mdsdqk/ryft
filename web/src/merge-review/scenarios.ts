@@ -22,6 +22,7 @@ const cleanReview: MergeReview = {
   status: "cleared",
   commutativity: "passed",
   autoMergedCount: 0,
+  destructiveCount: 1,
   conflicts: [],
   rows: ordersReview.rows
     .filter((r) => r.ours !== null && r.theirs === null && r.resolution.state !== "gated")
@@ -49,6 +50,7 @@ const unchangedReview: MergeReview = {
   status: "in-check",
   commutativity: "passed",
   autoMergedCount: 0,
+  destructiveCount: 0,
   conflicts: [],
   revisions: [],
   rows: ordersReview.rows.map((r) => ({
@@ -57,6 +59,7 @@ const unchangedReview: MergeReview = {
     theirs: null,
     resolution: { state: "clean" as const },
     leader: undefined,
+    warnings: undefined,
   })),
   fabricationOrder: { transactional: true, statements: [], blocked: [] },
 };

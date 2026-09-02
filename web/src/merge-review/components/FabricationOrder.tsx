@@ -29,6 +29,7 @@ export function FabricationOrder({
   // commutativity failed while nothing is left in the queue — an order-dependent
   // divergence that is not one of the named conflict classes.
   const unclassified = open.length === 0 && review.commutativity === "failed";
+  const destructive = fo.statements.filter((s) => s.destructive).length;
 
   return (
     <section className="mr-zone mr-fab" aria-labelledby="mr-fab-h">
@@ -37,7 +38,8 @@ export function FabricationOrder({
           <span className="mr-zone__n">D</span> Fabrication order — DDL
         </h2>
         <span className="mr-fab__meta">
-          {fo.statements.length} statements · {mergeable ? 0 : fo.blocked.length} blocked ·
+          {fo.statements.length} statements · {mergeable ? 0 : fo.blocked.length} blocked ·{" "}
+          {destructive > 0 && <span className="mr-fab__meta-warn">{destructive} destructive · </span>}
           forward-only · one transaction
         </span>
       </header>
@@ -47,12 +49,14 @@ export function FabricationOrder({
           <span className="mr-sql-ok">BEGIN;</span>
           {"\n"}
           {fo.statements.map((s, i) => (
-            <span key={i}>
+            <span key={i} className={s.destructive ? "mr-sql-destructive" : undefined}>
               {s.sql}
-              {s.revision !== null && (
+              {(s.revision !== null || s.destructive) && (
                 <span className={`mr-sql-tag mr-sql-tag--${s.side ?? "none"}`}>
-                  {"  "}-- △{s.revision}
+                  {"  "}--
+                  {s.revision !== null ? ` △${s.revision}` : ""}
                   {s.rebased ? ", rebased" : ""}
+                  {s.destructive ? `${s.revision !== null || s.rebased ? "," : ""} destructive` : ""}
                 </span>
               )}
               {"\n"}

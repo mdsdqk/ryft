@@ -297,6 +297,18 @@
 .bw-divergence .mr-filters {
   margin-top: 16px;
 }
+/* Destructive roll-up (ADR 0008 §6). Quiet, matching the per-row advisory —
+   it never blocks the merge, it names the count and points at the rows. */
+.bw-divergence__warn {
+  margin: 12px 0 0;
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.bw-divergence__warn b {
+  color: var(--theirs);
+}
 @media (max-width: 640px) {
   .bw-divergence {
     padding: 16px;

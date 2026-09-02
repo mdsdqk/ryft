@@ -40,6 +40,9 @@ export type GridRow = {
   left: GridCell;
   right: GridCell;
   leader?: { text: ReactNode; tone: "ok" | "muted" };
+  /** advisory destructive / risk notices for this object (ADR 0008 §6) — one
+   *  line each, rendered under the row in a muted caution style */
+  warnings?: ReactNode[];
   /** appended inside the row, spanning the two value columns */
   extra?: ReactNode;
 };
@@ -113,6 +116,11 @@ function Row({ row, leftCol, rightCol }: { row: GridRow; leftCol?: ReactNode; ri
       {row.leader && (
         <p className={`mr-row__leader mr-row__leader--${row.leader.tone}`}>↳ {row.leader.text}</p>
       )}
+      {row.warnings?.map((w, i) => (
+        <p key={i} className="mr-row__warn">
+          {w}
+        </p>
+      ))}
       {row.extra}
     </div>
   );

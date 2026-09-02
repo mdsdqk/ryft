@@ -127,6 +127,56 @@ describe("mergeReviewFromResponse — applied resolution", () => {
   });
 });
 
+describe("mergeReviewFromResponse — destructive warnings (ADR 0008 §6)", () => {
+  const twoCol: SchemaDocument = {
+    database: "app",
+    tables: [
+      {
+        id: TABLE,
+        name: "users",
+        columns: [
+          { id: COL, name: "email", type: { kind: "text" }, nullable: false, default: null },
+          { id: "col_legacy", name: "legacy", type: { kind: "text" }, nullable: true, default: null },
+        ],
+        primaryKey: null,
+        foreignKeys: [],
+        uniques: [],
+        indexes: [],
+      },
+    ],
+  };
+  const dropsLegacy: SchemaDocument = {
+    ...twoCol,
+    tables: [{ ...twoCol.tables[0]!, columns: [twoCol.tables[0]!.columns[0]!] }],
+  };
+
+  it("marks the dropped column's row and rolls the count up, and tags the DDL line", () => {
+    const { merged, report } = threeWayMerge(twoCol, dropsLegacy, twoCol, []);
+    expect(report.verdict).toBe("clean");
+    const migration = merged ? emitMigration(twoCol, merged) : null;
+
+    const review = mergeReviewFromResponse(
+      response({ base: twoCol, ours: dropsLegacy, theirs: twoCol, report, migration }),
+    );
+
+    const row = review.rows.find((r) => r.objectId === "col_legacy");
+    expect(row?.warnings).toEqual([
+      { kind: "destructive", message: 'dropping column "legacy" is irreversible' },
+    ]);
+    expect(review.destructiveCount).toBe(1);
+
+    const dropLine = review.fabricationOrder.statements.find((s) => /DROP COLUMN/.test(s.sql));
+    expect(dropLine?.destructive).toBe(true);
+  });
+
+  it("leaves a non-lossy retype unwarned", () => {
+    const review = mergeReviewFromResponse(response({})); // varchar(255) → varchar(500), widening
+    const row = review.rows.find((r) => r.objectId === COL);
+    expect(row?.warnings).toBeUndefined();
+    expect(review.destructiveCount).toBe(0);
+  });
+});
+
 describe("mergeReviewFromResponse — queue status", () => {
   it("maps a merged queue status to Released", () => {
     const review = mergeReviewFromResponse(response({ queue: { status: "merged", position: 1, ahead: 0, behind: 0 } }));
