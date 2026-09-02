@@ -13,6 +13,7 @@ export { FactList, type Fact } from "./FactList.tsx";
 export { StatusPill, type StatusTone } from "./StatusPill.tsx";
 export { Tri } from "./Tri.tsx";
 export { EmptyState, Loading, type EmptyLayout } from "./EmptyState.tsx";
+export { Chevron, CollapseAll, useCollapse, type CollapseApi } from "./collapse.tsx";
 export {
   ComparisonGrid,
   type GridColHead,

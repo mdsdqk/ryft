@@ -18,11 +18,21 @@ import { OperationBlockedError } from "@engine/apply-operation.js";
 import { isOpError, validateOperation, type OpWarning } from "@engine/validate.js";
 
 import { source, type BranchOperationEntry } from "../../data/index.ts";
+import { CollapseAll, useCollapse } from "../kit/index.ts";
 import { NewTableCard } from "./NewTableCard.tsx";
 import { OperationList } from "./OperationList.tsx";
-import { TableCard } from "./TableCard.tsx";
+import { TableCard, type CardGroup } from "./TableCard.tsx";
 import type { ApplyFn, ApplyOutcome } from "./edit.ts";
 import { changedObjectId, summarizeOp, type NameOf } from "./format.ts";
+
+const GROUPS: CardGroup[] = ["columns", "indexes", "constraints"];
+
+/** every id an operation could mark on this table — the table itself and its children */
+function tableObjectIds(t: SchemaDocument["tables"][number]): string[] {
+  const ids = [t.id, ...t.columns.map((c) => c.id), ...t.indexes.map((i) => i.id), ...t.uniques.map((u) => u.id), ...t.foreignKeys.map((f) => f.id)];
+  if (t.primaryKey) ids.push(t.primaryKey.id);
+  return ids;
+}
 
 function buildNameOf(head: SchemaDocument): NameOf {
   const names = new Map<string, string>();
@@ -63,6 +73,22 @@ export function SchemaView({
   const markOf = (id: string) => marks.get(id);
   const [undoing, setUndoing] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  const collapseKeys = useMemo(
+    () =>
+      head.tables.flatMap((t) => [t.id, ...GROUPS.map((g) => `${t.id}:${g}`)]),
+    [head],
+  );
+  // start with unchanged tables folded away — the point of the diff view is the
+  // tables that moved (usability review theme B / G)
+  const initialCollapsed = useMemo(
+    () =>
+      head.tables
+        .filter((t) => !tableObjectIds(t).some((id) => marks.has(id)))
+        .map((t) => t.id),
+    [head, marks],
+  );
+  const collapse = useCollapse(collapseKeys, initialCollapsed);
 
   const apply = useCallback<ApplyFn>(
     async (op) => {
@@ -114,6 +140,7 @@ export function SchemaView({
           <span className="bw-main__ct">
             {head.tables.length} table{head.tables.length === 1 ? "" : "s"}
           </span>
+          {head.tables.length > 0 && <CollapseAll api={collapse} label="tables" />}
           {editable && (
             <button className="bw-mini bw-mini--create" type="button" onClick={() => setCreating(true)}>
               + create table
@@ -131,6 +158,10 @@ export function SchemaView({
               markOf={markOf}
               apply={apply}
               editable={editable}
+              cardCollapsed={collapse.isCollapsed(t.id)}
+              onToggleCard={() => collapse.toggle(t.id)}
+              groupCollapsed={(g) => collapse.isCollapsed(`${t.id}:${g}`)}
+              onToggleGroup={(g) => collapse.toggle(`${t.id}:${g}`)}
             />
           ))}
         </div>

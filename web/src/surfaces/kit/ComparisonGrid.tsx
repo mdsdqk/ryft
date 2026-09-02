@@ -15,7 +15,9 @@
  * extraction.
  */
 
-import { useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+
+import { Chevron, CollapseAll, useCollapse } from "./collapse.tsx";
 
 type Tone = "ours" | "theirs" | "neutral";
 
@@ -51,20 +53,6 @@ export type GridGroup = { key: string; title: ReactNode; rows: GridRow[] };
 export type GridSection = { key: string; title?: ReactNode; groups: GridGroup[] };
 
 export type GridFilter = { key: string; label: ReactNode; id?: string };
-
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      className={`mr-chevron${open ? " mr-chevron--open" : ""}`}
-      viewBox="0 0 10 10"
-      width="10"
-      height="10"
-      aria-hidden="true"
-    >
-      <path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
-  );
-}
 
 function toneClass(tone: Tone | undefined): string | undefined {
   if (tone === "ours") return "mr-cmp__o";
@@ -152,14 +140,20 @@ export function ComparisonGrid({
   sections: GridSection[];
   emptyText: ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const toggle = (k: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
-      return next;
-    });
+  // every collapsible key on screen: titled sections, plus each non-empty group
+  const allKeys = useMemo(() => {
+    const ks: string[] = [];
+    for (const s of sections) {
+      if (s.title != null) ks.push(s.key);
+      for (const g of s.groups) {
+        if (g.rows.length > 0) ks.push(`${s.key}/${g.key}`);
+      }
+    }
+    return ks;
+  }, [sections]);
+
+  const collapse = useCollapse(allKeys);
+  const { isCollapsed, toggle } = collapse;
 
   const total = sections.reduce(
     (n, s) => n + s.groups.reduce((m, g) => m + g.rows.length, 0),
@@ -169,18 +163,18 @@ export function ComparisonGrid({
   const renderGroup = (sectionKey: string, g: GridGroup) => {
     if (g.rows.length === 0) return null;
     const k = `${sectionKey}/${g.key}`;
-    const isCollapsed = collapsed.has(k);
+    const groupCollapsed = isCollapsed(k);
     return (
       <div key={g.key} className="mr-cmp__group">
         <button
           className="mr-cmp__grouphd"
-          aria-expanded={!isCollapsed}
+          aria-expanded={!groupCollapsed}
           onClick={() => toggle(k)}
         >
-          <Chevron open={!isCollapsed} />
+          <Chevron open={!groupCollapsed} />
           <span>{g.title}</span>
         </button>
-        {!isCollapsed &&
+        {!groupCollapsed &&
           g.rows.map((r) => (
             <Row
               key={r.key}
@@ -207,6 +201,7 @@ export function ComparisonGrid({
             {f.label}
           </button>
         ))}
+        {allKeys.length > 0 && <CollapseAll api={collapse} label="groups" />}
         <span className="mr-filters__count">{countText}</span>
       </div>
 
@@ -227,7 +222,7 @@ export function ComparisonGrid({
               <SectionBlock
                 key={s.key}
                 section={s}
-                collapsed={collapsed.has(s.key)}
+                collapsed={isCollapsed(s.key)}
                 onToggle={() => toggle(s.key)}
                 renderGroup={renderGroup}
               />
