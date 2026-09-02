@@ -935,6 +935,23 @@ does not gain a fifth step: `closed` is a way off the Queued → Under review �
 Merged line rather than a point along it. Prompted by `docs/usability-review-triage.md`
 (themes D-12 and F1+F3).
 
+### A deleted branch is archived to its own table, not soft-deleted in place
+
+Usability review theme F2, ADR 0013. The review wanted a "deleted branches" list. The
+constraint is that `branches.name` is the primary key, so a `deleted_at` flag on the live row
+would pin the name forever — a team could never re-cut a branch name it had deleted. So
+`DELETE /branches/:name` now moves the whole row into a `deleted_branches` archive table (every
+`branches` column, plus `deleted_at` / `deleted_by_id`) and removes it from `branches`, in one
+transaction. `branches` stays exactly the ADR 0004 shape; the name frees up immediately; the
+archive is an append-only log with a synthetic `id` key, since one name can be cut and dropped
+more than once. `GET /branches/deleted` lists it — name, author display name, deleted date,
+and the same cheap `diffSnapshots` divergence count the live list shows. The held-by-merge and
+`main` guards are untouched: a blocked delete archives nothing. No restore endpoint — the
+freed name may be taken by the time you want it back, so restore is a create-or-conflict flow
+with its own UI, left as a follow-up. On `/branches` the list is a collapsed hairline zone at
+the foot of the sheet, not a new route. The `schema.ts` table is added here; generating the
+Drizzle migration is the consolidating branch's step.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:
