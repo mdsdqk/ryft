@@ -527,6 +527,11 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
     openedBy: oursParty,
     openedAt: res.openedAt,
     status,
+    queue: {
+      position: res.queue.position,
+      ahead: res.queue.ahead,
+      behind: res.queue.behind,
+    },
     rows,
     conflicts,
     revisions,

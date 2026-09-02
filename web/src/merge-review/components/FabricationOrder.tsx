@@ -27,6 +27,11 @@ export function FabricationOrder({
   const mergeable = isMergeable(review);
   const status = effectiveStatus(review);
   const released = status === "released";
+  // this request is behind others in the merge queue — it is not reviewed here
+  // and cannot merge until it reaches the front, where it is re-checked against
+  // main (ADR 0004 §3).
+  const queued = review.status === "received";
+  const ahead = review.queue?.ahead ?? 0;
   // commutativity failed while nothing is left in the queue — an order-dependent
   // divergence that is not one of the named conflict classes.
   const unclassified = open.length === 0 && review.commutativity === "failed";
@@ -100,11 +105,21 @@ export function FabricationOrder({
           data-mergeable={mergeable}
           data-unclassified={unclassified}
           data-released={released}
+          data-queued={queued}
         >
           <span className="mr-fab__dot" aria-hidden="true" />
           {released ? (
             <>
               <b>Merged</b> — <code>main</code> now holds this schema.
+            </>
+          ) : queued ? (
+            <>
+              <b>Queued</b> —{" "}
+              {ahead > 0
+                ? `${ahead} request${ahead === 1 ? "" : "s"} ahead in the merge queue`
+                : "waiting for the merge queue"}
+              . It is re-checked against <code>main</code> and reviewed here once it
+              reaches the front.
             </>
           ) : mergeable ? (
             <>
@@ -131,15 +146,28 @@ export function FabricationOrder({
           )}
           <span className="mr-vh"> Current status: {statusLabel(status)}.</span>
         </p>
-        {canRelease && onRelease && (
-          <button
-            className="mr-btn mr-btn--primary mr-fab__release"
-            type="button"
-            disabled={releasing}
-            onClick={onRelease}
-          >
-            {releasing ? "Merging…" : "Merge into main"}
-          </button>
+        {queued ? (
+          <p className="mr-fab__queued">
+            Queued · position #{review.queue?.position ?? "—"}
+            {ahead > 0 && (
+              <>
+                {" "}
+                · blocked by {ahead} ahead
+              </>
+            )}
+          </p>
+        ) : (
+          canRelease &&
+          onRelease && (
+            <button
+              className="mr-btn mr-btn--primary mr-fab__release"
+              type="button"
+              disabled={releasing}
+              onClick={onRelease}
+            >
+              {releasing ? "Merging…" : "Merge into main"}
+            </button>
+          )
         )}
       </div>
       {releaseError && (

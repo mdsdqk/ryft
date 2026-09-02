@@ -1109,6 +1109,27 @@ kbd {
 .mr-fab__release {
   margin: 0 24px 11px 0;
 }
+
+/* queued: neutral, not an error — the request simply isn't at the front yet */
+.mr-fab__status[data-queued="true"] .mr-fab__dot {
+  background: var(--ink-faint);
+}
+.mr-fab__status[data-queued="true"] b {
+  color: var(--ink);
+}
+.mr-fab__status[data-queued="true"] {
+  animation: none;
+}
+.mr-fab__queued {
+  margin: 0 24px 11px 0;
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px solid var(--line-strong);
+  padding: 6px 10px;
+}
 .mr-fab__status[data-released="true"] .mr-fab__dot {
   background: var(--ok);
 }

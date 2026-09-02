@@ -182,6 +182,12 @@ export interface MergeReview {
   openedBy: Party;
   openedAt: string;
   status: RevisionStatus;
+  /**
+   * Queue placement (ADR 0004 §3). `ahead` is how many requests must merge
+   * before this one; a request at the front has `ahead: 0`. Absent on fixtures
+   * that predate the queue — treat as "at the front".
+   */
+  queue?: { position: number; ahead: number; behind: number };
   rows: ComparisonRow[];
   conflicts: Conflict[];
   revisions: RevisionRef[];
