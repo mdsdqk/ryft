@@ -183,3 +183,67 @@ describe("the kick-back", () => {
     expect((await j(await mergeMr(bId))).status).toBe("merged");
   });
 });
+
+describe("structural validation on the merge path (ADR 0008 §5)", () => {
+  // `a` adds a column on posts and a foreign key from it to users.email — which
+  // is a unique column when `a` is authored. `b`, cut from the same base, drops
+  // that unique. Neither delta touches the other's object ids, so the merge is
+  // `clean`; the merged candidate has a foreign key whose target is no longer a
+  // key — the ADR 0002 "order-independent illegality" case 0008 owns.
+  const addEditorFk: Operation[] = [
+    {
+      type: "addColumn",
+      tableId: seedIds.posts.table,
+      column: {
+        id: "col_posts_editor_email_bb22",
+        name: "editor_email",
+        type: { kind: "varchar", n: 255 },
+        nullable: true,
+        default: null,
+      },
+    },
+    {
+      type: "addForeignKey",
+      tableId: seedIds.posts.table,
+      fk: {
+        id: "fk_posts_editor_users_bb22",
+        name: "posts_editor_email_fkey",
+        columnIds: ["col_posts_editor_email_bb22"],
+        refTableId: seedIds.users.table,
+        refColumnIds: [seedIds.users.email],
+        onDelete: "restrict",
+      },
+    },
+  ];
+  const dropEmailUnique: Operation[] = [
+    { type: "dropUnique", tableId: seedIds.users.table, unique: { id: seedIds.users.emailUnique, name: "users_email_key", columnIds: [seedIds.users.email] } },
+  ];
+
+  it("a clean merge whose candidate is structurally broken returns 409 and writes nothing", async () => {
+    await branch("a");
+    await branch("b");
+    await apply("a", addEditorFk);
+    await apply("b", dropEmailUnique); // valid against b's own head — nothing references this unique there
+    const a = await openMr("a");
+    const b = await openMr("b");
+
+    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+    await getMr(b.id as string); // promote + refresh b's triple to live main
+
+    const m = await mergeMr(b.id as string);
+    expect(m.status).toBe(409);
+    const err = await j(m);
+    expect(err.error).toBe("structural-validation-failed");
+    expect(
+      (err.errors as Array<{ reason: string; objectId: string }>).some(
+        (e) => e.reason === "orphaned-foreign-key" && e.objectId === "fk_posts_editor_users_bb22",
+      ),
+    ).toBe(true);
+
+    // main was not advanced by the failed merge
+    const overview = (await j(await app.request("/api/overview", { headers: grace }))) as {
+      database: { trunkRevision: number };
+    };
+    expect(overview.database.trunkRevision).toBe(1); // only a's merge landed
+  });
+});

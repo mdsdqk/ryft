@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { isOpError, validateOperation, type OpDiagnostic } from "./validate.js";
+import { isOpError, validateDocument, validateOperation, type OpDiagnostic } from "./validate.js";
 import { seedIds, seedSchema } from "../examples/seed.schema.js";
 import type { SchemaDocument } from "./schema.js";
 import type { Operation } from "./operations.js";
@@ -352,5 +352,90 @@ describe("synthetic object ids (WU-E — client-minted ids on add/create)", () =
         index: { id: "idx_posts_published_ab12cd34", name: "posts_published_idx", columnIds: [P.published], unique: false },
       }),
     ).toEqual([]);
+  });
+});
+
+// ── validateDocument — whole-document structural validity (ADR 0008 §5) ──────
+
+describe("validateDocument (whole-document structural validity)", () => {
+  const sdoc = (): SchemaDocument => structuredClone(seedSchema);
+  const reasons = (es: ReturnType<typeof validateDocument>) => es.map((e) => e.reason);
+  const usersTable = (d: SchemaDocument) => d.tables.find((t) => t.id === U.table)!;
+  const postsTable = (d: SchemaDocument) => d.tables.find((t) => t.id === P.table)!;
+
+  it("the seed schema is clean", () => {
+    expect(validateDocument(sdoc())).toEqual([]);
+  });
+
+  it("two tables with the same name → duplicate-name", () => {
+    const d = sdoc();
+    d.tables.push({ ...structuredClone(usersTable(d)), id: "tbl_users_copy" });
+    const es = validateDocument(d);
+    expect(reasons(es)).toContain("duplicate-name");
+    expect(es.find((e) => e.reason === "duplicate-name")!.objectId).toBe("tbl_users_copy");
+  });
+
+  it("two columns on one table with the same name → duplicate-name", () => {
+    const d = sdoc();
+    usersTable(d).columns.push({
+      id: "col_users_email_dupe",
+      name: "email",
+      type: { kind: "text" },
+      nullable: true,
+      default: null,
+    });
+    const es = validateDocument(d);
+    expect(reasons(es)).toContain("duplicate-name");
+    expect(es.find((e) => e.reason === "duplicate-name")!.objectId).toBe("col_users_email_dupe");
+  });
+
+  it("an index whose member column was removed → dangling-reference on the index", () => {
+    const d = sdoc();
+    const posts = postsTable(d);
+    posts.columns = posts.columns.filter((c) => c.id !== P.authorId);
+    // keep the FK consistent so only the index dangles
+    posts.foreignKeys = posts.foreignKeys.filter((f) => f.id !== P.authorFk);
+    const es = validateDocument(d);
+    expect(reasons(es)).toContain("dangling-reference");
+    expect(es.some((e) => e.reason === "dangling-reference" && e.objectId === P.authorIdx)).toBe(true);
+  });
+
+  it("a foreign key pointing at a missing referenced column → dangling-reference on the FK", () => {
+    const d = sdoc();
+    postsTable(d).foreignKeys.find((f) => f.id === P.authorFk)!.refColumnIds = ["col_users_gone"];
+    const es = validateDocument(d);
+    expect(es.some((e) => e.reason === "dangling-reference" && e.objectId === P.authorFk)).toBe(true);
+  });
+
+  it("a nullable primary-key member → nullable-primary-key-member on the column", () => {
+    const d = sdoc();
+    usersTable(d).columns.find((c) => c.id === U.id)!.nullable = true;
+    const es = validateDocument(d);
+    expect(es).toHaveLength(1);
+    expect(es[0]).toMatchObject({ reason: "nullable-primary-key-member", objectId: U.id });
+  });
+
+  it("a column default outside the §4 allowlist → unsafe-default on the column", () => {
+    const d = sdoc();
+    postsTable(d).columns.find((c) => c.id === P.title)!.default = "somefunc()";
+    const es = validateDocument(d);
+    expect(es).toHaveLength(1);
+    expect(es[0]).toMatchObject({ reason: "unsafe-default", objectId: P.title });
+  });
+
+  it("a foreign key whose referenced columns lost their PK / unique backing → orphaned-foreign-key", () => {
+    const d = sdoc();
+    usersTable(d).primaryKey = null; // posts.author_id and comments.author_id FKs now point at a bare column
+    const es = validateDocument(d);
+    expect(reasons(es)).toContain("orphaned-foreign-key");
+    expect(es.some((e) => e.reason === "orphaned-foreign-key" && e.objectId === P.authorFk)).toBe(true);
+  });
+
+  it("reports every problem, not just the first", () => {
+    const d = sdoc();
+    usersTable(d).columns.find((c) => c.id === U.id)!.nullable = true;
+    postsTable(d).columns.find((c) => c.id === P.title)!.default = "somefunc()";
+    const es = validateDocument(d);
+    expect(reasons(es)).toEqual(expect.arrayContaining(["nullable-primary-key-member", "unsafe-default"]));
   });
 });
