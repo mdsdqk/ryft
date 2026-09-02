@@ -60,6 +60,7 @@
   line-height: 1.45;
   color: var(--conflict);
   max-width: 36ch;
+  animation: ryft-rule-in 260ms var(--ease-mark) both;
 }
 
 .br .kit-sheet__action {
@@ -112,6 +113,7 @@
   display: grid;
   gap: 10px;
   min-width: 0;
+  animation: ryft-rule-in 260ms var(--ease-mark) both;
 }
 .br-row__msg {
   font-family: var(--ff-mono);
@@ -127,15 +129,23 @@
   gap: 8px;
 }
 
+.br-row {
+  outline: 1.5px solid transparent;
+  outline-offset: -1.5px;
+  transition:
+    outline-color 200ms var(--ease-mark),
+    background-color 200ms var(--ease-mark);
+}
 .br-row--armed,
 .br-row--held {
   grid-template-columns: 1fr;
   gap: 10px;
   align-items: start;
-  outline: 1.5px solid var(--ink);
-  outline-offset: -1.5px;
-  background: var(--panel);
   padding: 14px 13px;
+}
+.br-row--armed {
+  outline-color: var(--ink);
+  background: var(--panel);
 }
 .br-row--held {
   outline-color: var(--conflict-edge);

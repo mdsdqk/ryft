@@ -101,15 +101,7 @@
   margin-inline: -24px;
   padding: 10px 24px 0;
   border-top: 1px solid var(--conflict-edge);
-  animation: si-rule-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes si-rule-in {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
+  animation: ryft-rule-in 260ms var(--ease-mark) both;
 }
 
 .si__note {

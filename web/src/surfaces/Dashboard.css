@@ -61,6 +61,7 @@
   line-height: 1.45;
   color: var(--conflict);
   max-width: 36ch;
+  animation: ryft-rule-in 260ms var(--ease-mark) both;
 }
 
 .db .kit-sheet__action {

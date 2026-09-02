@@ -42,6 +42,17 @@ type MarkOf = (objectId: string) => number | undefined;
 
 type RowSpec = { id: string; name: string; spec: string; pk?: boolean };
 
+function rowClass(seq: number | undefined, landedSeq: number | null, extra = ""): string {
+  return [
+    "bw-row",
+    extra,
+    seq !== undefined ? "bw-row--changed" : "",
+    seq !== undefined && seq === landedSeq ? "bw-row--landing" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 type Open =
   | { kind: "column"; id: string }
   | { kind: "index"; id: string }
@@ -56,9 +67,17 @@ type Open =
   | { kind: "drop-table" }
   | null;
 
-function ReadRow({ r, seq }: { r: RowSpec; seq?: number }) {
+function ReadRow({
+  r,
+  seq,
+  landedSeq,
+}: {
+  r: RowSpec;
+  seq?: number;
+  landedSeq: number | null;
+}) {
   return (
-    <div className={`bw-row${seq !== undefined ? " bw-row--changed" : ""}`}>
+    <div className={rowClass(seq, landedSeq)}>
       <span className="bw-row__name">
         {r.name}
         {r.pk && <span className="bw-row__pk">pk</span>}
@@ -73,16 +92,18 @@ function ReadRow({ r, seq }: { r: RowSpec; seq?: number }) {
 function OpenRow({
   r,
   seq,
+  landedSeq,
   onOpen,
 }: {
   r: RowSpec;
   seq?: number;
+  landedSeq: number | null;
   onOpen: () => void;
 }) {
   return (
     <button
       type="button"
-      className={`bw-row bw-row--btn${seq !== undefined ? " bw-row--changed" : ""}`}
+      className={rowClass(seq, landedSeq, "bw-row--btn")}
       onClick={onOpen}
     >
       <span className="bw-row__name">
@@ -162,6 +183,7 @@ export function TableCard({
   tables,
   nameOf,
   markOf,
+  landedSeq,
   apply,
   editable,
 }: {
@@ -169,6 +191,7 @@ export function TableCard({
   tables: Table[];
   nameOf: NameOf;
   markOf: MarkOf;
+  landedSeq: number | null;
   apply: ApplyFn;
   editable: boolean;
 }) {
@@ -276,9 +299,15 @@ export function TableCard({
           }
           const r = columnRows.find((x) => x.id === c.id)!;
           return editable ? (
-            <OpenRow key={c.id} r={r} seq={seq} onOpen={() => setOpen({ kind: "column", id: c.id })} />
+            <OpenRow
+              key={c.id}
+              r={r}
+              seq={seq}
+              landedSeq={landedSeq}
+              onOpen={() => setOpen({ kind: "column", id: c.id })}
+            />
           ) : (
-            <ReadRow key={c.id} r={r} seq={seq} />
+            <ReadRow key={c.id} r={r} seq={seq} landedSeq={landedSeq} />
           );
         })}
         {open?.kind === "add-column" && (
@@ -315,9 +344,15 @@ export function TableCard({
           }
           const r = indexRows.find((x) => x.id === ix.id)!;
           return editable ? (
-            <OpenRow key={ix.id} r={r} seq={seq} onOpen={() => setOpen({ kind: "index", id: ix.id })} />
+            <OpenRow
+              key={ix.id}
+              r={r}
+              seq={seq}
+              landedSeq={landedSeq}
+              onOpen={() => setOpen({ kind: "index", id: ix.id })}
+            />
           ) : (
-            <ReadRow key={ix.id} r={r} seq={seq} />
+            <ReadRow key={ix.id} r={r} seq={seq} landedSeq={landedSeq} />
           );
         })}
         {open?.kind === "add-index" && (
@@ -374,6 +409,7 @@ export function TableCard({
                 spec: primaryKeySpec(table.primaryKey, nameOf),
               }}
               seq={markOf(table.primaryKey.id)}
+              landedSeq={landedSeq}
               onOpen={() => setOpen({ kind: "pk" })}
             />
           ) : (
@@ -384,6 +420,7 @@ export function TableCard({
                 spec: primaryKeySpec(table.primaryKey, nameOf),
               }}
               seq={markOf(table.primaryKey.id)}
+              landedSeq={landedSeq}
             />
           ))}
         {open?.kind === "add-pk" && <AddPrimaryKeyForm table={table} apply={apply} onClose={close} />}
@@ -403,9 +440,15 @@ export function TableCard({
             );
           }
           return editable ? (
-            <OpenRow key={u.id} r={r} seq={seq} onOpen={() => setOpen({ kind: "unique", id: u.id })} />
+            <OpenRow
+              key={u.id}
+              r={r}
+              seq={seq}
+              landedSeq={landedSeq}
+              onOpen={() => setOpen({ kind: "unique", id: u.id })}
+            />
           ) : (
-            <ReadRow key={u.id} r={r} seq={seq} />
+            <ReadRow key={u.id} r={r} seq={seq} landedSeq={landedSeq} />
           );
         })}
         {open?.kind === "add-unique" && (
@@ -433,9 +476,15 @@ export function TableCard({
             );
           }
           return editable ? (
-            <OpenRow key={fk.id} r={r} seq={seq} onOpen={() => setOpen({ kind: "fk", id: fk.id })} />
+            <OpenRow
+              key={fk.id}
+              r={r}
+              seq={seq}
+              landedSeq={landedSeq}
+              onOpen={() => setOpen({ kind: "fk", id: fk.id })}
+            />
           ) : (
-            <ReadRow key={fk.id} r={r} seq={seq} />
+            <ReadRow key={fk.id} r={r} seq={seq} landedSeq={landedSeq} />
           );
         })}
         {open?.kind === "add-fk" && (
