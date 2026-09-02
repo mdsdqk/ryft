@@ -1,7 +1,9 @@
 /**
- * The sheet-index rail — the drawing set's binder. Top-level sheets always show;
- * opening a branch or a merge nests that item's sub-sheets under it. The current
- * sheet is boxed, the same marker the revision dial uses for its current step.
+ * The left index rail — the app's primary navigation. Top-level entries always
+ * show; opening a branch or a merge request nests that entity's views under it,
+ * with the open entity named in a heading row so the sub-list reads as "inside
+ * this branch", not as a sub-menu of the list page. The current view is boxed,
+ * the same marker the revision dial uses for its current step.
  *
  * The database line and the counts come from `useOverview` — one `getOverview`
  * read hoisted to `OverviewProvider` in the shell, shared with the `/db`
@@ -29,13 +31,24 @@ export function Rail() {
   const onBranches = useMatch({ path: "/branches", end: true });
   const onMerges = useMatch({ path: "/merges", end: true });
 
+  const openBranch = branchMatch?.params.name
+    ? decodeURIComponent(branchMatch.params.name)
+    : null;
+  const openMergeId = mergeMatch?.params.id
+    ? decodeURIComponent(mergeMatch.params.id)
+    : null;
+  const openMerge =
+    openMergeId != null
+      ? data?.merges.find((m) => m.id === openMergeId) ?? null
+      : null;
+
   return (
-    <nav className="shl-rail" aria-label="Database sheets">
+    <nav className="shl-rail" aria-label="Main navigation">
       <div className="shl-rail__set">ryft · schema under version control</div>
       <div className="shl-rail__db">{db?.name ?? "—"}</div>
       <div className="shl-rail__conn">
         {db
-          ? `${db.connection} · ${db.tables} tables · ${db.trunk} @ rev ${db.trunkRevision}`
+          ? `${db.connection} · ${db.tables} tables · ${db.trunk} · updated ${db.trunkChangedOn}`
           : "loading…"}
       </div>
 
@@ -53,14 +66,18 @@ export function Rail() {
             Branches{" "}
             {data && <span className="shl-ct">{branchCount}</span>}
           </Link>
-          {branchMatch && (
+          {openBranch && (
             <ul
               className="shl-rail__sub"
-              aria-label={`${branchMatch.params.name} sheets`}
+              aria-label={`${openBranch} — open branch`}
             >
+              <li className="shl-rail__open">
+                <span className="shl-rail__open-k">Branch</span>
+                <span className="shl-rail__open-nm">{openBranch}</span>
+              </li>
               <li>
                 <Link
-                  to={`/branch/${encodeURIComponent(branchMatch.params.name!)}`}
+                  to={`/branch/${encodeURIComponent(openBranch)}`}
                   aria-current={branchSheet === "schema" ? "page" : undefined}
                 >
                   Schema
@@ -68,27 +85,37 @@ export function Rail() {
               </li>
               <li>
                 <Link
-                  to={`/branch/${encodeURIComponent(branchMatch.params.name!)}?sheet=divergence`}
+                  to={`/branch/${encodeURIComponent(openBranch)}?sheet=divergence`}
                   aria-current={branchSheet === "divergence" ? "page" : undefined}
                 >
                   Divergence
                 </Link>
-              </li>
-              <li>
-                <span aria-disabled="true">History</span>
               </li>
             </ul>
           )}
         </li>
         <li>
           <Link to="/merges" aria-current={onMerges ? "page" : undefined}>
-            Merges {data && <span className="shl-ct">{mergeCount}</span>}
+            Merge requests {data && <span className="shl-ct">{mergeCount}</span>}
           </Link>
-          {mergeMatch && (
-            <ul className="shl-rail__sub" aria-label="Merge sheets">
+          {openMergeId && (
+            <ul
+              className="shl-rail__sub"
+              aria-label={`${
+                openMerge ? `${openMerge.source} → ${openMerge.target}` : openMergeId
+              } — open merge request`}
+            >
+              <li className="shl-rail__open">
+                <span className="shl-rail__open-k">Merge request</span>
+                <span className="shl-rail__open-nm">
+                  {openMerge
+                    ? `${openMerge.source} → ${openMerge.target}`
+                    : openMergeId}
+                </span>
+              </li>
               <li>
                 <Link
-                  to={`/merge/${encodeURIComponent(mergeMatch.params.id!)}`}
+                  to={`/merge/${encodeURIComponent(openMergeId)}`}
                   aria-current="page"
                 >
                   Review
@@ -98,10 +125,6 @@ export function Rail() {
           )}
         </li>
       </ul>
-
-      <p className="shl-rail__hint">
-        Open a branch or a merge and its sheets nest here.
-      </p>
     </nav>
   );
 }
