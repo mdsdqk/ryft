@@ -132,6 +132,20 @@ export type OperationsResponse = {
   warnings: Array<{ reason: string; message: string; objectId: string }>;
 };
 
+/**
+ * `POST /branches/:name/operations` — the `422` body when the batch applies
+ * op-by-op cleanly but the resulting branch head fails whole-document structural
+ * validation (ADR 0008 §5, `docs/robustness.md` §5). A backstop: `validateOperation`
+ * should already have blocked any single-op route to an invalid whole, so this
+ * fires only on a gap in the per-op rules or a batch that composed to an
+ * incoherent document. Nothing is persisted. Distinct from the op-level `422`
+ * (`{ error, failedAt, op, ... }`) — there is no single failing op here.
+ */
+export type OperationsStructuralError = {
+  error: "structural-validation-failed";
+  errors: StructuralError[];
+};
+
 /** `DELETE /branches/:name/operations?after=<seq>` — the rebuilt head after an undo. */
 export type UndoResponse = {
   head: SchemaDocument;

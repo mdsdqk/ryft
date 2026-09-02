@@ -15,6 +15,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, asc, eq, gt, lte } from "drizzle-orm";
 import { applyOperation, OperationBlockedError } from "../../../engine/apply-operation.js";
+import { validateDocument } from "../../../engine/validate.js";
 import type { Operation } from "../../../engine/operations.js";
 import type { SchemaDocument } from "../../../engine/schema.js";
 import type { Env } from "../app.js";
@@ -134,6 +135,16 @@ branchRoutes.post("/branches/:name/operations", async (c) => {
       }
       throw e;
     }
+  }
+
+  // Whole-document backstop (ADR 0008 §5, `docs/robustness.md` §5): `validateOperation`
+  // should already have blocked any single-op route to an invalid document, so a
+  // `StructuralError` here means either a gap in the per-op rules or a batch that
+  // composed to an incoherent whole (a dangling reference, a duplicate name, an
+  // orphaned foreign key). Reject the batch — nothing is persisted.
+  const structural = validateDocument(head);
+  if (structural.length) {
+    return c.json({ error: "structural-validation-failed", errors: structural }, 422);
   }
 
   const seqs = await db.select({ seq: operations.seq }).from(operations).where(eq(operations.branchName, name));

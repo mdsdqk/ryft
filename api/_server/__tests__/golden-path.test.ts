@@ -130,6 +130,56 @@ describe("failure paths", () => {
     const r = await app.request("/api/branches/main/operations", { method: "POST", headers: grace, body: JSON.stringify({ ops: titlesOps }) });
     expect(r.status).toBe(403);
   });
+
+  it("422 structural-validation-failed when a batch composes to a broken document (ADR 0008 §5 backstop)", async () => {
+    await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "wip" }) });
+    // `createTable` carrying an inline foreign key to a table that does not
+    // exist. `validateOperation` does not descend into a new table's inline
+    // constraints, so the op applies; `validateDocument` on the resulting head
+    // catches the dangling reference.
+    const createWithGhostFk: Operation = {
+      type: "createTable",
+      table: {
+        id: "tbl_attachments_z9",
+        name: "attachments",
+        columns: [{ id: "col_attachments_post_id_z9", name: "post_id", type: { kind: "uuid" }, nullable: false, default: null }],
+        primaryKey: null,
+        uniques: [],
+        indexes: [],
+        foreignKeys: [
+          {
+            id: "fk_attachments_ghost_z9",
+            name: "attachments_post_id_fkey",
+            columnIds: ["col_attachments_post_id_z9"],
+            refTableId: "tbl_ghost",
+            refColumnIds: ["col_ghost"],
+            onDelete: "restrict",
+          },
+        ],
+      },
+    };
+    const r = await app.request("/api/branches/wip/operations", {
+      method: "POST",
+      headers: grace,
+      body: JSON.stringify({ ops: [createWithGhostFk] }),
+    });
+    expect(r.status).toBe(422);
+    const body = await j(r);
+    expect(body.error).toBe("structural-validation-failed");
+    expect(
+      (body.errors as Array<{ reason: string; objectId: string }>).some(
+        (e) => e.reason === "dangling-reference" && e.objectId === "fk_attachments_ghost_z9",
+      ),
+    ).toBe(true);
+
+    // nothing persisted — the branch head is unchanged
+    const detail = (await j(await app.request("/api/branches/wip", { headers: grace }))) as {
+      head: { tables: Array<{ name: string }> };
+      divergence: number;
+    };
+    expect(detail.head.tables.some((t) => t.name === "attachments")).toBe(false);
+    expect(detail.divergence).toBe(0);
+  });
 });
 
 describe("undo — DELETE /branches/:name/operations?after=<seq>", () => {

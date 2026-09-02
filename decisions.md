@@ -751,8 +751,19 @@ shape "one branch adds the FK, another drops the constraint that backed it" take
 `POST /merge-requests/:id/merge` transaction runs it on the `clean` candidate before any
 write; a failure returns `409 { error: "structural-validation-failed", errors }` and leaves
 the MR untouched — it is not a divergence the queue can resolve, so the MR is not moved to
-`held`. The operations-batch backstop is not wired yet — `validateOperation` already blocks
-every single-op route to an invalid whole, so it stays a follow-up.
+`held`.
+
+The second call site followed: `POST /branches/:name/operations` folds the batch in memory,
+then runs `validateDocument` on the resulting head before the write transaction. A failure
+returns `422 { error: "structural-validation-failed", errors }` (422, not 409 — it is the
+operations-batch convention; the batch produced an incoherent document, nothing persisted).
+The body carries no `failedAt` / `op` because there is no single failing op — this is the
+whole-document backstop, and it fires only where `validateOperation`'s per-op rules have a
+gap. The known gap it covers today: `validateOperation` does not descend into a `createTable`
+op's inline `foreignKeys` / `indexes` / `uniques`, so a new table carrying a dangling inline
+constraint applies op-by-op and is caught only here. The undo route (`DELETE
+.../operations?after=`) is left out — it only ever replays a prefix of already-accepted ops,
+which cannot compose to something the tail did not already contain.
 
 ### The engine test catalogue is real tests, not a document to transcribe later
 
