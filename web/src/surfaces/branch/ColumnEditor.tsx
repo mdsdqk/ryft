@@ -29,6 +29,7 @@ export function ColumnEditor({
   onClose: () => void;
 }) {
   const [name, setName] = useState(column.name);
+  const [def, setDef] = useState(column.default ?? "");
   const [mode, setMode] = useState<Mode>("fields");
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<OpWarning[]>([]);
@@ -43,6 +44,7 @@ export function ColumnEditor({
 
   // keep the field in sync when a successful apply reloads a fresh `column`
   useEffect(() => setName(column.name), [column.name]);
+  useEffect(() => setDef(column.default ?? ""), [column.default]);
 
   const run = async (op: Parameters<ApplyFn>[0], after?: () => void) => {
     setBusy(true);
@@ -69,6 +71,15 @@ export function ColumnEditor({
       return;
     }
     void run({ type: "renameColumn", tableId, columnId: column.id, from: column.name, to });
+  };
+
+  const commitDefault = () => {
+    const to = def.trim() || null;
+    if (to === column.default) {
+      setDef(column.default ?? "");
+      return;
+    }
+    void run({ type: "setDefault", tableId, columnId: column.id, from: column.default, to });
   };
 
   if (mode === "confirm-drop") {
@@ -187,6 +198,30 @@ export function ColumnEditor({
             <option value="not null">not null</option>
             <option value="null">null</option>
           </select>
+        </label>
+
+        <label className="bw-fld">
+          <span>default</span>
+          <input
+            className="bw-in"
+            value={def}
+            spellCheck={false}
+            autoComplete="off"
+            placeholder="none"
+            disabled={busy}
+            onChange={(e) => setDef(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitDefault();
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                onClose();
+              }
+            }}
+            onBlur={commitDefault}
+          />
         </label>
 
         <button className="mr-btn mr-btn--ghost bw-ed__drop" type="button" onClick={() => setMode("confirm-drop")}>

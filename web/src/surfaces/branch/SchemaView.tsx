@@ -18,6 +18,7 @@ import { OperationBlockedError } from "@engine/apply-operation.js";
 import { isOpError, validateOperation, type OpWarning } from "@engine/validate.js";
 
 import { source, type BranchOperationEntry } from "../../data/index.ts";
+import { NewTableCard } from "./NewTableCard.tsx";
 import { OperationList } from "./OperationList.tsx";
 import { TableCard } from "./TableCard.tsx";
 import type { ApplyFn, ApplyOutcome } from "./edit.ts";
@@ -28,6 +29,10 @@ function buildNameOf(head: SchemaDocument): NameOf {
   for (const t of head.tables) {
     names.set(t.id, t.name);
     for (const c of t.columns) names.set(c.id, c.name);
+    if (t.primaryKey) names.set(t.primaryKey.id, t.primaryKey.name);
+    for (const ix of t.indexes) names.set(ix.id, ix.name);
+    for (const u of t.uniques) names.set(u.id, u.name);
+    for (const fk of t.foreignKeys) names.set(fk.id, fk.name);
   }
   return (id) => names.get(id) ?? id;
 }
@@ -57,6 +62,7 @@ export function SchemaView({
   const marks = useMemo(() => buildMarks(operations), [operations]);
   const markOf = (id: string) => marks.get(id);
   const [undoing, setUndoing] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const apply = useCallback<ApplyFn>(
     async (op) => {
@@ -108,12 +114,19 @@ export function SchemaView({
           <span className="bw-main__ct">
             {head.tables.length} table{head.tables.length === 1 ? "" : "s"}
           </span>
+          {editable && (
+            <button className="bw-mini bw-mini--create" type="button" onClick={() => setCreating(true)}>
+              + create table
+            </button>
+          )}
         </h2>
         <div className="bw-cards">
+          {creating && <NewTableCard apply={apply} onClose={() => setCreating(false)} />}
           {head.tables.map((t) => (
             <TableCard
               key={t.id}
               table={t}
+              tables={head.tables}
               nameOf={nameOf}
               markOf={markOf}
               apply={apply}

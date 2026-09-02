@@ -11,6 +11,7 @@ import type {
   ColumnType,
   ForeignKey,
   Index,
+  OnDeleteAction,
   PrimaryKey,
   Unique,
 } from "@engine/schema.js";
@@ -42,6 +43,7 @@ export const TYPE_PRESETS: TypeOption[] = (
   [
     { kind: "text" },
     { kind: "varchar", n: 255 },
+    { kind: "varchar", n: 200 },
     { kind: "varchar", n: 120 },
     { kind: "varchar", n: 64 },
     { kind: "int" },
@@ -60,6 +62,15 @@ export function optionsForColumn(current: ColumnType): TypeOption[] {
     ? TYPE_PRESETS
     : [{ value: here, label: `${here} (current)`, type: current }, ...TYPE_PRESETS];
 }
+
+/** ON DELETE choices the foreign-key editor offers. */
+export const ON_DELETE_ACTIONS: OnDeleteAction[] = [
+  "cascade",
+  "restrict",
+  "set null",
+  "set default",
+  "no action",
+];
 
 export function typeForValue(value: string): ColumnType {
   const hit = TYPE_PRESETS.find((o) => o.value === value);

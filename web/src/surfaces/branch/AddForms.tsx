@@ -9,22 +9,15 @@ import { useEffect, useRef, useState } from "react";
 import { freshId } from "@engine/id.js";
 
 import type { ApplyFn } from "./edit.ts";
-import { firstMessage } from "./edit.ts";
+import { ColumnPicker, useApply } from "./fields.tsx";
 import { typeForValue, TYPE_PRESETS } from "./format.ts";
 
-function useApply(apply: ApplyFn, onClose: () => void) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const submit = async (op: Parameters<ApplyFn>[0]) => {
-    setBusy(true);
-    setError(null);
-    const outcome = await apply(op);
-    setBusy(false);
-    if (outcome.ok) onClose();
-    else setError(firstMessage(outcome.errors, "The edit was refused."));
-  };
-  return { busy, error, submit };
-}
+export type ColumnDraft = {
+  name: string;
+  type: string;
+  nullable: boolean;
+  default: string;
+};
 
 export function AddColumnForm({
   tableId,
@@ -40,6 +33,7 @@ export function AddColumnForm({
   const [name, setName] = useState("");
   const [type, setType] = useState("text");
   const [nullable, setNullable] = useState(true);
+  const [def, setDef] = useState("");
   const { busy, error, submit } = useApply(apply, onClose);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => ref.current?.focus(), []);
@@ -55,7 +49,7 @@ export function AddColumnForm({
         name: nm,
         type: typeForValue(type),
         nullable,
-        default: null,
+        default: def.trim() || null,
       },
     });
   };
@@ -106,6 +100,17 @@ export function AddColumnForm({
             <option value="null">null</option>
           </select>
         </label>
+        <label className="bw-fld">
+          <span>default</span>
+          <input
+            className="bw-in"
+            value={def}
+            spellCheck={false}
+            autoComplete="off"
+            placeholder="none"
+            onChange={(e) => setDef(e.target.value)}
+          />
+        </label>
       </div>
       {error && (
         <p className="bw-ed__err" role="alert">
@@ -148,9 +153,6 @@ export function AddIndexForm({
     : "";
   const effectiveName = name.trim() || suggested;
 
-  const toggle = (id: string) =>
-    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-
   const add = () => {
     if (!picked.length || !effectiveName) return;
     void submit({
@@ -167,15 +169,7 @@ export function AddIndexForm({
 
   return (
     <div className="bw-ed bw-ed--add" role="group" aria-label={`Add an index to ${tableName}`}>
-      <fieldset className="bw-ed__cols">
-        <legend>columns</legend>
-        {columns.map((c) => (
-          <label key={c.id} className="bw-check">
-            <input type="checkbox" checked={picked.includes(c.id)} onChange={() => toggle(c.id)} />
-            {c.name}
-          </label>
-        ))}
-      </fieldset>
+      <ColumnPicker columns={columns} picked={picked} onChange={setPicked} />
       <div className="bw-ed__grid">
         <label className="bw-fld bw-fld--wide">
           <span>name</span>
@@ -220,8 +214,8 @@ export function NewColumnFields({
   value,
   onChange,
 }: {
-  value: { name: string; type: string; nullable: boolean };
-  onChange: (v: { name: string; type: string; nullable: boolean }) => void;
+  value: ColumnDraft;
+  onChange: (v: ColumnDraft) => void;
 }) {
   return (
     <div className="bw-ed__grid">
@@ -256,6 +250,17 @@ export function NewColumnFields({
           <option value="not null">not null</option>
           <option value="null">null</option>
         </select>
+      </label>
+      <label className="bw-fld">
+        <span>default</span>
+        <input
+          className="bw-in"
+          value={value.default}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder="none"
+          onChange={(e) => onChange({ ...value, default: e.target.value })}
+        />
       </label>
     </div>
   );

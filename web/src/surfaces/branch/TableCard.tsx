@@ -4,20 +4,27 @@
  * indexes, constraints) as hairline rows. A row an operation touched carries a
  * `△N` in the `--ours` role and a ring.
  *
- * E1 was read-only; E2 makes it editable (grill Q2/Q8/Q14/Q15): a column or
- * index row reveals an `edit` affordance on hover/focus and opens its editor in
- * place on click or Enter — one row at a time. The card strip carries
- * `+ column` / `+ index` / `drop table`. Primary keys, foreign keys, uniques,
- * and column defaults stay read-only in V0.
+ * Every operation class is editable from the card: columns (including default),
+ * indexes (including redefine), constraints (PK / unique / FK), table rename
+ * and drop. One row's editor is open at a time.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { Table } from "@engine/schema.js";
 
 import { EmptyState } from "../kit/index.ts";
 import { AddColumnForm, AddIndexForm } from "./AddForms.tsx";
 import { ColumnEditor } from "./ColumnEditor.tsx";
+import {
+  AddForeignKeyForm,
+  AddPrimaryKeyForm,
+  AddUniqueForm,
+  ForeignKeyEditor,
+  PrimaryKeyEditor,
+  UniqueEditor,
+} from "./ConstraintEditors.tsx";
+import { IndexEditor } from "./IndexEditor.tsx";
 import { RevTriangle } from "./RevTriangle.tsx";
 import type { ApplyFn } from "./edit.ts";
 import { firstMessage } from "./edit.ts";
@@ -35,46 +42,19 @@ type MarkOf = (objectId: string) => number | undefined;
 
 type RowSpec = { id: string; name: string; spec: string; pk?: boolean };
 
-/** Inline confirm for a drop that cannot be blocked (an index — no FK depends
- *  on one). Column and table drops have their own dependent-aware flows. */
-function DropConfirm({
-  what,
-  onCancel,
-  onConfirm,
-}: {
-  what: string;
-  onCancel: () => void;
-  onConfirm: () => Promise<void>;
-}) {
-  const [busy, setBusy] = useState(false);
-  return (
-    <div className="bw-ed bw-ed--warn" role="group" aria-label={`Drop ${what}`}>
-      <p className="bw-ed__msg">
-        Drop <b>{what}</b>? This cannot be undone.
-      </p>
-      <div className="bw-ed__row">
-        <button className="mr-btn mr-btn--ghost" type="button" disabled={busy} onClick={onCancel}>
-          Keep
-        </button>
-        <button
-          className="mr-btn"
-          type="button"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              await onConfirm();
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          {busy ? "Dropping…" : "Drop index"}
-        </button>
-      </div>
-    </div>
-  );
-}
+type Open =
+  | { kind: "column"; id: string }
+  | { kind: "index"; id: string }
+  | { kind: "pk" }
+  | { kind: "unique"; id: string }
+  | { kind: "fk"; id: string }
+  | { kind: "add-column" }
+  | { kind: "add-index" }
+  | { kind: "add-unique" }
+  | { kind: "add-fk" }
+  | { kind: "add-pk" }
+  | { kind: "drop-table" }
+  | null;
 
 function ReadRow({ r, seq }: { r: RowSpec; seq?: number }) {
   return (
@@ -118,30 +98,85 @@ function OpenRow({
   );
 }
 
+function TableName({
+  table,
+  apply,
+  editable,
+}: {
+  table: Table;
+  apply: ApplyFn;
+  editable: boolean;
+}) {
+  const [name, setName] = useState(table.name);
+  useEffect(() => setName(table.name), [table.name]);
+
+  const commit = () => {
+    const to = name.trim();
+    if (to === table.name || !to) {
+      setName(table.name);
+      return;
+    }
+    void apply({ type: "renameTable", tableId: table.id, from: table.name, to }).then((outcome) => {
+      if (!outcome.ok) setName(table.name);
+    });
+  };
+
+  if (!editable) {
+    return (
+      <span className="bw-card__name" id={`card-${table.id}`}>
+        {table.name}
+      </span>
+    );
+  }
+
+  return (
+    <label className="bw-fld bw-fld--strip">
+      <span>table</span>
+      <input
+        className="bw-in bw-in--title"
+        id={`card-${table.id}`}
+        value={name}
+        spellCheck={false}
+        autoComplete="off"
+        aria-label="table name"
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            setName(table.name);
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+    </label>
+  );
+}
+
 export function TableCard({
   table,
+  tables,
   nameOf,
   markOf,
   apply,
   editable,
 }: {
   table: Table;
+  tables: Table[];
   nameOf: NameOf;
   markOf: MarkOf;
   apply: ApplyFn;
   editable: boolean;
 }) {
-  const [open, setOpen] = useState<
-    | { kind: "column"; id: string }
-    | { kind: "index"; id: string }
-    | { kind: "add-column" }
-    | { kind: "add-index" }
-    | { kind: "drop-table" }
-    | null
-  >(null);
+  const [open, setOpen] = useState<Open>(null);
   const [dropErr, setDropErr] = useState<string | null>(null);
 
   const pkMembers = new Set(table.primaryKey?.columnIds ?? []);
+  const cols = table.columns.map((c) => ({ id: c.id, name: c.name, nullable: c.nullable }));
 
   const columnRows: RowSpec[] = table.columns.map((c) => ({
     id: c.id,
@@ -154,13 +189,6 @@ export function TableCard({
     name: ix.name,
     spec: indexSpec(ix, nameOf),
   }));
-  const constraintRows: RowSpec[] = [
-    ...(table.primaryKey
-      ? [{ id: table.primaryKey.id, name: table.primaryKey.name, spec: primaryKeySpec(table.primaryKey, nameOf) }]
-      : []),
-    ...table.uniques.map((u) => ({ id: u.id, name: u.name, spec: uniqueSpec(u, nameOf) })),
-    ...table.foreignKeys.map((fk) => ({ id: fk.id, name: fk.name, spec: foreignKeySpec(fk, nameOf) })),
-  ];
 
   const dropTable = async () => {
     const outcome = await apply({ type: "dropTable", table });
@@ -174,12 +202,15 @@ export function TableCard({
     }
   };
 
+  const close = () => setOpen(null);
+  const noConstraints =
+    !table.primaryKey && table.uniques.length === 0 && table.foreignKeys.length === 0;
+  const addingConstraint = open?.kind === "add-pk" || open?.kind === "add-unique" || open?.kind === "add-fk";
+
   return (
     <article className="bw-card" aria-labelledby={`card-${table.id}`}>
       <header className="bw-card__strip">
-        <span className="bw-card__name" id={`card-${table.id}`}>
-          {table.name}
-        </span>
+        <TableName table={table} apply={apply} editable={editable} />
         <span className="bw-card__right">
           <span className="bw-card__id">{table.id}</span>
           {editable && (
@@ -215,7 +246,7 @@ export function TableCard({
             </p>
           )}
           <div className="bw-ed__row">
-            <button className="mr-btn mr-btn--ghost" type="button" onClick={() => setOpen(null)}>
+            <button className="mr-btn mr-btn--ghost" type="button" onClick={close}>
               {dropErr ? "Back" : "Keep"}
             </button>
             {!dropErr && (
@@ -239,7 +270,7 @@ export function TableCard({
                 tableId={table.id}
                 column={c}
                 apply={apply}
-                onClose={() => setOpen(null)}
+                onClose={close}
               />
             );
           }
@@ -255,7 +286,7 @@ export function TableCard({
             tableId={table.id}
             tableName={table.name}
             apply={apply}
-            onClose={() => setOpen(null)}
+            onClose={close}
           />
         )}
       </div>
@@ -272,14 +303,13 @@ export function TableCard({
           const isOpen = open?.kind === "index" && open.id === ix.id;
           if (isOpen) {
             return (
-              <DropConfirm
+              <IndexEditor
                 key={ix.id}
-                what={`index ${ix.name}`}
-                onCancel={() => setOpen(null)}
-                onConfirm={async () => {
-                  const outcome = await apply({ type: "dropIndex", tableId: table.id, index: ix });
-                  if (outcome.ok) setOpen(null);
-                }}
+                tableId={table.id}
+                index={ix}
+                columns={cols}
+                apply={apply}
+                onClose={close}
               />
             );
           }
@@ -294,21 +324,122 @@ export function TableCard({
           <AddIndexForm
             tableId={table.id}
             tableName={table.name}
-            columns={table.columns.map((c) => ({ id: c.id, name: c.name }))}
+            columns={cols}
             apply={apply}
-            onClose={() => setOpen(null)}
+            onClose={close}
           />
         )}
       </div>
 
       <div className="bw-group">
-        <p className="bw-group__k">Constraints</p>
-        {constraintRows.length === 0 ? (
+        <div className="bw-group__head">
+          <p className="bw-group__k">Constraints</p>
+          {editable && (
+            <span className="bw-card__acts">
+              {!table.primaryKey && (
+                <button className="bw-mini" type="button" onClick={() => setOpen({ kind: "add-pk" })}>
+                  + primary key
+                </button>
+              )}
+              <button className="bw-mini" type="button" onClick={() => setOpen({ kind: "add-unique" })}>
+                + unique
+              </button>
+              <button className="bw-mini" type="button" onClick={() => setOpen({ kind: "add-fk" })}>
+                + foreign key
+              </button>
+            </span>
+          )}
+        </div>
+        {noConstraints && !addingConstraint && (
           <EmptyState layout="inline" title="No constraints on this table.">
-            Primary key, unique, and foreign-key constraints appear here.
+            {editable
+              ? "Add a primary key, unique, or foreign key from this group."
+              : "Primary key, unique, and foreign-key constraints appear here."}
           </EmptyState>
-        ) : (
-          constraintRows.map((r) => <ReadRow key={r.id} r={r} seq={markOf(r.id)} />)
+        )}
+        {table.primaryKey &&
+          (open?.kind === "pk" ? (
+            <PrimaryKeyEditor
+              tableId={table.id}
+              primaryKey={table.primaryKey}
+              columns={cols}
+              apply={apply}
+              onClose={close}
+            />
+          ) : editable ? (
+            <OpenRow
+              r={{
+                id: table.primaryKey.id,
+                name: table.primaryKey.name,
+                spec: primaryKeySpec(table.primaryKey, nameOf),
+              }}
+              seq={markOf(table.primaryKey.id)}
+              onOpen={() => setOpen({ kind: "pk" })}
+            />
+          ) : (
+            <ReadRow
+              r={{
+                id: table.primaryKey.id,
+                name: table.primaryKey.name,
+                spec: primaryKeySpec(table.primaryKey, nameOf),
+              }}
+              seq={markOf(table.primaryKey.id)}
+            />
+          ))}
+        {open?.kind === "add-pk" && <AddPrimaryKeyForm table={table} apply={apply} onClose={close} />}
+        {table.uniques.map((u) => {
+          const seq = markOf(u.id);
+          const r = { id: u.id, name: u.name, spec: uniqueSpec(u, nameOf) };
+          if (open?.kind === "unique" && open.id === u.id) {
+            return (
+              <UniqueEditor
+                key={u.id}
+                tableId={table.id}
+                unique={u}
+                columns={cols}
+                apply={apply}
+                onClose={close}
+              />
+            );
+          }
+          return editable ? (
+            <OpenRow key={u.id} r={r} seq={seq} onOpen={() => setOpen({ kind: "unique", id: u.id })} />
+          ) : (
+            <ReadRow key={u.id} r={r} seq={seq} />
+          );
+        })}
+        {open?.kind === "add-unique" && (
+          <AddUniqueForm
+            tableId={table.id}
+            tableName={table.name}
+            columns={cols}
+            apply={apply}
+            onClose={close}
+          />
+        )}
+        {table.foreignKeys.map((fk) => {
+          const seq = markOf(fk.id);
+          const r = { id: fk.id, name: fk.name, spec: foreignKeySpec(fk, nameOf) };
+          if (open?.kind === "fk" && open.id === fk.id) {
+            return (
+              <ForeignKeyEditor
+                key={fk.id}
+                table={table}
+                tables={tables}
+                fk={fk}
+                apply={apply}
+                onClose={close}
+              />
+            );
+          }
+          return editable ? (
+            <OpenRow key={fk.id} r={r} seq={seq} onOpen={() => setOpen({ kind: "fk", id: fk.id })} />
+          ) : (
+            <ReadRow key={fk.id} r={r} seq={seq} />
+          );
+        })}
+        {open?.kind === "add-fk" && (
+          <AddForeignKeyForm table={table} tables={tables} apply={apply} onClose={close} />
         )}
       </div>
     </article>
