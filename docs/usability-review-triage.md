@@ -200,18 +200,20 @@ counter just to keep a label.
 
 ## Proposed sequence
 
-1. **Theme C** (rail clarity) — S, self-contained, immediate clarity win.
-2. **Theme E** (app-bar) — S, CSS-only.
-3. **Theme A** (vocabulary) — one ADR + edits + doc sync; carries its flagged
-   visual tweaks. Unblocks D's label changes.
+1. **Theme C** (rail clarity) — ✅ done on `feat/usability-review-batch-1`.
+2. **Theme E** (app-bar) — ✅ done.
+3. **Theme A** (vocabulary) — ✅ done; ADR 0011 + `decisions.md` synced. The
+   full column-spec *alignment* refactor was scoped down to keyword casing
+   (`uuid · NOT NULL · DEFAULT`); grid-aligned sub-columns remain a follow-up.
 4. **Theme B** (collapse primitive + collapse-all + branch Schema parity) —
-   biggest UX lever for the "too dense" complaint (Theme G rides along).
-5. **Theme D-10** (queue messaging on the MR screen) — M, needs the queue
-   position threaded into the view model.
-6. **Theme F4** (read-only `CREATE TABLE` view per table) — M, high value for the
-   backend audience; also answers "where can I view my table".
+   ✅ done; `web/src/surfaces/kit/collapse.tsx`. Theme G rode along
+   (unchanged tables start folded).
+5. **Theme D-10** (queue messaging on the MR screen) — ✅ done; `queue` added
+   to the merge-review view model, Zone D shows a Queued branch.
+6. **Theme F4** (read-only `CREATE TABLE` view per table) — ✅ done;
+   `TableDdl.tsx`, "view SQL" toggle on every table card.
 7. **Theme D-12** (auto-refresh `ours` when the branch moves) — M, server
-   re-freeze on read + dropped-resolution notice.
+   re-freeze on read + dropped-resolution notice. **Next.**
 8. **Theme F1+F3** (soft-close MR: enum value + migration + close action +
    "Closed" list) — M–L.
 9. **Theme F2** (deleted-branches page) — L, genuine stretch.
