@@ -359,6 +359,18 @@ kbd {
 .mr-zone__k:focus-visible {
   outline-offset: 4px;
 }
+/* Destructive roll-up above the comparison grid (ADR 0008 §6). Advisory —
+   same quiet register as the per-row `mr-row__warn`; it never blocks a merge. */
+.mr-zone__warn {
+  margin: 0 0 10px;
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.mr-zone__warn b {
+  color: var(--theirs);
+}
 .mr-zone__n {
   flex: 0 0 auto;
   width: 18px;
@@ -594,13 +606,26 @@ kbd {
 }
 
 .mr-row__leader,
-.mr-row__badge {
+.mr-row__badge,
+.mr-row__warn {
   grid-column: 2 / 4;
   border-inline-start: 1px solid var(--line);
   padding: 0 10px 8px;
   font-family: var(--ff-mono);
   font-size: 10px;
   line-height: 1.5;
+}
+/* Destructive / risk advisory (ADR 0008 §6). Deliberately quiet — the same
+   register as the editor's `bw-ed__note`; it never blocks, so it does not get
+   the conflict red. The caller supplies a "destructive — " / "risk — " prefix
+   so the body stays verbatim `OpWarning.message`. */
+.mr-row__warn {
+  color: var(--ink-soft);
+  padding-top: 2px;
+}
+.mr-row__warn b {
+  color: var(--theirs);
+  font-weight: 600;
 }
 .mr-row__leader--ok {
   color: var(--ok);
@@ -988,6 +1013,9 @@ kbd {
   font-size: 11px;
   color: var(--ink-faint);
 }
+.mr-fab__meta-warn {
+  color: var(--theirs);
+}
 .mr-fab__sql {
   margin: 12px 0 0;
   padding: 14px 24px;
@@ -1013,6 +1041,14 @@ kbd {
 .mr-sql-blocked {
   display: block;
   color: var(--conflict);
+}
+/* An irreversible drop in the fabrication order (ADR 0008 §6). It is valid DDL
+   that will run — not blocked — so it keeps the normal ink; only its trailing
+   `-- … destructive` tag carries the caution colour. */
+.mr-sql-destructive .mr-sql-tag--ours,
+.mr-sql-destructive .mr-sql-tag--theirs,
+.mr-sql-destructive .mr-sql-tag--none {
+  color: var(--theirs);
 }
 .mr-fab__status {
   padding: 11px 24px;
@@ -1142,7 +1178,8 @@ kbd {
     border-top: 2px solid currentColor;
   }
   .mr-row__leader,
-  .mr-row__badge {
+  .mr-row__badge,
+  .mr-row__warn {
     grid-column: 1;
     border-inline-start: none;
   }

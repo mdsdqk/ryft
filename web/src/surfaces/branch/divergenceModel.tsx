@@ -21,6 +21,7 @@ import type { IndexDef } from "@engine/operations.js";
 import { diffSnapshots } from "@engine/diff.js";
 
 import type { GridCell, GridRow, GridSection } from "../kit/index.ts";
+import { deltaWarnings, warningKindLabel } from "./deltaWarnings.ts";
 import {
   columnSpec,
   foreignKeySpec,
@@ -78,8 +79,9 @@ type Bucket = { name: string; groups: Map<GroupKey, GridRow[]> };
 export function toDivergenceSections(
   base: SchemaDocument,
   head: SchemaDocument,
-): { sections: GridSection[]; changeCount: number } {
+): { sections: GridSection[]; changeCount: number; destructiveCount: number } {
   const ops = diffSnapshots(base, head);
+  const warnings = deltaWarnings(base, ops);
   const nameHead = nameResolver(head);
   const nameBase = nameResolver(base);
 
@@ -314,6 +316,25 @@ export function toDivergenceSections(
     }
   }
 
+  // Attach the derived destructive / risk warnings to their row. `row.key` is
+  // the changed object's stable id on every branch above — the same id
+  // `deltaWarnings` keys on (ADR 0008 §6).
+  let destructiveCount = 0;
+  for (const b of buckets.values()) {
+    for (const rows of b.groups.values()) {
+      for (const row of rows) {
+        const ws = warnings.get(String(row.key));
+        if (!ws?.length) continue;
+        row.warnings = ws.map((w) => (
+          <>
+            <b>{warningKindLabel(w.reason)}</b> — {w.message}
+          </>
+        ));
+        if (ws.some((w) => w.reason === "drop-destructive")) destructiveCount += 1;
+      }
+    }
+  }
+
   const sections: GridSection[] = [];
   let changeCount = 0;
   for (const tableId of order) {
@@ -326,5 +347,5 @@ export function toDivergenceSections(
     });
     if (groups.length) sections.push({ key: tableId, title: b.name, groups });
   }
-  return { sections, changeCount };
+  return { sections, changeCount, destructiveCount };
 }

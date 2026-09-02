@@ -46,6 +46,7 @@ import {
   sqlType,
   type NameOf,
 } from "../surfaces/branch/format.ts";
+import { deltaWarnings, warningKindLabel } from "../surfaces/branch/deltaWarnings.ts";
 import { retypeDetail, conflictLabel } from "./format.ts";
 import type {
   ChangeKind,
@@ -61,6 +62,7 @@ import type {
   RevisionRef,
   RevisionStatus,
   RowResolution,
+  RowWarning,
   SideChange,
 } from "./model.ts";
 
@@ -319,6 +321,22 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
   const oursOps = allOurs.filter((op) => tableIdOf(op) === tableId);
   const theirsOps = allTheirs.filter((op) => tableIdOf(op) === tableId);
 
+  // Destructive / risk advisories (ADR 0008 §6). Each side's delta is validated
+  // against the common ancestor; a row shows the union of both sides' warnings.
+  const oursWarn = deltaWarnings(res.base, oursOps);
+  const theirsWarn = deltaWarnings(res.base, theirsOps);
+  const warningsForObjectId = (id: string): RowWarning[] => {
+    const seen = new Set<string>();
+    const out: RowWarning[] = [];
+    for (const w of [...(oursWarn.get(id) ?? []), ...(theirsWarn.get(id) ?? [])]) {
+      const line = `${w.reason}:${w.message}`;
+      if (seen.has(line)) continue;
+      seen.add(line);
+      out.push({ kind: warningKindLabel(w.reason), message: w.message });
+    }
+    return out;
+  };
+
   // ── revisions ──
   const revisions: RevisionRef[] = [];
   const oursParty: Party = { userId: res.author, name: res.author };
@@ -420,6 +438,8 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
       resolution = { state: "clean" };
     }
 
+    const warnings = warningsForObjectId(objectId);
+
     return {
       objectId,
       objectLabel: `${nameOf(tableId)}.${nameOf(objectId)}`,
@@ -428,6 +448,7 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
       theirs,
       resolution,
       ...(leader ? { leader } : {}),
+      ...(warnings.length ? { warnings } : {}),
     };
   });
 
@@ -475,6 +496,9 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
     sql: serialize(s),
     revision: null,
     side: null,
+    // the engine flags an irreversible drop (`dropColumn` / `dropTable`) — the
+    // fabrication order marks that line (ADR 0008 §6).
+    destructive: "destructive" in s && s.destructive === true,
   }));
   const blocked: DdlBlocked[] = openConflicts.map((c) => {
     const cls = CLASS_MAP[c.class];
@@ -491,6 +515,9 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
   const status: RevisionStatus =
     res.queue.status === "merged" ? "released" : res.queue.status === "queued" ? "received" : "in-check";
   const autoMergedCount = rows.filter((r) => r.resolution.state === "auto-merged").length;
+  const destructiveCount = rows.filter((r) =>
+    r.warnings?.some((w) => w.kind === "destructive"),
+  ).length;
 
   return {
     source: res.source,
@@ -504,6 +531,7 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
     conflicts,
     revisions,
     autoMergedCount,
+    destructiveCount,
     fabricationOrder: { statements, blocked, transactional: true },
     commutativity,
   };

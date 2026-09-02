@@ -132,6 +132,7 @@ export const ordersReview: MergeReview = {
   openedAt: "2026-08-29T09:44:00+05:30",
   status: "in-check",
   autoMergedCount: 2,
+  destructiveCount: 3,
   commutativity: "pending",
   revisions,
 
@@ -255,6 +256,7 @@ export const ordersReview: MergeReview = {
       ours: { kind: "add-fk", revision: 10, detail: "fk_orders_coupon → coupons(code)" },
       theirs: { kind: "drop-column", revision: 16, detail: "column removed" },
       resolution: { state: "conflict", conflictId: "c-coupon" },
+      warnings: [{ kind: "destructive", message: 'dropping column "coupon_code" is irreversible' }],
     },
     {
       objectId: "col_notes",
@@ -263,6 +265,7 @@ export const ordersReview: MergeReview = {
       ours: { kind: "drop-column", revision: 6, detail: "column removed · no dependents" },
       theirs: null,
       resolution: { state: "clean" },
+      warnings: [{ kind: "destructive", message: 'dropping column "notes" is irreversible' }],
     },
     {
       objectId: "col_currency",
@@ -279,6 +282,7 @@ export const ordersReview: MergeReview = {
       ours: null,
       theirs: { kind: "drop-column", revision: 20, detail: "column removed" },
       resolution: { state: "clean" },
+      warnings: [{ kind: "destructive", message: 'dropping column "updated_at" is irreversible' }],
     },
     {
       objectId: "col_channel / col_channel_t",
@@ -384,8 +388,8 @@ export const ordersReview: MergeReview = {
       { sql: `ALTER TABLE "orders" RENAME COLUMN "placed_at" TO "ordered_at";`, revision: 3, side: "ours" },
       { sql: `ALTER TABLE "orders" RENAME COLUMN "shipped_at" TO "dispatched_at";`, revision: 18, side: "theirs" },
       { sql: `ALTER TABLE "orders" ALTER COLUMN "currency" TYPE text;`, revision: 8, side: "ours" },
-      { sql: `ALTER TABLE "orders" DROP COLUMN "notes";`, revision: 6, side: "ours" },
-      { sql: `ALTER TABLE "orders" DROP COLUMN "updated_at";`, revision: 20, side: "theirs" },
+      { sql: `ALTER TABLE "orders" DROP COLUMN "notes";`, revision: 6, side: "ours", destructive: true },
+      { sql: `ALTER TABLE "orders" DROP COLUMN "updated_at";`, revision: 20, side: "theirs", destructive: true },
       { sql: `ALTER TABLE "orders" ADD COLUMN "fulfilled_at" timestamptz NULL;`, revision: 4, side: "ours" },
       { sql: `ALTER TABLE "orders" ADD COLUMN "refunded_minor" int NULL;`, revision: 5, side: "ours" },
       { sql: `ALTER TABLE "orders" ADD COLUMN "tax_minor" int NULL;`, revision: 15, side: "theirs" },

@@ -702,6 +702,21 @@ kinds, an illegal identifier, an unresolved reference, a second primary key, a n
 in a primary key, a drop with live dependents, and an unrenderable default. See ADR 0008
 §1–§2 and `docs/robustness.md` §2.
 
+Shipped on the diff and merge surfaces (ADR 0008 §6): the structured editor already showed
+each `OpWarning` inline as the edit landed. The branch Divergence sub-sheet and the
+merge-review screen have no live edit — they hold a base/head pair — so a shared
+`web/src/surfaces/branch/deltaWarnings.ts` re-runs `validateOperation` over the *derived*
+delta (`diffSnapshots(base, head)`) against the ancestor and keeps the warnings, keyed by the
+same stable object id `changedObjectId` returns. Any `OpError` the derived delta produces is
+a resolution artefact (an op whose target is created later in the same delta) and is dropped.
+The one ADR 0008 §2 carve-out — `not-null-no-default` is silent when the same delta also
+gives that column a default — lives in this helper. Each affected row renders the verbatim
+`OpWarning.message` under a "destructive" / "risk" label in the same quiet register as the
+editor's note (never the conflict red — it does not block), and both surfaces carry a
+"N destructive changes" roll-up. The merge-review fabrication order additionally reads the
+engine `DdlStatement.destructive` flag to tag the generated `DROP` lines; the warning text is
+never regexed out of SQL.
+
 ### Generated DDL always double-quotes every identifier, permanently
 
 Ticket 0008. ADR 0003 left `quoteIdent` as a placeholder that always double-quotes, expecting

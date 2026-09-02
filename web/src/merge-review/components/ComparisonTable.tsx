@@ -138,6 +138,11 @@ export function ComparisonTable({
           left: cellFrom(r.ours, "ours"),
           right: cellFrom(r.theirs, "theirs"),
           leader: r.leader ? { text: r.leader.text, tone: r.leader.tone } : undefined,
+          warnings: r.warnings?.map((w) => (
+            <>
+              <b>{w.kind}</b> — {w.message}
+            </>
+          )),
           extra: rowExtra(r, onOpenConflict),
         })),
       };
@@ -157,6 +162,14 @@ export function ComparisonTable({
       <h2 className="mr-zone__k" id="mr-cmp-h">
         <span className="mr-zone__n">A</span> Three-way comparison — table <code>{review.table}</code>
       </h2>
+
+      {review.destructiveCount > 0 && (
+        <p className="mr-zone__warn" role="note">
+          <b>{review.destructiveCount}</b> destructive change
+          {review.destructiveCount === 1 ? "" : "s"} in this merge — dropped objects are
+          irreversible once released. Marked on the rows and in the fabrication order.
+        </p>
+      )}
 
       <ComparisonGrid
         filters={[

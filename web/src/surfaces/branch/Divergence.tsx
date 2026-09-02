@@ -22,7 +22,7 @@ function schemaHref(name: string, search: string): string {
 
 export function Divergence({ detail }: { detail: BranchDetail }) {
   const [params] = useSearchParams();
-  const { sections, changeCount } = useMemo(
+  const { sections, changeCount, destructiveCount } = useMemo(
     () => toDivergenceSections(detail.base, detail.head),
     [detail.base, detail.head],
   );
@@ -59,6 +59,13 @@ export function Divergence({ detail }: { detail: BranchDetail }) {
           {tables === 1 ? "" : "s"}
         </span>
       </h2>
+
+      {destructiveCount > 0 && (
+        <p className="bw-divergence__warn" role="note">
+          <b>{destructiveCount}</b> destructive change{destructiveCount === 1 ? "" : "s"} on this
+          branch — dropped objects are irreversible once merged. Flagged on the rows below.
+        </p>
+      )}
 
       <ComparisonGrid
         filterLabel="Divergence summary"
