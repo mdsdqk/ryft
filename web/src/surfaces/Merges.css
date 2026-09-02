@@ -25,6 +25,14 @@
   }
 }
 
+/* Open / Closed — the title strip's right cell, so the pair reads as a choice
+ * of view rather than a filter over one list. */
+.mg-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .mg .kit-list {
   max-height: min(70vh, 640px);
   overflow: auto;

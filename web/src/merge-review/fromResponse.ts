@@ -78,7 +78,12 @@ export type MergeRequestResponseBody = {
   theirs: SchemaDocument;
   report: MergeReport;
   migration: Migration | null;
-  queue: { status: "queued" | "open" | "held" | "merged"; position: number; ahead: number; behind: number };
+  queue: {
+    status: "queued" | "open" | "held" | "merged" | "closed";
+    position: number;
+    ahead: number;
+    behind: number;
+  };
   stale: boolean;
   appliedResolutions: Array<{
     conflictId: string;
@@ -532,7 +537,13 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
   const commutativity: MergeReview["commutativity"] =
     res.report.verdict === "clean" ? "passed" : res.report.verdict === "unclassified-divergence" ? "failed" : "pending";
   const status: RevisionStatus =
-    res.queue.status === "merged" ? "released" : res.queue.status === "queued" ? "received" : "in-check";
+    res.queue.status === "merged"
+      ? "released"
+      : res.queue.status === "closed"
+        ? "closed"
+        : res.queue.status === "queued"
+          ? "received"
+          : "in-check";
   const dropped = res.droppedResolutions.map((d) => droppedResolutionLabel(d, nameOf));
   const autoMergedCount = rows.filter((r) => r.resolution.state === "auto-merged").length;
   const destructiveCount = rows.filter((r) =>

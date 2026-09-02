@@ -1,10 +1,12 @@
 /**
- * The open-merge-request resource — list, oldest first. Fixture-backed for V0
+ * The merge-request resource — the open queue, oldest first, plus the closed
+ * record (ADR 0012 §3). Fixture-backed for V0
  * (docs/design/app-flow-work-breakdown.md, WU-B). Surfaces import through
  * `source.listMerges`, never this file.
  *
- * This list is a merge queue, not an activity feed: oldest-first, no create,
- * no delete. Opening a request is a branch-workspace action.
+ * The open list is a merge queue, not an activity feed: oldest-first, no create,
+ * no delete. Opening a request is a branch-workspace action. Closing one moves
+ * it out of the queue and into the closed list, where it stays.
  */
 
 import type { MergeSummary } from "./types.ts";
@@ -72,6 +74,25 @@ let open: MergeSummary[] = [
   },
 ];
 
+/**
+ * One request already withdrawn, so the closed list is not empty on first look
+ * and the offline path exercises the state the API produces.
+ */
+let closed: MergeSummary[] = [
+  {
+    id: "0",
+    source: "index-experiment",
+    target: "main",
+    author: "ravi",
+    openedOn: "2026-02-03",
+    operations: 1,
+    position: 0,
+    status: "closed",
+    conflicts: 0,
+    closedOn: "2026-02-05",
+  },
+];
+
 function byQueue(a: MergeSummary, b: MergeSummary): number {
   return a.openedOn.localeCompare(b.openedOn) || a.id.localeCompare(b.id);
 }
@@ -81,6 +102,37 @@ export function listOpen(): MergeSummary[] {
   return clone(open)
     .filter((m) => m.id.trim() !== "" && m.source.trim() !== "")
     .sort(byQueue);
+}
+
+/** Most recently closed first — the record, not a queue, so it reads newest-down. */
+export function listClosed(): MergeSummary[] {
+  return clone(closed).sort(
+    (a, b) => (b.closedOn ?? "").localeCompare(a.closedOn ?? "") || b.id.localeCompare(a.id),
+  );
+}
+
+/**
+ * Withdraw a request: it leaves the queue, keeps its row in the closed list,
+ * and every row behind it moves up one place — the fixture's stand-in for the
+ * API promoting the next queued request.
+ */
+export function closeById(id: string): void {
+  const found = open.find((m) => m.id === id);
+  if (!found) {
+    if (closed.some((m) => m.id === id)) return; // closing twice is a no-op
+    throw new MergeRequestNotFoundError(id);
+  }
+  open = open.filter((m) => m.id !== id).map((m, i) => ({ ...m, position: i + 1 }));
+  closed = [
+    ...closed,
+    { ...found, position: 0, status: "closed", conflicts: 0, closedOn: todayIso() },
+  ];
+  invalidateData();
+}
+
+/** Has this request been withdrawn? The merge-review fixture reads the same store. */
+export function isClosed(id: string): boolean {
+  return closed.some((m) => m.id === id);
 }
 
 let nextId = 4;
@@ -116,11 +168,17 @@ export function mergeStatusTone(
   merge: MergeSummary,
 ): "ok" | "held" | "neutral" {
   if (merge.status === "held") return "held";
-  if (merge.status === "stale" || merge.status === "queued") return "neutral";
+  // closed is an outcome, not a failure — quiet, the same as waiting or stale
+  if (merge.status === "stale" || merge.status === "queued" || merge.status === "closed") {
+    return "neutral";
+  }
   return "ok";
 }
 
 export function mergeStatusLabel(merge: MergeSummary): string {
+  if (merge.status === "closed") {
+    return merge.closedOn ? `Closed · ${merge.closedOn}` : "Closed";
+  }
   if (merge.status === "queued") return `Queued · #${merge.position}`;
   if (merge.status === "held") {
     const n = Math.max(0, merge.conflicts);

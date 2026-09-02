@@ -146,7 +146,13 @@ export interface Conflict {
   gates: string[];
 }
 
-export type RevisionStatus = "received" | "in-check" | "cleared" | "released";
+/**
+ * The merge-request lifecycle, by its internal keys — the screen shows
+ * Queued / Under review / Reviewed / Merged (ADR 0011). `closed` is the fifth
+ * and it is off the line rather than at the end of it: a request withdrawn
+ * without merging (ADR 0012 §3). Terminal, like `released`.
+ */
+export type RevisionStatus = "received" | "in-check" | "cleared" | "released" | "closed";
 
 export interface DdlStatement {
   sql: string;
@@ -218,7 +224,17 @@ export function isMergeable(review: MergeReview): boolean {
   return openConflicts(review).length === 0 && review.commutativity === "passed";
 }
 
+/**
+ * `cleared` is derived, not stored — a request is Reviewed the moment nothing is
+ * outstanding. The two terminal states short-circuit that: a merged or closed
+ * request is what it is, however its conflicts happen to read now.
+ */
 export function effectiveStatus(review: MergeReview): RevisionStatus {
-  if (review.status === "released") return "released";
+  if (review.status === "released" || review.status === "closed") return review.status;
   return isMergeable(review) ? "cleared" : review.status;
+}
+
+/** Terminal — the request is finished either way, so the screen is read-only. */
+export function isTerminal(status: RevisionStatus): boolean {
+  return status === "released" || status === "closed";
 }

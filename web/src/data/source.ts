@@ -33,8 +33,12 @@ export interface DataSource {
   getOverview(): Promise<Overview>;
   /** trunk first, then working branches — the `/branches` list */
   listBranches(): Promise<BranchSummary[]>;
-  /** open merge requests, oldest first — the `/merges` queue */
-  listMerges(): Promise<MergeSummary[]>;
+  /**
+   * The `/merges` list. `state` defaults to `"open"` — the live queue, oldest
+   * first. `"closed"` is the record of requests withdrawn without merging, most
+   * recently closed first (ADR 0012 §3).
+   */
+  listMerges(state?: "open" | "closed"): Promise<MergeSummary[]>;
   /** cut a working branch from `main`; throws on a bad or taken name */
   createBranch(args: CreateBranchArgs): Promise<BranchSummary>;
   /** drop a working branch; throws if it is the trunk or held by an open MR */
@@ -83,4 +87,11 @@ export interface DataSource {
    * Throws `MergeRevalidationError` if live `main` no longer merges clean.
    */
   mergeMergeRequest(id: string): Promise<{ status: "merged" }>;
+  /**
+   * Close a merge request without merging it (`POST /merge-requests/:id/close`).
+   * The request keeps its row and moves to the closed list; the next queued
+   * request is promoted if this one held the front. Throws if it already
+   * merged — a merged request is a record of something that happened.
+   */
+  closeMergeRequest(id: string): Promise<void>;
 }

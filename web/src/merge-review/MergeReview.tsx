@@ -4,7 +4,7 @@ import type { ColumnType } from "@engine/schema.js";
 
 import { MergeRevalidationError, source } from "../data/index.ts";
 import type { MergeReview as MergeReviewModel } from "./model.ts";
-import { effectiveStatus, isMergeable, openConflicts } from "./model.ts";
+import { effectiveStatus, isMergeable, isTerminal, openConflicts } from "./model.ts";
 import { statusLabel } from "./format.ts";
 
 import { ComparisonTable } from "./components/ComparisonTable.tsx";
@@ -42,6 +42,7 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
   const [pickingTypeFor, setPickingTypeFor] = useState<string | null>(null);
   const [releasing, setReleasing] = useState(false);
   const [releaseError, setReleaseError] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
 
   useEffect(() => {
     setLive(base);
@@ -84,7 +85,12 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
 
   const open = openConflicts(review);
   const rebased = review.rows.filter((r) => r.leader?.tone === "ok").length;
-  const released = review.status === "released";
+  // both terminal states freeze the screen: a merged request is a record, a
+  // closed one is a request nobody is working on any more (ADR 0012 §3).
+  const released = isTerminal(review.status);
+  // "Close request" is offered on every live request — queued, under review, or
+  // held — and never on one that already merged or closed.
+  const canClose = Boolean(mergeId) && !isTerminal(live.status);
   // Release is gated on the *server* review, not the optimistic overlay — a
   // local pick that hasn't landed yet would 409 the merge transaction. Only the
   // MR at the front of the queue is mergeable: `fromResponse` maps `open`/`held`
@@ -172,6 +178,20 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
       setReleasing(false);
     }
   }, [adopt, mergeId, releasing]);
+
+  const close = useCallback(async () => {
+    if (!mergeId || closing) return;
+    setClosing(true);
+    setReleaseError(null);
+    try {
+      await source.closeMergeRequest(mergeId);
+      adopt(await source.getMergeReview(mergeId));
+    } catch (err) {
+      setReleaseError(err instanceof Error ? err.message : "The merge request could not be closed.");
+    } finally {
+      setClosing(false);
+    }
+  }, [adopt, closing, mergeId]);
 
   const move = useCallback(
     (delta: number) => {
@@ -312,6 +332,9 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
           releasing={releasing}
           releaseError={releaseError}
           onRelease={() => void release()}
+          canClose={canClose}
+          closing={closing}
+          onClose={() => void close()}
         />
       </div>
 

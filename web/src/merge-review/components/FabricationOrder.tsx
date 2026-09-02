@@ -8,6 +8,11 @@ import { statusLabel } from "../format.ts";
  * groups are listed with the reason, including any downstream objects a conflict
  * gates. A status line — not a stamp — says what advances the dial to Reviewed,
  * and the one primary action that turns it to Merged.
+ *
+ * The zone also carries the way *out*: "Close request" withdraws the request
+ * without merging (ADR 0012 §3). It sits next to the merge button as a secondary
+ * action because the two are the same decision — this request either lands or it
+ * does not — and it is absent once either has happened.
  */
 export function FabricationOrder({
   review,
@@ -15,18 +20,25 @@ export function FabricationOrder({
   releasing = false,
   releaseError = null,
   onRelease,
+  canClose = false,
+  closing = false,
+  onClose,
 }: {
   review: MergeReview;
   canRelease?: boolean;
   releasing?: boolean;
   releaseError?: string | null;
   onRelease?: () => void;
+  canClose?: boolean;
+  closing?: boolean;
+  onClose?: () => void;
 }) {
   const fo = review.fabricationOrder;
   const open = openConflicts(review);
   const mergeable = isMergeable(review);
   const status = effectiveStatus(review);
   const released = status === "released";
+  const closed = status === "closed";
   // this request is behind others in the merge queue — it is not reviewed here
   // and cannot merge until it reaches the front, where it is re-checked against
   // main (ADR 0004 §3).
@@ -106,9 +118,16 @@ export function FabricationOrder({
           data-unclassified={unclassified}
           data-released={released}
           data-queued={queued}
+          data-closed={closed}
         >
           <span className="mr-fab__dot" aria-hidden="true" />
-          {released ? (
+          {closed ? (
+            <>
+              <b>Closed</b> — this request was withdrawn without merging.{" "}
+              <code>{review.target}</code> is unchanged, and the branch is still there to
+              open a new request from.
+            </>
+          ) : released ? (
             <>
               <b>Merged</b> — <code>main</code> now holds this schema.
             </>
@@ -146,28 +165,37 @@ export function FabricationOrder({
           )}
           <span className="mr-vh"> Current status: {statusLabel(status)}.</span>
         </p>
-        {queued ? (
-          <p className="mr-fab__queued">
-            Queued · position #{review.queue?.position ?? "—"}
-            {ahead > 0 && (
-              <>
-                {" "}
-                · blocked by {ahead} ahead
-              </>
+        {(queued || canRelease || canClose) && (
+          <div className="mr-fab__actions">
+            {queued && (
+              <p className="mr-fab__queued">
+                Queued · position #{review.queue?.position ?? "—"}
+                {ahead > 0 && (
+                  <>
+                    {" "}
+                    · blocked by {ahead} ahead
+                  </>
+                )}
+              </p>
             )}
-          </p>
-        ) : (
-          canRelease &&
-          onRelease && (
-            <button
-              className="mr-btn mr-btn--primary mr-fab__release"
-              type="button"
-              disabled={releasing}
-              onClick={onRelease}
-            >
-              {releasing ? "Merging…" : "Merge into main"}
-            </button>
-          )
+            {/* the way out, offered wherever the request is still live — a
+             * queued request is exactly the one you most want to withdraw */}
+            {canClose && onClose && (
+              <button className="mr-btn mr-fab__close" type="button" disabled={closing} onClick={onClose}>
+                {closing ? "Closing…" : "Close request"}
+              </button>
+            )}
+            {!queued && canRelease && onRelease && (
+              <button
+                className="mr-btn mr-btn--primary mr-fab__release"
+                type="button"
+                disabled={releasing}
+                onClick={onRelease}
+              >
+                {releasing ? "Merging…" : "Merge into main"}
+              </button>
+            )}
+          </div>
         )}
       </div>
       {releaseError && (

@@ -75,12 +75,16 @@ export const STATUS_SEQUENCE: readonly RevisionStatus[] = [
  *   in-check  → at the front, being reviewed / resolved
  *   cleared   → reviewed, nothing outstanding, ready to merge
  *   released  → merged into the target
+ *   closed    → withdrawn without merging (ADR 0012 §3) — deliberately absent
+ *               from `STATUS_SEQUENCE`: it is a way off the line, not a step
+ *               along it, so the dial marks it rather than advancing to it.
  */
 const STATUS_LABEL: Record<RevisionStatus, string> = {
   received: "Queued",
   "in-check": "Under review",
   cleared: "Reviewed",
   released: "Merged",
+  closed: "Closed",
 };
 
 export function statusLabel(s: RevisionStatus): string {

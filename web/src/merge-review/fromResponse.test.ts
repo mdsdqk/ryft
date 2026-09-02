@@ -212,4 +212,9 @@ describe("mergeReviewFromResponse — queue status", () => {
     const review = mergeReviewFromResponse(response({ queue: { status: "queued", position: 2, ahead: 1, behind: 0 } }));
     expect(review.status).toBe("received");
   });
+
+  it("maps a closed request to Closed (ADR 0012 §3)", () => {
+    const review = mergeReviewFromResponse(response({ queue: { status: "closed", position: 0, ahead: 0, behind: 0 } }));
+    expect(review.status).toBe("closed");
+  });
 });

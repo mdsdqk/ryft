@@ -35,7 +35,7 @@ export const fixtureSource: DataSource = {
     };
   },
   listBranches: async () => branches.listAll(database, merges.listOpen()),
-  listMerges: async () => merges.listOpen(),
+  listMerges: async (state) => (state === "closed" ? merges.listClosed() : merges.listOpen()),
   createBranch: async (args: CreateBranchArgs) =>
     branches.createBranch(args, database, merges.listOpen()),
   deleteBranch: async (name: string) => {
@@ -51,4 +51,5 @@ export const fixtureSource: DataSource = {
     mergeReview.postResolution(id, conflictId, choice, type),
   deleteResolution: (id, conflictId) => mergeReview.deleteResolution(id, conflictId),
   mergeMergeRequest: (id) => mergeReview.mergeMergeRequest(id),
+  closeMergeRequest: (id) => mergeReview.closeMergeRequest(id),
 };

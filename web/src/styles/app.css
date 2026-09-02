@@ -303,6 +303,16 @@ kbd {
 .mr-dial__now[data-status="released"] {
   color: var(--ok);
 }
+/* closed: withdrawn, not failed — quiet ink, and the lifecycle it left behind
+ * goes fainter still rather than showing a marker it never reached. */
+.mr-dial__now[data-status="closed"] {
+  color: var(--ink-soft);
+}
+.mr-dial[data-closed="true"] .mr-dial__seq {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
 .mr-dial__seq {
   display: flex;
   gap: 6px;
@@ -469,10 +479,16 @@ kbd {
   padding: 6px 10px;
   color: var(--ink-soft);
 }
-.mr-chip[aria-pressed="true"] {
+.mr-chip[aria-pressed="true"],
+/* the chip is a real link when it selects a view rather than a filter — the
+ * view lives in the URL, so `aria-current` marks it instead of `aria-pressed` */
+a.mr-chip[aria-current="page"] {
   background: var(--ink);
   color: var(--sheet);
   border-color: var(--ink);
+}
+a.mr-chip {
+  text-decoration: none;
 }
 .mr-filters__count {
   font-family: var(--ff-mono);
@@ -1161,6 +1177,38 @@ kbd {
 }
 .mr-fab__status[data-released="true"] b {
   color: var(--ok);
+}
+
+/* closed: withdrawn, so it takes the same neutral treatment as queued — an
+ * outcome, not a fault. */
+.mr-fab__status[data-closed="true"] .mr-fab__dot {
+  background: var(--ink-faint);
+}
+.mr-fab__status[data-closed="true"] b {
+  color: var(--ink-soft);
+}
+.mr-fab__status[data-closed="true"] {
+  animation: none;
+}
+
+/* the queued note and the two actions share one trailing cluster, so "Close
+ * request" sits beside "Merge into main" instead of replacing it */
+.mr-fab__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.mr-fab__close {
+  margin: 0 24px 11px 0;
+}
+.mr-fab__actions .mr-fab__close + .mr-fab__release,
+.mr-fab__actions .mr-fab__queued + .mr-fab__close {
+  margin-inline-start: 0;
+}
+.mr-fab__actions .mr-fab__queued,
+.mr-fab__actions .mr-fab__close:not(:last-child) {
+  margin-inline-end: 0;
 }
 .mr-fab__err {
   margin: 0 24px 14px;
