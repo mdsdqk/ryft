@@ -99,10 +99,12 @@ export function SignInField() {
     const pointAt = (st: Strand, k: number, dT: number): [number, number] => {
       const x = k * W;
       const amp = ampEnv(k) * H * 0.042;
+      // `- dT` on every phase term makes constant-phase points travel toward
+      // higher k — i.e. the field drifts left → right
       const dy =
-        Math.sin(k * TAU * st.w1 + st.ph1 + dT * 0.45) * amp +
-        Math.sin(k * TAU * st.w2 + st.ph2 + dT * 0.9) * amp * 0.42 +
-        Math.sin(k * TAU * 0.6 + st.s * 3.0 + dT * 0.18) * amp * 0.55;
+        Math.sin(k * TAU * st.w1 + st.ph1 - dT * 0.45) * amp +
+        Math.sin(k * TAU * st.w2 + st.ph2 - dT * 0.9) * amp * 0.42 +
+        Math.sin(k * TAU * 0.6 + st.s * 3.0 - dT * 0.18) * amp * 0.55;
       return [x, lerp(BAND_T, BAND_B, st.s) * H + dy];
     };
 

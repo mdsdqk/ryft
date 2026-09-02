@@ -4,10 +4,10 @@
  * Tokens from theme.css; the border ladder and square corners from DESIGN.md.
  */
 
-/* the signed-out stage carries the field, so the gate sheet sits at the top-left
+/* the signed-out stage carries the field, so the gate sheet sits at the top-right
  * rather than centred. Only SignIn renders inside .shl-stage--solo. */
 .shl-stage--solo {
-  justify-content: flex-start;
+  justify-content: flex-end;
   align-items: flex-start;
   padding-inline: clamp(20px, 6vw, 88px);
 }
@@ -36,12 +36,12 @@
 .si-flabel--ours {
   color: var(--ours);
   top: 15%;
-  left: clamp(380px, 45%, 820px);
+  left: clamp(96px, 19%, 360px);
 }
 .si-flabel--theirs {
   color: var(--theirs);
   bottom: 15%;
-  right: clamp(380px, 45%, 820px);
+  left: clamp(64px, 12%, 260px);
 }
 @media (max-width: 720px) {
   .si-flabel {
