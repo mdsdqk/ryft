@@ -33,6 +33,11 @@ const retypeEmail = (n: number): Operation => ({
  * then opens the second — which now collides with what landed. Returns the
  * second's MR id and the id of its lone `divergent-retype` conflict. */
 async function openConflictedMr(): Promise<{ mrId: string; conflictId: string }> {
+  // the queue is strict FIFO — abandon the seeded contact-fields MR so the
+  // front is free and wide-email's request opens active.
+  const seeded = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ id: string }>;
+  if (seeded[0]) await app.request(`/api/merge-requests/${seeded[0].id}`, { method: "DELETE", headers: grace });
+
   await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "wide-email" }) });
   await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "wider-email" }) });
   await app.request("/api/branches/wide-email/operations", { method: "POST", headers: grace, body: JSON.stringify({ ops: [retypeEmail(500)] }) });

@@ -8,8 +8,9 @@
  * enforces nothing about their contents — every structural invariant is the
  * engine's job (ADR 0004 §1).
  *
- * `merge_request_resolutions` is defined here as the frozen contract even though
- * V0 code never writes it — resolution persistence is V1 (ADR 0010 §4).
+ * All six tables are the frozen ADR 0004 §1 contract. The `merge_request_status`
+ * enum carries all four values and `previewed_main_version` exists, so the V1
+ * merge queue (ADR 0004 §3–§6) needed no migration on top of this.
  */
 
 import {
@@ -98,7 +99,7 @@ export const mergeRequests = pgTable("merge_requests", {
   previewedMainVersion: integer("previewed_main_version").notNull(),
 });
 
-// ── stored conflict resolutions (ADR 0004 §6) — defined, unused until V1 ────
+// ── stored conflict resolutions (ADR 0004 §6) ──────────────────────────────
 
 export const mergeRequestResolutions = pgTable(
   "merge_request_resolutions",

@@ -27,6 +27,13 @@ neonConfig.poolQueryViaFetch = true; // one-shot queries over HTTP — no persis
 
 export type Db = NeonDatabase<typeof schema>;
 
+/**
+ * `db()` or a transaction handle from `db.transaction(cb)`. Read helpers in
+ * `views.ts` accept either so they can run inside the merge transaction (under
+ * its `FOR UPDATE` lock) or standalone from a `GET`.
+ */
+export type DbOrTx = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
+
 let singleton: Db | null = null;
 
 /** The process-wide handle. Lazily built; safe to call per request. */

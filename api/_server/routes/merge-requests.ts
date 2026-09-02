@@ -1,37 +1,64 @@
 /**
- * Merge-request routes (`docs/backend-contract.md` §3, ADR 0004 §3–§5,
- * ADR 0010 §4–§5). All behind the identity gate.
+ * Merge-request routes (`docs/backend-contract.md` §3–§6, ADR 0004 §3–§6).
+ * All behind the identity gate.
  *
- *  GET    /merge-requests           the open queue (non-terminal only)
- *  POST   /merge-requests           open one: freeze base / ours / theirs
- *  GET    /merge-requests/:id       recompute report + migration + queue framing
- *  POST   /merge-requests/:id/resolutions           record a conflict choice
- *  DELETE /merge-requests/:id/resolutions/:conflictId   drop a recorded choice
- *  POST   /merge-requests/:id/merge the V0 merge transaction (no row lock)
- *  DELETE /merge-requests/:id       abandon
+ *  GET    /merge-requests           the queue (non-terminal, oldest first)
+ *  POST   /merge-requests           enqueue one: `open` if the front is free, else `queued`
+ *  GET    /merge-requests/:id       recompute report + migration + real queue framing
+ *  POST   /merge-requests/:id/resolutions           record a conflict choice (front MR only)
+ *  DELETE /merge-requests/:id/resolutions/:conflictId   drop a recorded choice (front MR only)
+ *  POST   /merge-requests/:id/merge the merge transaction (§4 — `SELECT … FOR UPDATE`)
+ *  DELETE /merge-requests/:id       abandon; promote the next queued MR if this one was active
  *
- * V0: status is only `open` or `merged`; there is no queue, no `held`
- * persistence. Conflict resolutions DO persist (ADR 0004 §6) — they are keyed by
- * the engine's `${class}:${sortedObjectIds}` conflict id against the frozen
- * triple. A second open request from a *different* source is allowed.
+ * The queue is strict single-file FIFO: at most one MR per target branch is
+ * `open` or `held` (the front). Every mutating route locks the target
+ * `branches` row (`FOR UPDATE`) so creates, merges, and promotions serialize.
+ * Conflict resolutions persist (ADR 0004 §6), keyed by the engine's
+ * `${class}:${sortedObjectIds}` conflict id.
  */
 
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, eq } from "drizzle-orm";
-import { threeWayMerge } from "../../../engine/merge.js";
+import { and, asc, eq } from "drizzle-orm";
 import { emitMigration } from "../../../engine/emit.js";
 import type { ColumnType } from "../../../engine/schema.js";
 import type { MergeMarker } from "../../../src/domain/operations.js";
+import type { DbOrTx } from "../db/client.js";
 import type { Env } from "../app.js";
 import { branches, mergeRequests, mergeRequestResolutions, operations } from "../db/schema.js";
-import { assembleMergeResponse, listOpenMergeSummaries, resolveMerge } from "../views.js";
+import {
+  assembleMergeResponse,
+  listOpenMergeSummaries,
+  resolveMerge,
+  revalidationKickback,
+} from "../views.js";
+import { threeWayMerge } from "../../../engine/merge.js";
 
 export const mergeRequestRoutes = new Hono<Env>();
 
-const nextSeq = async (db: Env["Variables"]["db"], branchName: string): Promise<number> => {
+const nextSeq = async (db: DbOrTx, branchName: string): Promise<number> => {
   const rows = await db.select({ seq: operations.seq }).from(operations).where(eq(operations.branchName, branchName));
   return rows.reduce((m, r) => Math.max(m, r.seq), 0) + 1;
+};
+
+/** Is there an `open` or `held` MR for `target` right now? (the front is taken) */
+const frontTaken = async (db: DbOrTx, target: string): Promise<boolean> => {
+  const rows = await db
+    .select({ status: mergeRequests.status })
+    .from(mergeRequests)
+    .where(eq(mergeRequests.targetBranch, target));
+  return rows.some((r) => r.status === "open" || r.status === "held");
+};
+
+/** Promote the oldest `queued` MR for `target` to `open` (its triple refreshes on next GET). */
+const promoteNext = async (db: DbOrTx, target: string): Promise<void> => {
+  const [next] = await db
+    .select({ id: mergeRequests.id })
+    .from(mergeRequests)
+    .where(and(eq(mergeRequests.targetBranch, target), eq(mergeRequests.status, "queued")))
+    .orderBy(asc(mergeRequests.createdAt))
+    .limit(1);
+  if (next) await db.update(mergeRequests).set({ status: "open" }).where(eq(mergeRequests.id, next.id));
 };
 
 mergeRequestRoutes.get("/merge-requests", async (c) => {
@@ -49,27 +76,35 @@ mergeRequestRoutes.post("/merge-requests", async (c) => {
   const [source] = await db.select().from(branches).where(eq(branches.name, src));
   if (!source) throw new HTTPException(404, { message: `no branch "${src}"` });
 
-  const existing = await db.select().from(mergeRequests).where(eq(mergeRequests.sourceBranch, src));
-  const live = existing.find((m) => m.status !== "merged");
-  if (live) {
-    return c.json({ error: "merge-request-exists", mergeRequestId: live.id }, 409);
-  }
+  const created = await db.transaction(async (tx) => {
+    // lock the target row so status assignment (`open` vs `queued`) is race-free
+    const [main] = await tx.select().from(branches).where(eq(branches.name, "main")).for("update");
 
-  const [main] = await db.select().from(branches).where(eq(branches.name, "main"));
-  const [mr] = await db
-    .insert(mergeRequests)
-    .values({
-      sourceBranch: src,
-      targetBranch: "main",
-      authorId: actor.id,
-      status: "open",
-      base: source.baseSnapshot,
-      ours: source.head,
-      theirs: main.head,
-      previewedMainVersion: main.headVersion,
-    })
-    .returning();
-  return c.json(await assembleMergeResponse(db, mr), 201);
+    const existing = await tx.select().from(mergeRequests).where(eq(mergeRequests.sourceBranch, src));
+    const live = existing.find((m) => m.status !== "merged");
+    if (live) return { conflict: live.id as string };
+
+    const status = (await frontTaken(tx, "main")) ? ("queued" as const) : ("open" as const);
+    const [mr] = await tx
+      .insert(mergeRequests)
+      .values({
+        sourceBranch: src,
+        targetBranch: "main",
+        authorId: actor.id,
+        status,
+        base: source.baseSnapshot,
+        ours: source.head,
+        theirs: main.head,
+        previewedMainVersion: main.headVersion,
+      })
+      .returning();
+    return { mr };
+  });
+
+  if ("conflict" in created) {
+    return c.json({ error: "merge-request-exists", mergeRequestId: created.conflict }, 409);
+  }
+  return c.json(await assembleMergeResponse(db, created.mr), 201);
 });
 
 mergeRequestRoutes.get("/merge-requests/:id", async (c) => {
@@ -84,8 +119,8 @@ mergeRequestRoutes.post("/merge-requests/:id/resolutions", async (c) => {
   const actor = c.get("actor");
   const [mr] = await db.select().from(mergeRequests).where(eq(mergeRequests.id, c.req.param("id")));
   if (!mr) throw new HTTPException(404, { message: "no such merge request" });
-  if (mr.status === "merged") {
-    return c.json({ error: "not-open", status: mr.status }, 409);
+  if (mr.status !== "open" && mr.status !== "held") {
+    return c.json({ error: "not-front", status: mr.status }, 409);
   }
 
   const body = await c.req
@@ -137,8 +172,8 @@ mergeRequestRoutes.delete("/merge-requests/:id/resolutions/:conflictId", async (
   const db = c.get("db");
   const [mr] = await db.select().from(mergeRequests).where(eq(mergeRequests.id, c.req.param("id")));
   if (!mr) throw new HTTPException(404, { message: "no such merge request" });
-  if (mr.status === "merged") {
-    return c.json({ error: "not-open", status: mr.status }, 409);
+  if (mr.status !== "open" && mr.status !== "held") {
+    return c.json({ error: "not-front", status: mr.status }, 409);
   }
 
   await db
@@ -156,36 +191,45 @@ mergeRequestRoutes.delete("/merge-requests/:id/resolutions/:conflictId", async (
 mergeRequestRoutes.post("/merge-requests/:id/merge", async (c) => {
   const db = c.get("db");
   const actor = c.get("actor");
-  const [mr] = await db.select().from(mergeRequests).where(eq(mergeRequests.id, c.req.param("id")));
-  if (!mr) throw new HTTPException(404, { message: "no such merge request" });
-  if (mr.status !== "open") {
-    return c.json({ error: "not-open", status: mr.status }, 409);
-  }
+  const id = c.req.param("id");
+  const [pre] = await db.select().from(mergeRequests).where(eq(mergeRequests.id, id));
+  if (!pre) throw new HTTPException(404, { message: "no such merge request" });
 
-  // Re-read both heads live and re-run against current `main` (ADR 0010 §5),
-  // folding in whatever conflict resolutions have been recorded (ADR 0004 §6).
-  const [source] = await db.select().from(branches).where(eq(branches.name, mr.sourceBranch));
-  const [main] = await db.select().from(branches).where(eq(branches.name, mr.targetBranch));
-  const { merged, report } = await resolveMerge(db, mr, {
-    base: mr.base,
-    ours: source.head,
-    theirs: main.head,
-  });
+  // The whole thing in one transaction under a `FOR UPDATE` lock on the target
+  // branch row — serializes concurrent merges and every queue promotion (§4).
+  const result = await db.transaction(async (tx) => {
+    const [main] = await tx.select().from(branches).where(eq(branches.name, pre.targetBranch)).for("update");
+    const [mr] = await tx.select().from(mergeRequests).where(eq(mergeRequests.id, id)); // re-read under the lock
+    if (!mr) return { kind: "gone" as const };
+    if (mr.status !== "open" && mr.status !== "held") {
+      return { kind: "not-front" as const, status: mr.status };
+    }
 
-  if (!merged) {
-    return c.json({ error: "revalidation-failed", report }, 409);
-  }
+    // live heads inside the lock; re-run against live `main.head`, never frozen `theirs`
+    const [source] = await tx.select().from(branches).where(eq(branches.name, mr.sourceBranch));
+    const { merged, report, migration, droppedResolutions } = await resolveMerge(tx, mr, {
+      base: mr.base,
+      ours: source.head,
+      theirs: main.head,
+    });
 
-  const migration = emitMigration(main.head, merged);
-  const now = new Date();
-  const marker: MergeMarker = { type: "merge", mergeRequestId: mr.id, sourceBranch: mr.sourceBranch };
-  const seq = await nextSeq(db, main.name);
+    if (!merged) {
+      // kick back: hold, refresh the triple so the next GET shows the current
+      // three-way, keep the place at the front (§4, §6).
+      await tx
+        .update(mergeRequests)
+        .set({ status: "held", ours: source.head, theirs: main.head, previewedMainVersion: main.headVersion })
+        .where(eq(mergeRequests.id, mr.id));
+      const body = await revalidationKickback(tx, mr, report, droppedResolutions);
+      return { kind: "kickback" as const, body };
+    }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(branches)
-      .set({ head: merged, headVersion: main.headVersion + 1 })
-      .where(eq(branches.name, main.name));
+    const now = new Date();
+    const newVersion = main.headVersion + 1;
+    const seq = await nextSeq(tx, main.name);
+    const marker: MergeMarker = { type: "merge", mergeRequestId: mr.id, sourceBranch: mr.sourceBranch };
+
+    await tx.update(branches).set({ head: merged, headVersion: newVersion }).where(eq(branches.name, main.name));
     await tx.insert(operations).values({
       branchName: main.name,
       seq,
@@ -200,18 +244,33 @@ mergeRequestRoutes.post("/merge-requests/:id/merge", async (c) => {
         mergedAt: now,
         ours: source.head,
         theirs: main.head,
-        previewedMainVersion: main.headVersion,
+        previewedMainVersion: newVersion,
       })
       .where(eq(mergeRequests.id, mr.id));
+    await promoteNext(tx, mr.targetBranch);
+
+    return { kind: "merged" as const, migration: migration ?? emitMigration(main.head, merged) };
   });
 
-  return c.json({ status: "merged", migration });
+  if (result.kind === "gone") throw new HTTPException(404, { message: "no such merge request" });
+  if (result.kind === "not-front") return c.json({ error: "not-front", status: result.status }, 409);
+  if (result.kind === "kickback") return c.json(result.body, 409);
+  return c.json({ status: "merged", migration: result.migration });
 });
 
 mergeRequestRoutes.delete("/merge-requests/:id", async (c) => {
   const db = c.get("db");
-  const [mr] = await db.select({ id: mergeRequests.id }).from(mergeRequests).where(eq(mergeRequests.id, c.req.param("id")));
-  if (!mr) throw new HTTPException(404, { message: "no such merge request" });
-  await db.delete(mergeRequests).where(eq(mergeRequests.id, mr.id));
+  const id = c.req.param("id");
+  const [pre] = await db.select().from(mergeRequests).where(eq(mergeRequests.id, id));
+  if (!pre) throw new HTTPException(404, { message: "no such merge request" });
+
+  await db.transaction(async (tx) => {
+    await tx.select().from(branches).where(eq(branches.name, pre.targetBranch)).for("update");
+    const [mr] = await tx.select({ status: mergeRequests.status }).from(mergeRequests).where(eq(mergeRequests.id, id));
+    if (!mr) return;
+    await tx.delete(mergeRequests).where(eq(mergeRequests.id, id)); // resolutions cascade
+    if (mr.status === "open" || mr.status === "held") await promoteNext(tx, pre.targetBranch);
+  });
+
   return c.json({ ok: true });
 });
