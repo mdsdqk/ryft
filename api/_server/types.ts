@@ -58,6 +58,19 @@ export type Overview = {
   merges: MergeSummary[];
 };
 
+/**
+ * One row of the `deleted_branches` archive — `GET /branches/deleted` (ADR 0013).
+ * `divergence` is the `base` → `head` delta count frozen at deletion, the same
+ * cheap `diffSnapshots` the live list runs.
+ */
+export type DeletedBranchSummary = {
+  name: string;
+  author: string;
+  /** ISO-8601 timestamp the branch was dropped */
+  deletedAt: string;
+  divergence: number;
+};
+
 export type SessionResponse = { user: User; organization: Organization };
 
 export type BranchDetail = {

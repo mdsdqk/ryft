@@ -3,9 +3,10 @@
  * identity gate.
  *
  *  GET    /branches                list summaries (trunk first)
+ *  GET    /branches/deleted        list the archived (dropped) branches (ADR 0013)
  *  GET    /branches/:name          head + base documents, divergence, open MR id
  *  POST   /branches                cut a working branch from `main`
- *  DELETE /branches/:name          drop a working branch
+ *  DELETE /branches/:name          drop a working branch — archive-then-delete (ADR 0013)
  *  POST   /branches/:name/operations   apply a batch through applyOperation
  *  GET    /branches/:name/operations   the whole log, ascending seq
  *  DELETE /branches/:name/operations?after=<seq>   undo: drop every op past <seq>
@@ -19,8 +20,8 @@ import { validateDocument } from "../../../engine/validate.js";
 import type { Operation } from "../../../engine/operations.js";
 import type { SchemaDocument } from "../../../engine/schema.js";
 import type { Env } from "../app.js";
-import { branches, mergeRequests, operations } from "../db/schema.js";
-import { assembleBranchDetail, listBranchSummaries } from "../views.js";
+import { branches, deletedBranches, mergeRequests, operations } from "../db/schema.js";
+import { assembleBranchDetail, listBranchSummaries, listDeletedBranches } from "../views.js";
 import type { LogEntry, OperationsResponse, UndoResponse } from "../types.js";
 
 export const branchRoutes = new Hono<Env>();
@@ -30,6 +31,11 @@ const BRANCH_NAME = /^[a-z][a-z0-9_-]{0,38}$/;
 
 branchRoutes.get("/branches", async (c) => {
   return c.json(await listBranchSummaries(c.get("db")));
+});
+
+// Registered before `/branches/:name` so `deleted` is not read as a branch name.
+branchRoutes.get("/branches/deleted", async (c) => {
+  return c.json(await listDeletedBranches(c.get("db")));
 });
 
 branchRoutes.get("/branches/:name", async (c) => {
@@ -69,10 +75,11 @@ branchRoutes.post("/branches", async (c) => {
 
 branchRoutes.delete("/branches/:name", async (c) => {
   const db = c.get("db");
+  const actor = c.get("actor");
   const name = c.req.param("name");
   if (name === "main") throw new HTTPException(403, { message: "main cannot be deleted" });
 
-  const [b] = await db.select({ name: branches.name }).from(branches).where(eq(branches.name, name));
+  const [b] = await db.select().from(branches).where(eq(branches.name, name));
   if (!b) throw new HTTPException(404, { message: `no branch "${name}"` });
 
   const mrs = await db
@@ -84,7 +91,23 @@ branchRoutes.delete("/branches/:name", async (c) => {
     return c.json({ error: "blocked-by-merge-request", mergeRequestId: blocking.id }, 409);
   }
 
-  await db.delete(branches).where(eq(branches.name, name)); // operations cascade
+  // Archive-then-delete in one transaction (ADR 0013): copy the whole row into
+  // `deleted_branches`, then drop it from `branches` (operations cascade). The
+  // branch leaves `branches` — the primary key on `name` is freed — so the name
+  // can be cut again, and the archived row keeps the deleted list.
+  await db.transaction(async (tx) => {
+    await tx.insert(deletedBranches).values({
+      name: b.name,
+      organizationId: b.organizationId,
+      authorId: b.authorId,
+      createdAt: b.createdAt,
+      head: b.head,
+      baseSnapshot: b.baseSnapshot,
+      headVersion: b.headVersion,
+      deletedById: actor.id,
+    });
+    await tx.delete(branches).where(eq(branches.name, name));
+  });
   return c.json({ ok: true });
 });
 

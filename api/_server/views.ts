@@ -13,11 +13,12 @@ import { emitMigration, type Migration } from "../../engine/emit.js";
 import type { SchemaDocument, ColumnType } from "../../engine/schema.js";
 import type { MergeReport, Resolution } from "../../engine/merge-types.js";
 import type { Db, DbOrTx } from "./db/client.js";
-import { branches, mergeRequests, mergeRequestResolutions, operations, users } from "./db/schema.js";
+import { branches, deletedBranches, mergeRequests, mergeRequestResolutions, operations, users } from "./db/schema.js";
 import type {
   Database,
   BranchDetail,
   BranchSummary,
+  DeletedBranchSummary,
   MergeKickback,
   MergeRequestResponse,
   MergeSummary,
@@ -280,6 +281,24 @@ export async function listBranchSummaries(db: Db): Promise<BranchSummary[]> {
   });
   out.sort((a, b) => (a.trunk ? -1 : b.trunk ? 1 : a.name.localeCompare(b.name)));
   return out;
+}
+
+/**
+ * The `deleted_branches` archive, most-recently dropped first (ADR 0013). Each
+ * row is a whole branch moved off `branches` at delete time; `author` is the
+ * branch's author resolved to a display name, `divergence` the frozen
+ * `base` → `head` delta count.
+ */
+export async function listDeletedBranches(db: Db): Promise<DeletedBranchSummary[]> {
+  const [rows, names] = await Promise.all([db.select().from(deletedBranches), nameMap(db)]);
+  return rows
+    .map((r) => ({
+      name: r.name,
+      author: names.get(r.authorId) ?? r.authorId,
+      deletedAt: r.deletedAt.toISOString(),
+      divergence: diffSnapshots(r.baseSnapshot, r.head).length,
+    }))
+    .sort((a, b) => (a.deletedAt === b.deletedAt ? a.name.localeCompare(b.name) : a.deletedAt < b.deletedAt ? 1 : -1));
 }
 
 /** The open-merge queue (non-terminal only — the shape has no "merged" state). */
