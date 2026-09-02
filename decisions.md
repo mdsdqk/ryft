@@ -952,6 +952,29 @@ with its own UI, left as a follow-up. On `/branches` the list is a collapsed hai
 the foot of the sheet, not a new route. The `schema.ts` table is added here; generating the
 Drizzle migration is the consolidating branch's step.
 
+### `main`'s revision counter is the merge-marker count, derived not stored
+
+Usability review, theme H (ADR 0014). The web fixture carried a hardcoded `@ rev 41` on the
+rail and the `/db` subtitle; the review pulled it, then asked for it back backed by a real
+number. A revision of `main` is one landed merge — 0 at seed, `+1` per successful merge, and
+nothing else moves `main` because it is never edited directly.
+
+`main.headVersion` already equals that count today: the merge transaction bumps it once per
+merge and nothing else writes `main`'s row. But `head_version` is the per-edit counter on
+working branches (bumped by `POST .../operations` and undo), kept only so a merge-request
+`GET` can say "you previewed against `main@v3`". `main`'s value lining up is a side effect of
+`main` being uneditable, not something the field promises. So `assembleOverview` derives
+`trunkRevision` from the count of `MergeMarker` rows in `main`'s op log — the same rows the
+new `revisions` list is built from — and no column is added.
+
+The list is `{ n, sourceBranch, at, summary }` per merge, newest first, capped at ten, on
+`GET /overview`. `n` is the real revision number (the newest entry's `n` is `trunkRevision`).
+The marker is thin — `{ type, mergeRequestId, sourceBranch }` plus the row's `at`/`authorId` —
+so `summary` is just "merged by \<name\>", the one fact not already in the other fields. No
+per-merge object counts or delta descriptions: `main`'s head is not snapshotted per merge and
+the marker stores no description, and this deliberately does not grow a history subsystem to
+invent them. The `/db` dashboard renders the list as a hairline Revisions zone below Branches.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:
