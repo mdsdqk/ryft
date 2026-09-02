@@ -20,8 +20,8 @@
  *
  * MOTION: one mechanical moment — the error row (a `1px --conflict-edge` rule
  * across the sheet, plus the message) wipes in left to right via
- * `clip-path: inset(0 100% 0 0)` → `inset(0 0 0 0)`. Honours
- * `prefers-reduced-motion` through the global reset.
+ * `clip-path: inset(0 100% 0 0)` → `inset(0 0 0 0)` (`ryft-rule-in` in
+ * `theme.css`). Honours `prefers-reduced-motion` through the global reset.
  *
  * AUTH PATTERN: `authenticate()` (session/session.ts) is the single async seam;
  * V1 swaps its body for `POST /session` and this surface does not change. See

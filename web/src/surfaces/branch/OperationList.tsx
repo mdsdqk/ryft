@@ -23,9 +23,11 @@ function clock(iso: string): string {
 export function OperationList({
   entries,
   nameOf,
+  landedSeq = null,
 }: {
   entries: BranchOperationEntry[];
   nameOf: NameOf;
+  landedSeq?: number | null;
 }) {
   return (
     <section className="bw-ops" aria-labelledby="bw-ops-h">
@@ -38,7 +40,10 @@ export function OperationList({
       ) : (
         <ol className="bw-ops__list">
           {entries.map((e) => (
-            <li key={e.seq} className="bw-ops__entry">
+            <li
+              key={e.seq}
+              className={`bw-ops__entry${e.seq === landedSeq ? " bw-ops__entry--landing" : ""}`}
+            >
               <span className="bw-ops__node" aria-hidden="true" />
               <span className="bw-ops__meta">
                 <span className="bw-ops__tag">△{e.seq}</span>

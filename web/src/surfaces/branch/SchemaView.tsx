@@ -11,7 +11,7 @@
  * (grill Q6).
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SchemaDocument } from "@engine/schema.js";
 import { OperationBlockedError } from "@engine/apply-operation.js";
@@ -73,6 +73,24 @@ export function SchemaView({
   const markOf = (id: string) => marks.get(id);
   const [undoing, setUndoing] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [landedSeq, setLandedSeq] = useState<number | null>(null);
+  const prevMaxSeq = useRef<number | null>(null);
+
+  useEffect(() => {
+    prevMaxSeq.current = null;
+    setLandedSeq(null);
+  }, [name]);
+
+  useEffect(() => {
+    const maxSeq = operations.reduce((m, e) => Math.max(m, e.seq), 0);
+    const prev = prevMaxSeq.current;
+    if (prev === null) {
+      prevMaxSeq.current = maxSeq;
+      return;
+    }
+    if (maxSeq > prev) setLandedSeq(maxSeq);
+    prevMaxSeq.current = maxSeq;
+  }, [operations]);
 
   const collapseKeys = useMemo(
     () =>
@@ -156,6 +174,7 @@ export function SchemaView({
               tables={head.tables}
               nameOf={nameOf}
               markOf={markOf}
+              landedSeq={landedSeq}
               apply={apply}
               editable={editable}
               cardCollapsed={collapse.isCollapsed(t.id)}
@@ -167,7 +186,7 @@ export function SchemaView({
         </div>
       </div>
       <aside className="bw-rail">
-        <OperationList entries={operations} nameOf={nameOf} />
+        <OperationList entries={operations} nameOf={nameOf} landedSeq={landedSeq} />
         {editable && last && (
           <button className="bw-undo" type="button" disabled={undoing} onClick={() => void undoLast()}>
             {undoing ? "Undoing…" : `Undo △${last.seq} — ${summarizeOp(last.op, nameOf)}`}

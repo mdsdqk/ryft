@@ -48,6 +48,9 @@
   --ff-mono: "Spline Sans Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   --step: 4px;
+
+  /* the one motion curve — dial advance, clear-sweep, ruled-line wipe, apply stamp */
+  --ease-mark: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :root[data-theme="dark"] {
@@ -200,5 +203,15 @@ button {
     animation-duration: 1ms !important;
     transition-duration: 90ms !important;
     transition-timing-function: ease-out !important;
+  }
+}
+
+/* a ruled line drawn left to right — sign-in errors, then every alert */
+@keyframes ryft-rule-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }

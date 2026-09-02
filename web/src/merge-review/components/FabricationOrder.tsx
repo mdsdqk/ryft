@@ -1,6 +1,107 @@
+import { useEffect, useRef, useState } from "react";
+
 import type { MergeReview } from "../model.ts";
 import { effectiveStatus, isMergeable, openConflicts } from "../model.ts";
 import { statusLabel } from "../format.ts";
+
+/**
+ * Irreversible merge into main — hold 2s on a pointer, or Enter then Enter on
+ * the keyboard. A slip click must not fire. The fill lives in CSS (clip-path on
+ * ::before; background-color under reduced motion).
+ */
+function MergeIntoMainButton({
+  releasing,
+  onRelease,
+}: {
+  releasing: boolean;
+  onRelease: () => void;
+}) {
+  const [holding, setHolding] = useState(false);
+  const [keyed, setKeyed] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const firedRef = useRef(false);
+
+  const stopHold = () => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setHolding(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (releasing) {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      setHolding(false);
+      setKeyed(false);
+    } else {
+      firedRef.current = false;
+    }
+  }, [releasing]);
+
+  const fire = () => {
+    if (firedRef.current || releasing) return;
+    firedRef.current = true;
+    stopHold();
+    setKeyed(false);
+    onRelease();
+  };
+
+  return (
+    <button
+      className="mr-btn mr-btn--primary mr-fab__release"
+      type="button"
+      disabled={releasing}
+      data-holding={holding ? "true" : undefined}
+      data-keyed={keyed ? "true" : undefined}
+      aria-label={
+        releasing
+          ? "Merging"
+          : keyed
+            ? "Press Enter again to merge into main"
+            : "Merge into main. Hold for two seconds, or press Enter twice."
+      }
+      onPointerDown={(e) => {
+        if (e.button !== 0 || releasing) return;
+        firedRef.current = false;
+        setHolding(true);
+        timerRef.current = setTimeout(fire, 2000);
+      }}
+      onPointerUp={stopHold}
+      onPointerLeave={stopHold}
+      onPointerCancel={stopHold}
+      onClick={(e) => e.preventDefault()}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          setKeyed(false);
+          return;
+        }
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        if (releasing) return;
+        if (!keyed) {
+          setKeyed(true);
+          return;
+        }
+        fire();
+      }}
+      onBlur={() => setKeyed(false)}
+    >
+      <span className="mr-fab__release-label">
+        {releasing ? "Merging…" : keyed ? "Confirm merge" : "Merge into main"}
+      </span>
+    </button>
+  );
+}
 
 /**
  * Zone D — the fabrication order. The ordered, forward-only DDL that comes out of
@@ -186,14 +287,7 @@ export function FabricationOrder({
               </button>
             )}
             {!queued && canRelease && onRelease && (
-              <button
-                className="mr-btn mr-btn--primary mr-fab__release"
-                type="button"
-                disabled={releasing}
-                onClick={onRelease}
-              >
-                {releasing ? "Merging…" : "Merge into main"}
-              </button>
+              <MergeIntoMainButton releasing={releasing} onRelease={onRelease} />
             )}
           </div>
         )}

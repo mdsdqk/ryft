@@ -73,6 +73,40 @@
   display: grid;
   gap: 8px;
   min-width: 320px;
+  transform-origin: top right;
+  opacity: 0;
+  transform: scale(0.97);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+.app-bar__keys[open] .keymap {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 180ms var(--ease-mark),
+    transform 180ms var(--ease-mark);
+}
+@starting-style {
+  .app-bar__keys[open] .keymap {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.app-bar__keys::details-content {
+  transition: content-visibility 140ms allow-discrete, display 140ms allow-discrete;
+}
+.app-bar__keys[open]::details-content {
+  transition: content-visibility 180ms allow-discrete, display 180ms allow-discrete;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-bar__keys .keymap,
+  .app-bar__keys[open] .keymap {
+    transform: none;
+  }
+  @starting-style {
+    .app-bar__keys[open] .keymap {
+      transform: none;
+    }
+  }
 }
 .keymap div {
   display: grid;
@@ -1150,6 +1184,40 @@ a.mr-chip {
 }
 .mr-fab__release {
   margin: 0 24px 11px 0;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.mr-fab__release::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--ok);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 200ms var(--ease-mark);
+  pointer-events: none;
+  z-index: 0;
+}
+.mr-fab__release[data-holding="true"]::before {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 2s linear;
+}
+.mr-fab__release-label {
+  position: relative;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mr-fab__release::before {
+    content: none;
+  }
+  .mr-fab__release[data-holding="true"] {
+    background-color: var(--ok);
+    transition: background-color 2s linear !important;
+    transition-timing-function: linear !important;
+  }
+  .mr-fab__release:not([data-holding="true"]) {
+    transition: background-color 200ms var(--ease-mark) !important;
+  }
 }
 
 /* queued: neutral, not an error — the request simply isn't at the front yet */
@@ -1215,6 +1283,7 @@ a.mr-chip {
   font-family: var(--ff-mono);
   font-size: 12px;
   color: var(--conflict);
+  animation: ryft-rule-in 260ms var(--ease-mark) both;
 }
 @keyframes mr-clear-sweep {
   from {
