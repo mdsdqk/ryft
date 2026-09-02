@@ -194,6 +194,7 @@ export function Dashboard() {
   // `?empty` is deterministic here, not just through the data seam (parity with
   // /merges, which filters locally)
   const merges = forceEmpty ? [] : data.merges;
+  const revisions = forceEmpty ? [] : data.revisions;
   let branches = forceEmpty ? [] : [...data.branches].sort(byRecent);
   if (forceBusy) branches = padBusy(branches);
   if (forceLong) branches = withLongName(branches);
@@ -335,6 +336,22 @@ export function Dashboard() {
                     </MoreRow>
                   )}
                 </>
+              )}
+            </SheetList>
+          </Zone>
+
+          <Zone title="Revisions" count={db.trunkRevision}>
+            <SheetList label="Recent revisions">
+              {revisions.length === 0 ? (
+                <EmptyState layout="row" title="No merges into main yet." />
+              ) : (
+                revisions.map((r) => (
+                  <Row
+                    key={r.n}
+                    primary={`revision ${r.n} · ${r.sourceBranch} → ${db.trunk}`}
+                    meta={`${r.at} · ${r.summary}`}
+                  />
+                ))
               )}
             </SheetList>
           </Zone>

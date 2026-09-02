@@ -20,6 +20,7 @@ export type {
   DeletedBranchSummary,
   MergeSummary,
   Overview,
+  TrunkRevision,
   BranchDetail,
   BranchOperationEntry,
   ApplyOpsResult,

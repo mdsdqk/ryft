@@ -75,11 +75,30 @@ export type DeletedBranchSummary = {
   divergence: number;
 };
 
+/**
+ * One entry in `main`'s revision history — a merge that has landed on trunk.
+ * Mirrors the API's `TrunkRevision` (docs/backend-contract.md §4). Newest first,
+ * capped at ten; `n` is the real revision number, so the newest entry's `n`
+ * equals `Database.trunkRevision`.
+ */
+export type TrunkRevision = {
+  /** revision number — 1 for the first merge into `main` */
+  n: number;
+  /** the branch whose merge produced this revision */
+  sourceBranch: string;
+  /** ISO-8601 date the merge landed */
+  at: string;
+  /** who ran the merge — the one fact not already in `sourceBranch`/`at` */
+  summary: string;
+};
+
 /** The landing aggregate — everything the rail and the dashboard need in one read. */
 export type Overview = {
   database: Database;
   branches: BranchSummary[];
   merges: MergeSummary[];
+  /** `main`'s recent revisions, newest first (at most ten) */
+  revisions: TrunkRevision[];
 };
 
 /**
