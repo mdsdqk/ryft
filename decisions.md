@@ -899,6 +899,42 @@ small visual tweaks carried alongside (column-spec keyword casing, the app-bar s
 cluster, the rail naming the open entity) are in ADR 0011. Prompted by
 `docs/usability-review-triage.md`.
 
+### A merge request re-freezes `ours` on every read, and can be closed without merging
+
+ADR 0012. The same usability review that produced ADR 0011 also found two things that were
+not vocabulary. The first: open a merge request, keep editing the branch, and the merge screen
+goes on showing the schema as it was at creation. That was ADR 0004 §5 working as specified —
+the triple refreshes on a merge attempt or on promotion, and nothing else — and specified
+wrong. The merge transaction already re-reads `source.head` live inside its lock; the fix was
+to stop making a merge click the only moment that read happens. So `ours` now follows the
+source branch's head on every read, for queued requests as much as active ones. `base` never
+moves, because it is what the three-way is a merge *of*. `theirs` still only follows live
+`main` for the active request — a queued one keeps the `main` it was previewed against, since
+`stale` is the honest report that the trunk moved while it waited, and refreshing `theirs`
+would erase the fact `stale` exists to state. Terminal requests are never re-frozen: a merged
+request stays reproducible only because its triple holds exactly what the merge used.
+
+That refresh re-triggers ADR 0004 §6's re-validation on every read, which means an author can
+now un-choose their own conflict resolutions by editing their branch. `droppedResolutions` was
+already computed and already on the response — it just never reached anywhere but the `409`
+kick-back body. It now renders as a non-blocking line on the merge screen naming each choice
+that no longer applies and why. The rendering is client-side, per ADR 0004 §7: the raw pair
+already carries everything, because the `conflictId` *is* the class plus the object ids.
+
+The second gap: the status enum had no way to say "withdrawn". `DELETE` hard-deleted the row
+and took its resolutions with it, so "we decided not to do this" and "this never existed" were
+one operation, and there was nowhere to see what had been abandoned. So `closed` joins the
+enum with a `closed_at`, and `POST /merge-requests/:id/close` keeps the row while promoting
+the next queued request exactly as abandoning it already did. `closed` is terminal alongside
+`merged` — same queue exit, same source-branch release, same no-refresh — which collapsed a
+scatter of `!== "merged"` checks into one `isTerminal`. Closing a merged request is refused;
+closing a closed one is a no-op. The hard `DELETE` survives as the escape valve for a request
+that should leave no record at all, and nothing in the web app calls it. On the screen, "Close
+request" sits beside "Merge into main" because the two are one decision, and the status dial
+does not gain a fifth step: `closed` is a way off the Queued → Under review → Reviewed →
+Merged line rather than a point along it. Prompted by `docs/usability-review-triage.md`
+(themes D-12 and F1+F3).
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:
