@@ -31,4 +31,5 @@ export {
   heldByMergeMessage,
 } from "./branches.ts";
 export { BranchNotFoundError } from "./branchSchema.ts";
-export { mergeStatusLabel, mergeStatusTone } from "./merges.ts";
+export { mergeStatusLabel, mergeStatusTone, MergeRequestNotFoundError } from "./merges.ts";
+export type { MergeReview } from "../merge-review/model.ts";

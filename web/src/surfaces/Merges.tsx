@@ -143,10 +143,6 @@ export function Merges() {
           </EmptyState>
         ) : (
           <SurfaceBody>
-            <p className="mg-demo-note">
-              Demonstration queue — every row opens the same worked sample review
-              until fetch-by-id lands with the API.
-            </p>
             <SheetList label="Open merge requests">
               {rows.map((merge) => (
                 <Row

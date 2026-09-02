@@ -14,6 +14,7 @@ import * as branches from "./branches.ts";
 import * as branchSchema from "./branchSchema.ts";
 import { database, overviewExerciseEmpty } from "./database.ts";
 import * as merges from "./merges.ts";
+import * as mergeReview from "./mergeReview.ts";
 
 const clone = <T>(v: T): T => structuredClone(v);
 
@@ -45,4 +46,7 @@ export const fixtureSource: DataSource = {
   applyOperations: (name, ops) => branchSchema.applyOperations(name, ops),
   undoAfter: (name, seq) => branchSchema.undoAfter(name, seq),
   createMergeRequest: (name) => branchSchema.createMergeRequest(name),
+  getMergeReview: (id) => mergeReview.getById(id),
+  postResolution: (id) => mergeReview.postResolution(id),
+  deleteResolution: (id) => mergeReview.deleteResolution(id),
 };

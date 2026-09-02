@@ -136,23 +136,38 @@ frontend.
 
 ## 4. The V0 endpoint subset
 
-V0 ships the `docs/backend-contract.md` §3 table **minus the queue machinery and the
-resolutions routes**:
+V0 ships the `docs/backend-contract.md` §3 table **minus the queue machinery**:
 
 **Ships now:** `POST /session`, `POST /workspace/reset` (with `?bare`), `GET /overview`,
 `GET /branches`, `GET /branches/:name`, `POST /branches`, `DELETE /branches/:name`,
 `POST /branches/:name/operations`, `GET /branches/:name/operations`, `GET /merge-requests`,
-`POST /merge-requests`, `GET /merge-requests/:id`, `POST /merge-requests/:id/merge`,
+`POST /merge-requests`, `GET /merge-requests/:id`, `POST /merge-requests/:id/resolutions`,
+`DELETE /merge-requests/:id/resolutions/:conflictId`, `POST /merge-requests/:id/merge`,
 `DELETE /merge-requests/:id`.
 
 Added after WU-E settled its shape: `DELETE /branches/:name/operations?after=<seq>` — undo
 by truncate-and-replay (`docs/backend-contract.md` §3). The endpoint table left undo to WU-E;
 this is that decision landing in the V0 API.
 
-**V1, not built here:** `POST /merge-requests/:id/resolutions` and its `DELETE`; the
-`queued` / `held` status transitions, FIFO promotion, `previewed_main_version` tracking, and
-the `409` kick-back body (ADR 0004 §3–§4); `validateDocument` on the merge path (ADR 0008
-§5); `POST /merge-requests/:id/verify` (ADR 0009); `SELECT … FOR UPDATE` contention control.
+**Resolutions moved forward from V1 to V0** (the merge-review wiring build, after the endpoint
+table above was settled). The `merge_request_resolutions` table already existed as part of the
+frozen ADR 0004 schema; the routes were the only missing piece, and wiring the merge-review
+screen's take-ours/take-theirs/specify actions to real data needed them to persist. `assembleMergeResponse`
+and `listOpenMergeSummaries` load stored resolutions, validate each against the current
+conflict set (`docs/backend-contract.md` §4 `appliedResolutions`/`droppedResolutions`), and
+feed the valid ones to `threeWayMerge`; `POST /merge-requests/:id/merge` folds them in against
+the live re-read heads too, so resolving every conflict actually lets the merge land.
+
+**Known engine limitation carried into V0.** `engine/classify.ts` only applies a resolution for
+single-object conflicts — `add-vs-add`, primary-key divergence, and any two-object conflict
+(`Conflict.id` containing `+`) stay unresolved even with a stored choice (a documented spike
+cut). The API stores and echoes those choices via `appliedResolutions`; the merge stays held
+until that engine work lands.
+
+**V1, not built here:** the `queued` / `held` status transitions, FIFO promotion,
+`previewed_main_version` tracking, and the `409` kick-back body (ADR 0004 §3–§4);
+`validateDocument` on the merge path (ADR 0008 §5); `POST /merge-requests/:id/verify`
+(ADR 0009); `SELECT … FOR UPDATE` contention control.
 
 `merge_requests.status` takes only `open` and `merged` in V0 — there is no `queued` state
 because there is no queue. Multiple `open` merge requests are allowed; `POST /merge-requests`
@@ -180,7 +195,9 @@ lock.
 1. Load the merge request; respond `409` unless `status = open`.
 2. Re-read `source.head` and `main.head` **live** from `branches` (the author may have
    applied more operations since the request opened).
-3. `threeWayMerge(mr.base, source.head, main.head, [])` — no stored resolutions in V0.
+3. `threeWayMerge(mr.base, source.head, main.head, resolutions)` — `resolutions` are the MR's
+   stored `merge_request_resolutions` rows, re-validated against this live re-run the same way
+   `assembleMergeResponse` does (`resolveMerge`, `docs/backend-contract.md` §4).
 4. On `report.verdict`:
    - **`clean`** → `emitMigration(main.head, merged)` (ADR 0003 §1: `source = theirs =
      main.head`, `target = merged`); `UPDATE branches SET head = merged, head_version =

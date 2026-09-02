@@ -1,11 +1,13 @@
 /**
- * Route wrapper for the built merge-review surface. In production this is a data
- * fetch keyed by the merge-request id in the path; in V0 the id is accepted but
- * unused, and `?scenario=` selects one of the worked shapes (including the
- * `loading` and `error` shells) so every state stays exercisable.
+ * Route wrapper for the merge-review surface. Fetches `GET /merge-requests/:id`
+ * through the seam and projects it (`web/src/merge-review/fromResponse.ts`).
+ * `?scenario=` stays a fixture/dev override, independent of the path id — it
+ * exercises the built shapes (`clean`/`unclassified`/`unchanged`/`loading`/
+ * `error`) without a real merge request, the way it always has.
  */
 
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router";
+import { source, useResource } from "../data/index.ts";
 import { MergeReview } from "../merge-review/MergeReview.tsx";
 import {
   MergeReviewError,
@@ -15,6 +17,7 @@ import { REVIEW_SCENARIOS, readScenario } from "../merge-review/scenarios.ts";
 
 export function MergeReviewRoute() {
   const navigate = useNavigate();
+  const { id } = useParams();
   const scenario = readScenario();
 
   if (scenario === "loading") return <MergeReviewLoading />;
@@ -26,5 +29,21 @@ export function MergeReviewRoute() {
       />
     );
   }
-  return <MergeReview base={REVIEW_SCENARIOS[scenario]} />;
+  if (scenario !== "default") return <MergeReview base={REVIEW_SCENARIOS[scenario]} />;
+
+  const { data, loading, error, reload } = useResource(
+    () => source.getMergeReview(id ?? ""),
+    [id],
+  );
+
+  if (loading && !data) return <MergeReviewLoading />;
+  if (error || !data) {
+    return (
+      <MergeReviewError
+        message={error?.message ?? "The merge request could not be loaded."}
+        onRetry={reload}
+      />
+    );
+  }
+  return <MergeReview base={data} mergeId={id} />;
 }

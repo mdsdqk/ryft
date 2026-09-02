@@ -14,8 +14,10 @@ import { OperationBlockedError } from "@engine/apply-operation.js";
 import type { OpError } from "@engine/validate.js";
 
 import { currentUsername } from "../session/session.ts";
+import { mergeReviewFromResponse, type MergeRequestResponseBody } from "../merge-review/fromResponse.ts";
 import { BranchHeldError, heldByMergeMessage } from "./branches.ts";
 import { BranchNotFoundError } from "./branchSchema.ts";
+import { MergeRequestNotFoundError } from "./merges.ts";
 import type { DataSource } from "./source.ts";
 import type { BranchSummary, MergeSummary, Overview } from "./types.ts";
 import { invalidateData } from "./watch.ts";
@@ -251,6 +253,56 @@ export const httpSource: DataSource = {
       }
       if (err instanceof ApiError) throw new Error(err.message);
       throw err;
+    }
+  },
+
+  async getMergeReview(id) {
+    try {
+      return mergeReviewFromResponse(
+        await request<MergeRequestResponseBody>(`/merge-requests/${encodeURIComponent(id)}`),
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw new MergeRequestNotFoundError(id);
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    }
+  },
+
+  async postResolution(id, conflictId, choice, type) {
+    try {
+      const body = await request<MergeRequestResponseBody>(
+        `/merge-requests/${encodeURIComponent(id)}/resolutions`,
+        { method: "POST", body: JSON.stringify({ conflictId, choice, type }) },
+      );
+      return mergeReviewFromResponse(body);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw new MergeRequestNotFoundError(id);
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    } finally {
+      invalidateData(); // the /merges list badge tracks resolution progress
+    }
+  },
+
+  async deleteResolution(id, conflictId) {
+    try {
+      const body = await request<MergeRequestResponseBody>(
+        `/merge-requests/${encodeURIComponent(id)}/resolutions/${encodeURIComponent(conflictId)}`,
+        { method: "DELETE" },
+      );
+      return mergeReviewFromResponse(body);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw new MergeRequestNotFoundError(id);
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    } finally {
+      invalidateData();
     }
   },
 };

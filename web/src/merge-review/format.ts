@@ -54,6 +54,7 @@ const CONFLICT_LABEL: Record<ConflictClass, string> = {
   "divergent-index": "divergent index definition",
   "drop-vs-modify": "drop vs modify",
   dependency: "dependency conflict",
+  "divergent-definition": "divergent definition",
 };
 
 export function conflictLabel(cls: ConflictClass): string {
