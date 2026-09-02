@@ -1,41 +1,157 @@
 /*
- * Username gate — co-located with SignIn.tsx. Tokens from theme.css; the border
- * ladder and square corners from DESIGN.md. The solo (rail-less) stage that
- * centres this sheet lives in shell.css; this file styles the sheet only.
+ * Username gate — co-located with SignIn.tsx. The front door: a drafting-room
+ * sheet on the left over a full-bleed generative field (SignInField.tsx).
+ * Tokens from theme.css; the border ladder and square corners from DESIGN.md.
  */
 
-.si {
+/* the signed-out stage carries the field, so the gate sheet sits at the top-left
+ * rather than centred. Only SignIn renders inside .shl-stage--solo. */
+.shl-stage--solo {
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding-inline: clamp(20px, 6vw, 88px);
+}
+
+/* ── the generative field ───────────────────────────────────────────────── */
+
+.si-field {
+  position: fixed;
+  inset: 0;
   width: 100%;
-  max-width: 420px;
-  margin-top: clamp(8px, 6vh, 64px);
-  align-self: flex-start;
+  height: 100%;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.si-flabel {
+  position: fixed;
+  z-index: 1;
+  pointer-events: none;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+}
+.si-flabel--ours {
+  color: var(--ours);
+  top: 15%;
+  left: clamp(380px, 45%, 820px);
+}
+.si-flabel--theirs {
+  color: var(--theirs);
+  bottom: 15%;
+  right: clamp(380px, 45%, 820px);
+}
+@media (max-width: 720px) {
+  .si-flabel {
+    display: none;
+  }
+}
+
+/* ── the sheet ──────────────────────────────────────────────────────────── */
+
+.si {
+  position: relative;
+  z-index: 2;
+  width: min(430px, 100%);
+  margin-block-start: clamp(8px, 8vh, 96px);
+  background: var(--sheet);
+  border: 2px solid var(--ink);
+  box-shadow: var(--shadow-sheet);
+}
+.si::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 1px solid var(--line-strong);
+  pointer-events: none;
+}
+
+.si__plate {
+  padding: 26px 30px 20px;
+}
+.si__mark {
+  font-family: var(--ff-mark);
+  font-weight: 700;
+  font-size: clamp(58px, 7vw, 82px);
+  line-height: 0.82;
+  letter-spacing: -0.022em;
+  color: var(--ink);
+  font-optical-sizing: auto;
+}
+.si__tag {
+  font-family: var(--ff-display);
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+  margin-top: 16px;
 }
 
 .si__body {
-  padding: 22px 24px 26px;
+  padding: 0 30px 28px;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
 }
-
 .si__lede {
   font-family: var(--ff-mono);
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.7;
   color: var(--ink-soft);
-  max-width: 52ch;
+  padding-bottom: 18px;
+}
+.si__facts {
+  list-style: none;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  line-height: 1.72;
+  color: var(--ink);
+  padding: 16px 0 18px;
+  border-top: 1px solid var(--line-strong);
+}
+.si__how {
+  padding: 16px 0 18px;
+  border-top: 1px solid var(--line-strong);
+}
+.si__how h2 {
+  font-family: var(--ff-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  margin-bottom: 9px;
+}
+.si__steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.si__step {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 10px;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.si__step b {
+  color: var(--ink-faint);
+  font-weight: 400;
+  font-feature-settings: "tnum" 1;
 }
 
-/* ── the ruled entry ─────────────────────────────────────────────────── */
+/* ── the ruled entry ───────────────────────────────────────────────────── */
 
 .si__field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 2px;
+  gap: 7px;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--line-strong);
 }
-
 .si__label {
   font-family: var(--ff-mono);
   font-size: 10px;
@@ -44,7 +160,6 @@
   text-transform: uppercase;
   color: var(--ink-soft);
 }
-
 .si__input {
   width: 100%;
   min-width: 0;
@@ -57,7 +172,7 @@
   background: var(--panel);
   border: 1px solid var(--line-strong);
   border-radius: 0;
-  padding: 9px 11px;
+  padding: 10px 12px;
   caret-color: var(--ink);
 }
 .si__input::placeholder {
@@ -77,20 +192,34 @@
   }
 }
 
-/* ── plate-stamp action ──────────────────────────────────────────────── */
+/* ── plate-stamp action ───────────────────────────────────────────────── */
 
 .si__go {
   align-self: flex-start;
-  margin-top: 2px;
+  margin-top: 14px;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sheet);
+  background: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 0;
+  padding: 10px 20px;
 }
 .si__go:disabled {
   color: var(--ink-faint);
-  border-color: var(--line-strong);
   background: var(--sheet-2);
+  border-color: var(--line-strong);
   cursor: not-allowed;
 }
+@media (hover: hover) {
+  .si__go:not(:disabled):hover {
+    background: var(--ink-soft);
+  }
+}
 
-/* ── alert: one mechanical moment — a ruled line drawn left to right ──── */
+/* ── alert: one mechanical moment — a ruled line drawn left to right ────── */
 
 .si__error {
   font-family: var(--ff-mono);
@@ -98,8 +227,9 @@
   line-height: 1.5;
   color: var(--conflict);
   overflow-wrap: anywhere;
-  margin-inline: -24px;
-  padding: 10px 24px 0;
+  margin-inline: -30px;
+  padding: 10px 30px 0;
+  margin-top: 14px;
   border-top: 1px solid var(--conflict-edge);
   animation: ryft-rule-in 260ms var(--ease-mark) both;
 }
@@ -107,22 +237,25 @@
 .si__note {
   font-family: var(--ff-mono);
   font-size: 10.5px;
-  line-height: 1.6;
+  line-height: 1.7;
   color: var(--ink-soft);
-  max-width: 52ch;
-  padding-top: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
   border-top: 1px dashed var(--line);
 }
 
-/* ── responsive ──────────────────────────────────────────────────────── */
+/* ── responsive ───────────────────────────────────────────────────────── */
 
 @media (max-width: 480px) {
+  .si__plate {
+    padding: 20px 18px 16px;
+  }
   .si__body {
-    padding: 18px 16px 22px;
+    padding: 0 18px 22px;
   }
   .si__error {
-    margin-inline: -16px;
-    padding-inline: 16px;
+    margin-inline: -18px;
+    padding-inline: 18px;
   }
 }
 

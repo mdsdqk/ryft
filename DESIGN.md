@@ -484,3 +484,27 @@ recession mechanism, so every item stays at AA contrast.
 - **Don't** add a third provenance/accent hue — the palette is two provenance colours, `--ok` green, and the off-palette blue focus ring.
 - **Don't** render the revision status as a stamp or a "MERGED" badge.
 - **Don't** let the condensed display face carry data, or set it anything but uppercase and letter-spaced.
+
+## The Front Door (signed-out gate, `/`)
+
+The username gate is the one **Persuade**-mode surface — the product's front door.
+Everything else in the app stays Operate and inherits this system unchanged; the
+gate keeps the palette, tokens, border ladder, square corners, and mono body but
+adds two things used **nowhere else**:
+
+- **A serif nameplate.** `--ff-mark` (Fraunces 700) sets the wordmark "ryft" on
+  the gate sheet only. Every other "ryft" in the product is the condensed
+  display face. The serif is a front-door voice, not a second brand.
+- **A full-bleed generative field** (`web/src/surfaces/SignInField.tsx`, canvas):
+  two provenance fronts drift into one another — `--ours` (prussian) owns the
+  upper half, `--theirs` (oxide) the lower — and cross through a turbulence swell
+  at centre. That weave is the merge; there is no third hue. Small `ours` /
+  `theirs` labels sit at diagonally opposite corners. The field is decorative
+  (`aria-hidden`, `pointer-events: none`), DPR-capped at 2, throttled to ~40fps,
+  paused while the tab is hidden, painted as a single static frame under
+  `prefers-reduced-motion`, and re-reads the palette when the theme changes.
+
+The sheet itself is the standard bordered sheet with the 7px inset drawing
+border and `--shadow-sheet`; it sits left over the field, opaque so the field
+never shows through the reading area. The in-sheet error still uses the
+`ryft-rule-in` left-to-right wipe. Nothing here changes the Operate surfaces.
