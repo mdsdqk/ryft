@@ -14,6 +14,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { Table } from "@engine/schema.js";
 
 import { Chevron, EmptyState } from "../kit/index.ts";
+import { TableDdl } from "./TableDdl.tsx";
 import { AddColumnForm, AddIndexForm } from "./AddForms.tsx";
 import { ColumnEditor } from "./ColumnEditor.tsx";
 import {
@@ -184,6 +185,7 @@ export function TableCard({
 }) {
   const [open, setOpen] = useState<Open>(null);
   const [dropErr, setDropErr] = useState<string | null>(null);
+  const [showDdl, setShowDdl] = useState(false);
 
   const GroupHead = ({ g, children }: { g: CardGroup; children: ReactNode }) => (
     <button
@@ -254,6 +256,16 @@ export function TableCard({
         <span className="bw-card__right">
           {cardCollapsed && <span className="bw-card__counts">{counts}</span>}
           <span className="bw-card__id">{table.id}</span>
+          <span className="bw-card__acts">
+            <button
+              className="bw-mini"
+              type="button"
+              aria-pressed={showDdl}
+              onClick={() => setShowDdl((v) => !v)}
+            >
+              {showDdl ? "table view" : "view SQL"}
+            </button>
+          </span>
           {editable && (
             <span className="bw-card__acts">
               <button className="bw-mini" type="button" onClick={() => setOpen({ kind: "add-column" })}>
@@ -277,7 +289,9 @@ export function TableCard({
         </span>
       </header>
 
-      {cardCollapsed ? null : (
+      {cardCollapsed ? null : showDdl ? (
+        <TableDdl table={table} />
+      ) : (
       <>
       {open?.kind === "drop-table" && (
         <div className="bw-ed bw-ed--warn bw-ed--strip" role="group" aria-label={`Drop table ${table.name}`}>
