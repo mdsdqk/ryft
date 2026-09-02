@@ -117,6 +117,110 @@ describe("the queue", () => {
   });
 });
 
+describe("soft-close (ADR 0012 §3)", () => {
+  const close = (id: string) => app.request(`/api/merge-requests/${id}/close`, { method: "POST", headers: grace });
+  const closedList = async () =>
+    (await j(await app.request("/api/merge-requests?state=closed", { headers: grace }))) as unknown as Array<{
+      id: string;
+      source: string;
+      status: string;
+      closedOn?: string;
+    }>;
+  const openList = async () =>
+    (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ id: string; source: string }>;
+
+  it("keeps the row, drops it out of the queue, and lists it under ?state=closed", async () => {
+    await branch("a");
+    const a = await openMr("a");
+
+    const body = await j(await close(a.id as string));
+    expect((body.queue as { status: string; position: number }).status).toBe("closed");
+
+    expect(await openList()).toEqual([]);
+    const closed = await closedList();
+    expect(closed).toEqual([
+      expect.objectContaining({ id: a.id, source: "a", status: "closed", closedOn: expect.any(String) }),
+    ]);
+
+    // the row is still readable in full — a closed request is a record, not a hole
+    const reGet = await getMr(a.id as string);
+    expect((reGet.queue as { status: string }).status).toBe("closed");
+  });
+
+  it("closing the front promotes the next queued request", async () => {
+    await branch("a");
+    await branch("b");
+    const a = await openMr("a");
+    const b = await openMr("b");
+
+    await close(a.id as string);
+    expect((await getMr(b.id as string)).queue).toMatchObject({ status: "open", position: 1 });
+    expect((await openList()).map((m) => m.source)).toEqual(["b"]);
+  });
+
+  it("closing a queued request leaves the front alone", async () => {
+    await branch("a");
+    await branch("b");
+    const a = await openMr("a");
+    const b = await openMr("b");
+
+    await close(b.id as string);
+    expect((await getMr(a.id as string)).queue).toMatchObject({ status: "open", position: 1, behind: 0 });
+  });
+
+  it("frees the source branch to open a new request", async () => {
+    await branch("a");
+    const first = await openMr("a");
+    await close(first.id as string);
+
+    const second = await app.request("/api/merge-requests", {
+      method: "POST",
+      headers: grace,
+      body: JSON.stringify({ source: "a" }),
+    });
+    expect(second.status).toBe(201);
+    expect((await j(second)).id).not.toBe(first.id);
+  });
+
+  it("a closed request cannot be merged or resolved", async () => {
+    await branch("a");
+    const a = await openMr("a");
+    await close(a.id as string);
+
+    const m = await mergeMr(a.id as string);
+    expect(m.status).toBe(409);
+    expect((await j(m)).error).toBe("not-front");
+
+    const res = await app.request(`/api/merge-requests/${a.id as string}/resolutions`, {
+      method: "POST",
+      headers: grace,
+      body: JSON.stringify({ conflictId: "x", choice: "ours" }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("refuses to close a merged request, and is idempotent otherwise", async () => {
+    await branch("a");
+    await branch("b");
+    const a = await openMr("a");
+    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+
+    const refused = await close(a.id as string);
+    expect(refused.status).toBe(409);
+    expect((await j(refused)).error).toBe("already-merged");
+
+    const b = await openMr("b");
+    expect((await close(b.id as string)).status).toBe(200);
+    expect((await close(b.id as string)).status).toBe(200); // closing twice is a no-op
+    expect(await closedList()).toHaveLength(1);
+  });
+
+  it("404s on an unknown id", async () => {
+    const r = await close("00000000-0000-0000-0000-000000000000");
+    expect(r.status).toBe(404);
+  });
+});
+
 describe("staleness", () => {
   it("a queued MR behind the promoted one goes stale when main moves; the active MR does not", async () => {
     await branch("a");
@@ -243,7 +347,9 @@ describe("structural validation on the merge path (ADR 0008 §5)", () => {
     // main was not advanced by the failed merge
     const overview = (await j(await app.request("/api/overview", { headers: grace }))) as {
       database: { trunkRevision: number };
+      revisions: Array<{ n: number; sourceBranch: string }>;
     };
     expect(overview.database.trunkRevision).toBe(1); // only a's merge landed
+    expect(overview.revisions).toEqual([{ n: 1, sourceBranch: "a", at: expect.any(String), summary: expect.any(String) }]);
   });
 });

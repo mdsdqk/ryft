@@ -104,7 +104,7 @@ export function ConflictQueue({
           </span>
           <span className="mr-queue__prog">
             {readOnly
-              ? "Released — this queue is a record of the choices that landed."
+              ? "Merged — this queue is a record of the choices that landed."
               : `${resolvedCount} of ${conflicts.length} resolved · merge holds until the queue is empty and the commutativity check agrees`}
           </span>
           <span className="mr-queue__nav">

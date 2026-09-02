@@ -11,10 +11,11 @@
  *
  * STORY: see every open request; enter one to review it. Opening a request
  * lives on the branch workspace. Empty keeps the sheet and points at
- * /branches with the first-run copy.
+ * /branches with the first-run copy. A second view — Closed — is the record of
+ * requests withdrawn without merging (ADR 0012 §3); the queue stays the default.
  *
- * FIRST VIEWPORT: title strip "Merges" + demonstration tag + queue count.
- * No right-cell action. Body: oldest row first, source → main opens
+ * FIRST VIEWPORT: title strip "Merge requests" + queue count + an Open / Closed
+ * pair. No right-cell action. Body: oldest row first, source → main opens
  * /merge/:id, author · opened date, StatusPill. Primary action is the row itself.
  *
  * FORM: revision sheet, established world, code-led V0 (no motion). Consumes
@@ -52,10 +53,38 @@ const LONG_SOURCE =
 const QUEUE_ERROR =
   "The server returned 503 while fetching the merge queue. This is usually transient.";
 
-function countLine(n: number): string {
+type ListState = "open" | "closed";
+
+function countLine(n: number, state: ListState): string {
+  if (state === "closed") {
+    if (n === 0) return "no closed merge requests";
+    if (n === 1) return "1 closed · most recently closed first";
+    return `${n.toLocaleString()} closed · most recently closed first`;
+  }
   if (n === 0) return "no open merge requests";
   if (n === 1) return "1 in the queue · oldest first";
   return `${n.toLocaleString()} in the queue · oldest first`;
+}
+
+/**
+ * Open / Closed. Two links, not two buttons: the view is in the URL
+ * (`/merges?state=closed`), so it is shareable and the back button works.
+ */
+function StateTabs({ state }: { state: ListState }) {
+  return (
+    <div className="mg-tabs" role="group" aria-label="Which merge requests">
+      <Link className="mr-chip" to="/merges" aria-current={state === "open" ? "page" : undefined}>
+        Open
+      </Link>
+      <Link
+        className="mr-chip"
+        to="/merges?state=closed"
+        aria-current={state === "closed" ? "page" : undefined}
+      >
+        Closed
+      </Link>
+    </div>
+  );
 }
 
 function arrowLabel(merge: MergeSummary): string {
@@ -67,6 +96,11 @@ function arrowLabel(merge: MergeSummary): string {
 function metaLine(merge: MergeSummary): string {
   const author = merge.author.trim();
   const opened = merge.openedOn.trim();
+  // a closed row is read for its outcome, so the closing date leads the meta
+  const closed = merge.closedOn?.trim();
+  if (closed) {
+    return author ? `${author} · closed ${closed} · opened ${opened || "unknown"}` : `closed ${closed}`;
+  }
   if (author && opened) return `${author} · opened ${opened}`;
   if (author) return author;
   if (opened) return `opened ${opened}`;
@@ -85,19 +119,20 @@ export function Merges() {
   const forceError = params.has("error");
   const forceLoading = params.has("loading");
   const forceLong = params.has("long");
+  const state: ListState = params.get("state") === "closed" ? "closed" : "open";
 
   const { data, loading, error, reload } = useResource(
     () =>
       forceError
         ? Promise.reject(new Error(QUEUE_ERROR))
-        : source.listMerges(),
-    [forceError],
+        : source.listMerges(state),
+    [forceError, state],
   );
 
   if (forceLoading || (loading && !data)) {
     return (
       <div className="mg" aria-busy="true">
-        <SurfaceSheet title="Merges">
+        <SurfaceSheet title="Merge requests" action={<StateTabs state={state} />}>
           <Loading label="Loading merge requests…" />
         </SurfaceSheet>
       </div>
@@ -107,7 +142,7 @@ export function Merges() {
   if (error || !data) {
     return (
       <div className="mg">
-        <SurfaceSheet title="Merges">
+        <SurfaceSheet title="Merge requests" action={<StateTabs state={state} />}>
           <EmptyState
             tone="error"
             title="Could not load merge requests"
@@ -129,21 +164,38 @@ export function Merges() {
 
   return (
     <div className="mg">
-      <SurfaceSheet title="Merges" demo subtitle={countLine(rows.length)}>
+      <SurfaceSheet
+        title="Merge requests"
+        subtitle={countLine(rows.length, state)}
+        action={<StateTabs state={state} />}
+      >
         {empty ? (
-          <EmptyState
-            title="No open merge requests."
-            action={
-              <Link className="mr-btn" to="/branches">
-                View branches
-              </Link>
-            }
-          >
-            Open one from a branch that has diverged from <code>main</code>.
-          </EmptyState>
+          state === "closed" ? (
+            <EmptyState
+              title="No closed merge requests."
+              action={
+                <Link className="mr-btn" to="/merges">
+                  View the queue
+                </Link>
+              }
+            >
+              A request closed without merging is kept here.
+            </EmptyState>
+          ) : (
+            <EmptyState
+              title="No open merge requests."
+              action={
+                <Link className="mr-btn" to="/branches">
+                  View branches
+                </Link>
+              }
+            >
+              Open one from a branch that has diverged from <code>main</code>.
+            </EmptyState>
+          )
         ) : (
           <SurfaceBody>
-            <SheetList label="Open merge requests">
+            <SheetList label={state === "closed" ? "Closed merge requests" : "Open merge requests"}>
               {rows.map((merge) => (
                 <Row
                   key={merge.id}

@@ -3,12 +3,14 @@
  * All behind the identity gate.
  *
  *  GET    /merge-requests           the queue (non-terminal, oldest first)
+ *                                   `?state=closed` — the closed list instead (ADR 0012 §3)
  *  POST   /merge-requests           enqueue one: `open` if the front is free, else `queued`
  *  GET    /merge-requests/:id       recompute report + migration + real queue framing
  *  POST   /merge-requests/:id/resolutions           record a conflict choice (front MR only)
  *  DELETE /merge-requests/:id/resolutions/:conflictId   drop a recorded choice (front MR only)
  *  POST   /merge-requests/:id/merge the merge transaction (§4 — `SELECT … FOR UPDATE`)
- *  DELETE /merge-requests/:id       abandon; promote the next queued MR if this one was active
+ *  POST   /merge-requests/:id/close soft-close; keeps the row, promotes the next queued MR
+ *  DELETE /merge-requests/:id       hard delete; promote the next queued MR if this one was active
  *
  * The queue is strict single-file FIFO: at most one MR per target branch is
  * `open` or `held` (the front). Every mutating route locks the target
@@ -28,6 +30,8 @@ import type { Env } from "../app.js";
 import { branches, mergeRequests, mergeRequestResolutions, operations } from "../db/schema.js";
 import {
   assembleMergeResponse,
+  isTerminal,
+  listClosedMergeSummaries,
   listOpenMergeSummaries,
   resolveMerge,
   revalidationKickback,
@@ -63,7 +67,11 @@ const promoteNext = async (db: DbOrTx, target: string): Promise<void> => {
 };
 
 mergeRequestRoutes.get("/merge-requests", async (c) => {
-  return c.json(await listOpenMergeSummaries(c.get("db")));
+  const db = c.get("db");
+  // `?state=closed` is the soft-closed record list (ADR 0012 §3); anything else,
+  // including no query at all, is the live queue this endpoint has always been.
+  if (c.req.query("state") === "closed") return c.json(await listClosedMergeSummaries(db));
+  return c.json(await listOpenMergeSummaries(db));
 });
 
 mergeRequestRoutes.post("/merge-requests", async (c) => {
@@ -82,7 +90,7 @@ mergeRequestRoutes.post("/merge-requests", async (c) => {
     const [main] = await tx.select().from(branches).where(eq(branches.name, "main")).for("update");
 
     const existing = await tx.select().from(mergeRequests).where(eq(mergeRequests.sourceBranch, src));
-    const live = existing.find((m) => m.status !== "merged");
+    const live = existing.find((m) => !isTerminal(m.status));
     if (live) return { conflict: live.id as string };
 
     const status = (await frontTaken(tx, "main")) ? ("queued" as const) : ("open" as const);
@@ -273,6 +281,51 @@ mergeRequestRoutes.post("/merge-requests/:id/merge", async (c) => {
   return c.json({ status: "merged", migration: result.migration });
 });
 
+/**
+ * Soft-close (ADR 0012 §3). The row survives with `status = 'closed'` and
+ * `closed_at = now()`, so "what happened to that request" keeps an answer and
+ * the recorded resolutions stay attached to it. `closed` is terminal, so the
+ * request leaves the queue — and if it was the front (`open`/`held`), the next
+ * `queued` request is promoted, exactly as abandoning it does. A `merged`
+ * request is a record of something that happened and cannot be closed (409);
+ * closing an already-closed one is a no-op, so the call is idempotent.
+ */
+mergeRequestRoutes.post("/merge-requests/:id/close", async (c) => {
+  const db = c.get("db");
+  const id = c.req.param("id");
+  const [pre] = await db.select().from(mergeRequests).where(eq(mergeRequests.id, id));
+  if (!pre) throw new HTTPException(404, { message: "no such merge request" });
+
+  const result = await db.transaction(async (tx) => {
+    // the same lock every queue mutation takes — closing the front promotes
+    await tx.select().from(branches).where(eq(branches.name, pre.targetBranch)).for("update");
+    const [mr] = await tx.select().from(mergeRequests).where(eq(mergeRequests.id, id)); // re-read under the lock
+    if (!mr) return { kind: "gone" as const };
+    if (mr.status === "merged") return { kind: "merged" as const };
+    if (mr.status === "closed") return { kind: "closed" as const, mr };
+
+    const [updated] = await tx
+      .update(mergeRequests)
+      .set({ status: "closed", closedAt: new Date() })
+      .where(eq(mergeRequests.id, mr.id))
+      .returning();
+    if (mr.status === "open" || mr.status === "held") await promoteNext(tx, mr.targetBranch);
+    return { kind: "closed" as const, mr: updated ?? mr };
+  });
+
+  if (result.kind === "gone") throw new HTTPException(404, { message: "no such merge request" });
+  if (result.kind === "merged") {
+    return c.json({ error: "already-merged", status: "merged" }, 409);
+  }
+  return c.json(await assembleMergeResponse(db, result.mr));
+});
+
+/**
+ * Hard delete — the row and its resolutions go. Kept alongside the soft close
+ * (ADR 0012 §3) as the escape valve for a request that should leave no record
+ * at all (a mistaken open, a test fixture). Nothing in the web app calls it;
+ * "Close request" is the user-facing action.
+ */
 mergeRequestRoutes.delete("/merge-requests/:id", async (c) => {
   const db = c.get("db");
   const id = c.req.param("id");

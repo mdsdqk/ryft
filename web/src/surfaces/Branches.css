@@ -129,6 +129,53 @@
   gap: 8px;
 }
 
+/* ── deleted-branches archive ────────────────────────────────────────── */
+
+.br-deleted {
+  margin-top: 22px;
+  border-top: 1px dashed var(--line);
+  padding-top: 14px;
+}
+.br-deleted__k {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.br-deleted__k::-webkit-details-marker {
+  display: none;
+}
+.br-deleted__k::before {
+  content: "+";
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.br-deleted[open] .br-deleted__k::before {
+  content: "\2212";
+}
+.br-deleted__ct {
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.br-deleted__empty {
+  margin: 12px 0 0;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+.br-deleted .kit-list {
+  margin-top: 12px;
+}
+
 .br-row {
   outline: 1.5px solid transparent;
   outline-offset: -1.5px;

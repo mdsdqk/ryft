@@ -8,7 +8,12 @@
  * omit it.
  */
 
-import type { BranchSummary, Database, MergeSummary } from "./types.ts";
+import type {
+  BranchSummary,
+  Database,
+  DeletedBranchSummary,
+  MergeSummary,
+} from "./types.ts";
 import { invalidateData } from "./watch.ts";
 
 /** one letter + up to 38 more → 39 chars; keep in lockstep with the create field */
@@ -31,6 +36,16 @@ let working: BranchSummary[] = [
   { name: "post-metrics", author: "ravi", cutOn: "2026-02-09", divergence: 4 },
   { name: "drop-legacy-tags", author: "mara", cutOn: "2026-02-07", divergence: 2 },
   { name: "audit-timestamps", author: "ravi", cutOn: "2026-02-12", divergence: 0 },
+];
+
+/**
+ * The archive `DELETE /branches/:name` writes to (ADR 0013). Seeded with a
+ * couple of rows so the collapsible "Deleted branches" section on `/branches`
+ * is exercisable offline; `deleteBranch` appends to it, newest first.
+ */
+let deleted: DeletedBranchSummary[] = [
+  { name: "legacy-tag-cleanup", author: "mara", deletedAt: "2026-02-11T14:12:00Z", divergence: 5 },
+  { name: "spike-jsonb-events", author: "ravi", deletedAt: "2026-02-06T09:41:00Z", divergence: 2 },
 ];
 
 const clone = <T>(v: T): T => structuredClone(v);
@@ -68,6 +83,11 @@ export function listAll(
     trunk: true,
   };
   return [clone(trunk), ...listWorking(merges)];
+}
+
+/** The archive, newest first — the `/branches/deleted` list. */
+export function listDeleted(): DeletedBranchSummary[] {
+  return deleted.map(clone);
 }
 
 export function normalizeBranchName(raw: string): string {
@@ -131,5 +151,14 @@ export function deleteBranch(
     throw new BranchHeldError(heldByMergeMessage(name, database.trunk));
   }
   working = working.filter((b) => b.name !== name);
+  deleted = [
+    {
+      name,
+      author: existing.author,
+      deletedAt: new Date().toISOString(),
+      divergence: existing.divergence,
+    },
+    ...deleted,
+  ];
   invalidateData();
 }

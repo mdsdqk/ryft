@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, test } from "vitest";
-import { emitMigration, serialize, type DdlStatement } from "./emit.js";
+import { emitMigration, serialize } from "./emit.js";
 import { verifyPrefixes } from "./replay.js";
 import { migrationScenarios } from "./__fixtures__/migration-scenarios.js";
 

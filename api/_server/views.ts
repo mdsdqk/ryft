@@ -6,18 +6,20 @@
  * reads so the routes stay thin.
  */
 
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, notInArray } from "drizzle-orm";
 import { diffSnapshots } from "../../engine/diff.js";
 import { threeWayMerge } from "../../engine/merge.js";
 import { emitMigration, type Migration } from "../../engine/emit.js";
 import type { SchemaDocument, ColumnType } from "../../engine/schema.js";
 import type { MergeReport, Resolution } from "../../engine/merge-types.js";
+import type { MergeMarker } from "../../src/domain/operations.js";
 import type { Db, DbOrTx } from "./db/client.js";
-import { branches, mergeRequests, mergeRequestResolutions, operations, users } from "./db/schema.js";
+import { branches, deletedBranches, mergeRequests, mergeRequestResolutions, operations, users } from "./db/schema.js";
 import type {
   Database,
   BranchDetail,
   BranchSummary,
+  DeletedBranchSummary,
   MergeKickback,
   MergeRequestResponse,
   MergeSummary,
@@ -28,6 +30,13 @@ const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
 const sameDoc = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 type MrRow = typeof mergeRequests.$inferSelect;
+
+/**
+ * A terminal merge request — one that will never merge, so it is out of the
+ * queue, does not block its source branch, and is never re-freshened on read.
+ */
+export const isTerminal = (status: MrRow["status"]): boolean =>
+  status === "merged" || status === "closed";
 
 export type ResolvedMerge = {
   merged: SchemaDocument | null;
@@ -115,30 +124,46 @@ async function nameMap(db: DbOrTx): Promise<Map<string, string>> {
 // ── merge queue (ADR 0004 §3–§6) ────────────────────────────────────────────
 
 /**
- * The active MR (`open`/`held`) always resolves against **live** heads — its
- * frozen `ours`/`theirs` are lazily rewritten to `source.head`/`main.head` on
- * read (ADR 0004 §5: "its next `GET` rewrites the frozen `theirs` and `ours`").
- * `base` never moves. A `queued` MR keeps its provisional frozen triple.
+ * Lazily re-freeze a live merge request's triple on read (ADR 0004 §5, ADR 0012 §1).
+ *
+ * `ours` **always** follows the source branch's current `head` — for a `queued`
+ * request as much as for the active one. That is the D-12 fix: before it, an
+ * author who kept editing their branch after opening the request saw a merge
+ * screen frozen at creation, with no way to tell it was showing yesterday's
+ * work. `base` never moves (it is the branch cut point).
+ *
+ * `theirs` still only follows live `main` for the **active** request
+ * (`open`/`held`), which is ADR 0004 §5's promotion refresh unchanged. A
+ * `queued` request keeps the `main` it was previewed against, so `stale` stays
+ * the honest signal that the trunk moved while it waited — refreshing `theirs`
+ * too would silently erase that.
+ *
+ * A terminal request is a record, not a live view: it is returned exactly as
+ * stored so a later `GET` recomputes the identical report.
  *
  * Plain `UPDATE`, no `FOR UPDATE`: the merge transaction is the real
  * serialization point, and a read that races a merge simply self-corrects on
  * the next read (`stale` briefly shows the drift).
  */
-export async function refreshActiveTriple(db: DbOrTx, mr: MrRow): Promise<MrRow> {
-  if (mr.status !== "open" && mr.status !== "held") return mr;
+export async function refreshTriple(db: DbOrTx, mr: MrRow): Promise<MrRow> {
+  if (isTerminal(mr.status)) return mr;
   const [main] = await db.select().from(branches).where(eq(branches.name, mr.targetBranch));
   const [source] = await db.select().from(branches).where(eq(branches.name, mr.sourceBranch));
   if (!main || !source) return mr;
+
+  const active = mr.status === "open" || mr.status === "held";
+  const theirs = active ? main.head : mr.theirs;
+  const previewedMainVersion = active ? main.headVersion : mr.previewedMainVersion;
   if (
-    mr.previewedMainVersion === main.headVersion &&
+    mr.previewedMainVersion === previewedMainVersion &&
     sameDoc(mr.ours, source.head) &&
-    sameDoc(mr.theirs, main.head)
+    sameDoc(mr.theirs, theirs)
   ) {
     return mr;
   }
   const [updated] = await db
     .update(mergeRequests)
-    .set({ ours: source.head, theirs: main.head, previewedMainVersion: main.headVersion })
+    .set({ ours: source.head, theirs, previewedMainVersion })
     .where(eq(mergeRequests.id, mr.id))
     .returning();
   return updated ?? mr;
@@ -149,13 +174,18 @@ export async function queueFraming(
   db: DbOrTx,
   mr: MrRow,
 ): Promise<MergeRequestResponse["queue"]> {
-  if (mr.status === "merged") {
-    return { status: "merged", position: 0, ahead: 0, behind: 0 };
+  if (isTerminal(mr.status)) {
+    return { status: mr.status, position: 0, ahead: 0, behind: 0 };
   }
   const rows = await db
     .select({ id: mergeRequests.id })
     .from(mergeRequests)
-    .where(and(eq(mergeRequests.targetBranch, mr.targetBranch), ne(mergeRequests.status, "merged")))
+    .where(
+      and(
+        eq(mergeRequests.targetBranch, mr.targetBranch),
+        notInArray(mergeRequests.status, ["merged", "closed"]),
+      ),
+    )
     .orderBy(asc(mergeRequests.createdAt));
   const idx = rows.findIndex((r) => r.id === mr.id);
   const position = idx < 0 ? rows.length + 1 : idx + 1;
@@ -226,7 +256,7 @@ export async function openMergeIdFor(db: Db, branchName: string): Promise<string
     .select({ id: mergeRequests.id, status: mergeRequests.status })
     .from(mergeRequests)
     .where(eq(mergeRequests.sourceBranch, branchName));
-  return rows.find((r) => r.status !== "merged")?.id;
+  return rows.find((r) => !isTerminal(r.status))?.id;
 }
 
 export async function listBranchSummaries(db: Db): Promise<BranchSummary[]> {
@@ -236,7 +266,7 @@ export async function listBranchSummaries(db: Db): Promise<BranchSummary[]> {
     nameMap(db),
   ]);
   const openMr = new Map<string, string>();
-  for (const mr of mrRows) if (mr.status !== "merged") openMr.set(mr.source, mr.id);
+  for (const mr of mrRows) if (!isTerminal(mr.status)) openMr.set(mr.source, mr.id);
 
   const out = branchRows.map((b) => {
     const s: BranchSummary = {
@@ -254,6 +284,24 @@ export async function listBranchSummaries(db: Db): Promise<BranchSummary[]> {
   return out;
 }
 
+/**
+ * The `deleted_branches` archive, most-recently dropped first (ADR 0013). Each
+ * row is a whole branch moved off `branches` at delete time; `author` is the
+ * branch's author resolved to a display name, `divergence` the frozen
+ * `base` → `head` delta count.
+ */
+export async function listDeletedBranches(db: Db): Promise<DeletedBranchSummary[]> {
+  const [rows, names] = await Promise.all([db.select().from(deletedBranches), nameMap(db)]);
+  return rows
+    .map((r) => ({
+      name: r.name,
+      author: names.get(r.authorId) ?? r.authorId,
+      deletedAt: r.deletedAt.toISOString(),
+      divergence: diffSnapshots(r.baseSnapshot, r.head).length,
+    }))
+    .sort((a, b) => (a.deletedAt === b.deletedAt ? a.name.localeCompare(b.name) : a.deletedAt < b.deletedAt ? 1 : -1));
+}
+
 /** The open-merge queue (non-terminal only — the shape has no "merged" state). */
 export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
   const [mrRows, names, ops] = await Promise.all([
@@ -264,14 +312,14 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
   const opCount = (branch: string) => ops.filter((o) => o.branchName === branch).length;
 
   const nonTerminal = mrRows
-    .filter((mr) => mr.status !== "merged")
+    .filter((mr) => !isTerminal(mr.status))
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
   return Promise.all(
     nonTerminal.map(async (row, idx) => {
-      // the active MR resolves against live heads (ADR 0004 §5); a queued MR
-      // keeps its provisional frozen triple.
-      const mr = await refreshActiveTriple(db, row);
+      // every live MR's `ours` follows its source branch; only the active one's
+      // `theirs` follows live `main` (ADR 0004 §5, ADR 0012 §1).
+      const mr = await refreshTriple(db, row);
       const { report, appliedResolutions } = await resolveMerge(db, mr);
       // `report.conflicts` is the engine's full detected set — it does not drop
       // an entry once resolved (the engine `Conflict` carries no `resolvedWith`;
@@ -301,6 +349,67 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
   );
 }
 
+/**
+ * The closed list — requests withdrawn without merging (ADR 0012 §3), most
+ * recently closed first. Deliberately *not* a three-way re-run: a closed
+ * request is a record, its triple is never re-frozen, and re-deriving a
+ * conflict count for something that will never merge would be noise. `position`
+ * is 0 (it holds no place in the queue) and `conflicts` is 0.
+ */
+export async function listClosedMergeSummaries(db: Db): Promise<MergeSummary[]> {
+  const [rows, names, ops] = await Promise.all([
+    db
+      .select()
+      .from(mergeRequests)
+      .where(eq(mergeRequests.status, "closed"))
+      .orderBy(desc(mergeRequests.closedAt)),
+    nameMap(db),
+    db.select({ branchName: operations.branchName }).from(operations),
+  ]);
+
+  return rows.map((mr) => ({
+    id: mr.id,
+    source: mr.sourceBranch,
+    target: mr.targetBranch,
+    author: names.get(mr.authorId) ?? mr.authorId,
+    openedOn: isoDate(mr.createdAt),
+    operations: ops.filter((o) => o.branchName === mr.sourceBranch).length,
+    position: 0,
+    status: "closed" as const,
+    conflicts: 0,
+    ...(mr.closedAt ? { closedOn: isoDate(mr.closedAt) } : {}),
+  }));
+}
+
+/**
+ * `main`'s revision history — one entry per merge that has landed on trunk,
+ * newest first, capped at ten (`docs/backend-contract.md` §3–§4). The source is
+ * `main`'s `operations` rows whose `op` is a `MergeMarker`: ADR 0010 §5's merge
+ * transaction appends exactly one per successful merge. `n` is the real revision
+ * number — the 1-based position of the merge in `main`'s full marker sequence —
+ * so the newest entry's `n` equals `database.trunkRevision` even when older
+ * entries are trimmed. The marker carries only `sourceBranch`; `summary` states
+ * the one fact it adds beyond `sourceBranch`/`at` — who ran the merge, resolved
+ * to a display name.
+ */
+function trunkRevisions(
+  mainOps: (typeof operations.$inferSelect)[],
+  names: Map<string, string>,
+): Overview["revisions"] {
+  const markers = mainOps
+    .filter((o): o is typeof o & { op: MergeMarker } => o.op.type === "merge")
+    .sort((a, b) => a.seq - b.seq);
+  return markers
+    .map((o, i) => ({
+      n: i + 1,
+      sourceBranch: o.op.sourceBranch,
+      at: isoDate(o.at),
+      summary: names.has(o.authorId) ? `merged by ${names.get(o.authorId)!}` : "merged",
+    }))
+    .reverse()
+    .slice(0, 10);
+}
+
 export async function assembleOverview(db: Db): Promise<Overview> {
   const branchRows = await db.select().from(branches);
   const main = branchRows.find((b) => b.name === "main");
@@ -309,17 +418,26 @@ export async function assembleOverview(db: Db): Promise<Overview> {
   const mainOps = await db.select().from(operations).where(eq(operations.branchName, "main"));
   const lastChange = mainOps.reduce<Date>((acc, o) => (o.at > acc ? o.at : acc), main.createdAt);
 
+  // The trunk revision is the number of merges that have landed on `main` — the
+  // count of merge markers in its op log. `main.headVersion` happens to match
+  // today (the merge transaction bumps it and `main` cannot be edited directly),
+  // but `head_version` is a per-edit counter on working branches; deriving from
+  // the markers keeps the counter and the list below consistent by construction.
+  const names = await nameMap(db);
+  const revisions = trunkRevisions(mainOps, names);
+  const trunkRevision = mainOps.filter((o) => o.op.type === "merge").length;
+
   const database: Database = {
     name: main.head.database,
     connection: "postgres",
     ...countObjects(main.head),
     trunk: "main",
-    trunkRevision: main.headVersion,
+    trunkRevision,
     trunkChangedOn: isoDate(lastChange),
   };
 
   const [branchList, merges] = await Promise.all([listBranchSummaries(db), listOpenMergeSummaries(db)]);
-  return { database, branches: branchList, merges };
+  return { database, branches: branchList, merges, revisions };
 }
 
 export async function assembleBranchDetail(db: Db, name: string): Promise<BranchDetail | null> {
@@ -339,13 +457,18 @@ export async function assembleBranchDetail(db: Db, name: string): Promise<Branch
 
 /**
  * Recompute `report` + `migration` (with stored resolutions) for a merge-request
- * row, plus real queue framing (ADR 0004 §3–§5). The active MR's frozen triple
- * is refreshed to live heads first; a `queued` MR is read as frozen and shows
- * `stale` if `main` has moved since it was previewed.
+ * row, plus real queue framing (ADR 0004 §3–§5). The frozen triple is refreshed
+ * first: `ours` to the source branch's live head either way, `theirs` to live
+ * `main` only for the active MR — so a `queued` request still shows `stale` if
+ * `main` moved since it was previewed (ADR 0012 §1).
+ *
+ * `droppedResolutions` is how that refresh reports itself: if moving `ours`
+ * invalidated a stored choice, the row is named here rather than discarded in
+ * silence (ADR 0004 §6, ADR 0012 §2).
  */
 export async function assembleMergeResponse(db: DbOrTx, row: MrRow): Promise<MergeRequestResponse> {
   const names = await nameMap(db);
-  const mr = await refreshActiveTriple(db, row);
+  const mr = await refreshTriple(db, row);
   const { report, migration, appliedResolutions, droppedResolutions } = await resolveMerge(db, mr);
   const [main] = await db.select().from(branches).where(eq(branches.name, mr.targetBranch));
 

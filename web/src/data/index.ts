@@ -17,8 +17,10 @@ export type { DataSource } from "./source.ts";
 export type {
   Database,
   BranchSummary,
+  DeletedBranchSummary,
   MergeSummary,
   Overview,
+  TrunkRevision,
   BranchDetail,
   BranchOperationEntry,
   ApplyOpsResult,

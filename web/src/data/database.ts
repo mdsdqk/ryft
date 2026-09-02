@@ -8,7 +8,7 @@
  * surface; it does not preview that schema (link out to `/branch/main`).
  */
 
-import type { Database } from "./types.ts";
+import type { Database, TrunkRevision } from "./types.ts";
 
 /**
  * V0 exercise: `/db?empty` is a freshly seeded database — no working branches,
@@ -22,6 +22,18 @@ export function overviewExerciseEmpty(): boolean {
   return new URLSearchParams(window.location.search).has("empty");
 }
 
+/**
+ * `main`'s recent revisions — one per merge that has landed, newest first (the
+ * API caps this at ten). `database.trunkRevision` is derived from the length of
+ * this list, never a standalone number.
+ */
+export const trunkRevisions: TrunkRevision[] = [
+  { n: 4, sourceBranch: "comment-flags-bigint", at: "2026-02-08", summary: "merged by Ravi Menon" },
+  { n: 3, sourceBranch: "post-rating-column", at: "2026-02-03", summary: "merged by Mara Lindqvist" },
+  { n: 2, sourceBranch: "tag-name-unique", at: "2026-01-27", summary: "merged by Grace Okoro" },
+  { n: 1, sourceBranch: "post-view-count", at: "2026-01-20", summary: "merged by Grace Okoro" },
+];
+
 export const database: Database = {
   name: "public",
   connection: "postgres",
@@ -30,6 +42,6 @@ export const database: Database = {
   indexes: 6,
   constraints: 9,
   trunk: "main",
-  trunkRevision: 41,
+  trunkRevision: trunkRevisions.length,
   trunkChangedOn: "2026-02-08",
 };

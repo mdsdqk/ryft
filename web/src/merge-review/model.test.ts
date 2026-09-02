@@ -7,8 +7,15 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { effectiveStatus, isMergeable, openConflicts, type Conflict, type MergeReview } from "./model.ts";
-import { changeLabel, conflictLabel, retypeDetail, sqlType } from "./format.ts";
+import {
+  effectiveStatus,
+  isMergeable,
+  isTerminal,
+  openConflicts,
+  type Conflict,
+  type MergeReview,
+} from "./model.ts";
+import { changeLabel, conflictLabel, retypeDetail, sqlType, statusLabel } from "./format.ts";
 import { ordersReview } from "./fixture.ts";
 
 const base = ordersReview;
@@ -61,6 +68,25 @@ describe("effectiveStatus", () => {
   it("passes the stored status through when not mergeable", () => {
     const r = review({ status: "received", conflicts: [open("a")], commutativity: "pending" });
     expect(effectiveStatus(r)).toBe("received");
+  });
+
+  it("is 'closed' whatever the conflicts now say — a withdrawn request is not Reviewed", () => {
+    const r = review({ status: "closed", conflicts: [resolved("a")], commutativity: "passed" });
+    expect(effectiveStatus(r)).toBe("closed");
+  });
+});
+
+describe("isTerminal", () => {
+  it("covers both finished states and nothing else", () => {
+    expect(isTerminal("released")).toBe(true);
+    expect(isTerminal("closed")).toBe(true);
+    expect(isTerminal("cleared")).toBe(false);
+    expect(isTerminal("in-check")).toBe(false);
+    expect(isTerminal("received")).toBe(false);
+  });
+
+  it("labels closed in the app's own vocabulary (ADR 0011)", () => {
+    expect(statusLabel("closed")).toBe("Closed");
   });
 });
 

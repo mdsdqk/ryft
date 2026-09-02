@@ -15,7 +15,7 @@ import type { ColumnType } from "@engine/schema.js";
 
 import type { MergeReview } from "../merge-review/model.ts";
 import { REVIEW_SCENARIOS, readScenario } from "../merge-review/scenarios.ts";
-import { listOpen, MergeRequestNotFoundError } from "./merges.ts";
+import { closeById, isClosed, listClosed, listOpen, MergeRequestNotFoundError } from "./merges.ts";
 
 function currentReview(): MergeReview {
   const scenario = readScenario();
@@ -36,14 +36,15 @@ function withSession(id: string, review: MergeReview): MergeReview {
     ...review,
     conflicts,
     commutativity: allResolved ? "passed" : review.commutativity,
-    status: released.has(id) ? "released" : review.status,
+    // both terminal; closed wins because a closed request never merged
+    status: isClosed(id) ? "closed" : released.has(id) ? "released" : review.status,
   };
 }
 
 export async function getById(id: string): Promise<MergeReview> {
-  if (!listOpen().some((m) => m.id === id) && !released.has(id)) {
-    throw new MergeRequestNotFoundError(id);
-  }
+  const known =
+    listOpen().some((m) => m.id === id) || listClosed().some((m) => m.id === id) || released.has(id);
+  if (!known) throw new MergeRequestNotFoundError(id);
   return withSession(id, currentReview());
 }
 
@@ -73,4 +74,13 @@ export async function mergeMergeRequest(id: string): Promise<{ status: "merged" 
   await getById(id);
   released.add(id);
   return { status: "merged" };
+}
+
+/** Withdraw the request — it leaves the queue and the screen goes read-only. */
+export async function closeMergeRequest(id: string): Promise<void> {
+  await getById(id);
+  if (released.has(id)) {
+    throw new Error("This merge request has already merged and cannot be closed.");
+  }
+  closeById(id);
 }

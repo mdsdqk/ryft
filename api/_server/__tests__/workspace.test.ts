@@ -27,8 +27,10 @@ describe("POST /workspace/reset", () => {
       database: Record<string, number | string>;
       branches: Array<{ name: string; trunk?: boolean; divergence: number; openMergeId?: string }>;
       merges: Array<{ id: string; source: string; status: string }>;
+      revisions: unknown[];
     };
     expect(o.database).toMatchObject({ tables: 5, columns: 23, indexes: 2, constraints: 12, trunk: "main", trunkRevision: 0 });
+    expect(o.revisions).toEqual([]); // nothing has merged into main at seed
     expect(o.branches.map((b) => b.name)).toEqual(["main", "contact-fields"]);
     expect(o.branches.find((b) => b.name === "main")?.trunk).toBe(true);
     expect(o.branches.find((b) => b.name === "contact-fields")?.divergence).toBe(3);

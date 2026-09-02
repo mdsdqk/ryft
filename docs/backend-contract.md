@@ -205,12 +205,24 @@ projects into the `web/src/merge-review/model.ts` and `web/src/data/types.ts` sh
 growing the transform its fixtures hand-write today (ADR 0004 §7).
 
 ```ts
-// GET /overview — DataSource.getOverview. An aggregate of three domain lists, not a
-// projection: Database (counts + trunk revision), and the branch / merge summaries.
+// GET /overview — DataSource.getOverview. An aggregate of domain lists, not a
+// projection: Database (counts + trunk revision), the branch / merge summaries,
+// and main's recent revisions.
 type Overview = {
   database: Database;          // web/src/data/types.ts
   branches: BranchSummary[];
   merges: MergeSummary[];
+  revisions: TrunkRevision[];  // main's merges, newest first, ≤ 10 (ADR 0014)
+};
+
+// One merge that has landed on main. Source: main's `operations` rows whose `op`
+// is a MergeMarker (ADR 0010 §5). `n` is the real revision number — newest
+// entry's `n` === Database.trunkRevision — and `summary` names who ran the merge.
+type TrunkRevision = {
+  n: number;
+  sourceBranch: string;
+  at: string;                  // ISO date
+  summary: string;
 };
 
 // GET /branches/:name — domain facts + the two raw documents

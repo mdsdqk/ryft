@@ -882,6 +882,99 @@ clicks could both pass the `status = open` check before either commits — accep
 reviewer driving one demo, and fixed properly by the V1 row lock, which this explicitly
 defers rather than approximates.
 
+### The app speaks SQL and Git, not the drafting metaphor's coined words
+
+ADR 0011. A usability review with the intended user (a DBA / app engineer) found the
+UI's invented vocabulary — *cut* a branch, *sheets* for navigation, a merge lifecycle of
+*received / in-check / cleared / released*, "fabrication order", "Demonstration data" on every
+sheet — left them guessing. The drafting *visual* language (DESIGN.md's "Revised Drawing") is
+good and stays; the words were the problem. So user-facing text now uses the term a Postgres
+DBA or Git user already knows: "create a branch", "branched from main", "merge requests", and a
+lifecycle of **Queued / Under review / Reviewed / Merged**. Internal identifiers (the
+`RevisionStatus` keys, the `merge_request_status` enum, `cutOn`, route paths, CSS classes) did
+not change, so this is a copy-and-label pass, not a refactor. The non-functional `main @ rev N`
+line — `trunkRevision` was a hardcoded fixture — was dropped for a last-updated date here, then
+brought back real once ADR 0014 gave it a counter. Full rename table and the
+small visual tweaks carried alongside (column-spec keyword casing, the app-bar session
+cluster, the rail naming the open entity) are in ADR 0011. Prompted by
+`docs/usability-review-triage.md`.
+
+### A merge request re-freezes `ours` on every read, and can be closed without merging
+
+ADR 0012. The same usability review that produced ADR 0011 also found two things that were
+not vocabulary. The first: open a merge request, keep editing the branch, and the merge screen
+goes on showing the schema as it was at creation. That was ADR 0004 §5 working as specified —
+the triple refreshes on a merge attempt or on promotion, and nothing else — and specified
+wrong. The merge transaction already re-reads `source.head` live inside its lock; the fix was
+to stop making a merge click the only moment that read happens. So `ours` now follows the
+source branch's head on every read, for queued requests as much as active ones. `base` never
+moves, because it is what the three-way is a merge *of*. `theirs` still only follows live
+`main` for the active request — a queued one keeps the `main` it was previewed against, since
+`stale` is the honest report that the trunk moved while it waited, and refreshing `theirs`
+would erase the fact `stale` exists to state. Terminal requests are never re-frozen: a merged
+request stays reproducible only because its triple holds exactly what the merge used.
+
+That refresh re-triggers ADR 0004 §6's re-validation on every read, which means an author can
+now un-choose their own conflict resolutions by editing their branch. `droppedResolutions` was
+already computed and already on the response — it just never reached anywhere but the `409`
+kick-back body. It now renders as a non-blocking line on the merge screen naming each choice
+that no longer applies and why. The rendering is client-side, per ADR 0004 §7: the raw pair
+already carries everything, because the `conflictId` *is* the class plus the object ids.
+
+The second gap: the status enum had no way to say "withdrawn". `DELETE` hard-deleted the row
+and took its resolutions with it, so "we decided not to do this" and "this never existed" were
+one operation, and there was nowhere to see what had been abandoned. So `closed` joins the
+enum with a `closed_at`, and `POST /merge-requests/:id/close` keeps the row while promoting
+the next queued request exactly as abandoning it already did. `closed` is terminal alongside
+`merged` — same queue exit, same source-branch release, same no-refresh — which collapsed a
+scatter of `!== "merged"` checks into one `isTerminal`. Closing a merged request is refused;
+closing a closed one is a no-op. The hard `DELETE` survives as the escape valve for a request
+that should leave no record at all, and nothing in the web app calls it. On the screen, "Close
+request" sits beside "Merge into main" because the two are one decision, and the status dial
+does not gain a fifth step: `closed` is a way off the Queued → Under review → Reviewed →
+Merged line rather than a point along it. Prompted by `docs/usability-review-triage.md`
+(themes D-12 and F1+F3).
+
+### A deleted branch is archived to its own table, not soft-deleted in place
+
+Usability review theme F2, ADR 0013. The review wanted a "deleted branches" list. The
+constraint is that `branches.name` is the primary key, so a `deleted_at` flag on the live row
+would pin the name forever — a team could never re-cut a branch name it had deleted. So
+`DELETE /branches/:name` now moves the whole row into a `deleted_branches` archive table (every
+`branches` column, plus `deleted_at` / `deleted_by_id`) and removes it from `branches`, in one
+transaction. `branches` stays exactly the ADR 0004 shape; the name frees up immediately; the
+archive is an append-only log with a synthetic `id` key, since one name can be cut and dropped
+more than once. `GET /branches/deleted` lists it — name, author display name, deleted date,
+and the same cheap `diffSnapshots` divergence count the live list shows. The held-by-merge and
+`main` guards are untouched: a blocked delete archives nothing. No restore endpoint — the
+freed name may be taken by the time you want it back, so restore is a create-or-conflict flow
+with its own UI, left as a follow-up. On `/branches` the list is a collapsed hairline zone at
+the foot of the sheet, not a new route. The `schema.ts` table is added here; generating the
+Drizzle migration is the consolidating branch's step.
+
+### `main`'s revision counter is the merge-marker count, derived not stored
+
+Usability review, theme H (ADR 0014). The web fixture carried a hardcoded `@ rev 41` on the
+rail and the `/db` subtitle; the review pulled it, then asked for it back backed by a real
+number. A revision of `main` is one landed merge — 0 at seed, `+1` per successful merge, and
+nothing else moves `main` because it is never edited directly.
+
+`main.headVersion` already equals that count today: the merge transaction bumps it once per
+merge and nothing else writes `main`'s row. But `head_version` is the per-edit counter on
+working branches (bumped by `POST .../operations` and undo), kept only so a merge-request
+`GET` can say "you previewed against `main@v3`". `main`'s value lining up is a side effect of
+`main` being uneditable, not something the field promises. So `assembleOverview` derives
+`trunkRevision` from the count of `MergeMarker` rows in `main`'s op log — the same rows the
+new `revisions` list is built from — and no column is added.
+
+The list is `{ n, sourceBranch, at, summary }` per merge, newest first, capped at ten, on
+`GET /overview`. `n` is the real revision number (the newest entry's `n` is `trunkRevision`).
+The marker is thin — `{ type, mergeRequestId, sourceBranch }` plus the row's `at`/`authorId` —
+so `summary` is just "merged by \<name\>", the one fact not already in the other fields. No
+per-merge object counts or delta descriptions: `main`'s head is not snapshotted per merge and
+the marker stores no description, and this deliberately does not grow a history subsystem to
+invent them. The `/db` dashboard renders the list as a hairline Revisions zone below Branches.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:

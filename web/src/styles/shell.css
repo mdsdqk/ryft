@@ -91,15 +91,16 @@
   padding-inline-start: 9px;
 }
 
-/* contextual sub-sheets under an open branch or merge */
+/* contextual views under an open branch or merge request. The nested list is
+ * ruled off on its inline-start edge and headed by the open entity's name, so it
+ * reads as "inside this branch", not as a sub-menu of the list page. */
 .shl-rail__sub {
   list-style: none;
   margin: 4px 0 8px;
   padding-inline-start: 12px;
   border-inline-start: 1px solid var(--line);
 }
-.shl-rail__sub a,
-.shl-rail__sub span {
+.shl-rail__sub a {
   display: block;
   font-family: var(--ff-mono);
   font-size: 10px;
@@ -110,23 +111,30 @@
   padding: 6px 10px 6px 8px;
   overflow-wrap: anywhere;
 }
-.shl-rail__sub span[aria-disabled="true"] {
-  cursor: default;
-}
-.shl-rail__sub a[aria-current="page"],
-.shl-rail__sub span[aria-current="page"] {
+.shl-rail__sub a[aria-current="page"] {
   color: var(--ink);
 }
 
-.shl-rail__hint {
-  margin-top: 22px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--line);
+/* the open entity's name, heading the nested view list */
+.shl-rail__open {
+  padding: 4px 10px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.shl-rail__open-k {
   font-family: var(--ff-mono);
-  font-size: 9px;
-  line-height: 1.7;
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   color: var(--ink-faint);
-  max-width: 22ch;
+}
+.shl-rail__open-nm {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 @media (hover: hover) {
@@ -193,9 +201,12 @@
     padding-inline-start: 0;
     display: flex;
     flex-wrap: wrap;
+    align-items: baseline;
   }
-  .shl-rail__hint {
-    display: none;
+  .shl-rail__open {
+    flex-direction: row;
+    gap: 6px;
+    padding: 6px 10px;
   }
 }
 

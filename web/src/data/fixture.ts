@@ -12,7 +12,7 @@
 import type { CreateBranchArgs, DataSource } from "./source.ts";
 import * as branches from "./branches.ts";
 import * as branchSchema from "./branchSchema.ts";
-import { database, overviewExerciseEmpty } from "./database.ts";
+import { database, overviewExerciseEmpty, trunkRevisions } from "./database.ts";
 import * as merges from "./merges.ts";
 import * as mergeReview from "./mergeReview.ts";
 
@@ -21,10 +21,12 @@ const clone = <T>(v: T): T => structuredClone(v);
 export const fixtureSource: DataSource = {
   getOverview: async () => {
     if (overviewExerciseEmpty()) {
+      // `/db?empty` is a freshly seeded database — nothing has merged into main.
       return {
-        database: clone(database),
+        database: { ...clone(database), trunkRevision: 0 },
         branches: [],
         merges: [],
+        revisions: [],
       };
     }
     const open = merges.listOpen();
@@ -32,15 +34,17 @@ export const fixtureSource: DataSource = {
       database: clone(database),
       branches: branches.listWorking(open),
       merges: open,
+      revisions: clone(trunkRevisions),
     };
   },
   listBranches: async () => branches.listAll(database, merges.listOpen()),
-  listMerges: async () => merges.listOpen(),
+  listMerges: async (state) => (state === "closed" ? merges.listClosed() : merges.listOpen()),
   createBranch: async (args: CreateBranchArgs) =>
     branches.createBranch(args, database, merges.listOpen()),
   deleteBranch: async (name: string) => {
     branches.deleteBranch(name, database, merges.listOpen());
   },
+  listDeletedBranches: async () => branches.listDeleted(),
   getBranchDetail: (name: string) => branchSchema.getBranchDetail(name),
   listBranchOperations: (name: string) => branchSchema.listBranchOperations(name),
   applyOperations: (name, ops) => branchSchema.applyOperations(name, ops),
@@ -51,4 +55,5 @@ export const fixtureSource: DataSource = {
     mergeReview.postResolution(id, conflictId, choice, type),
   deleteResolution: (id, conflictId) => mergeReview.deleteResolution(id, conflictId),
   mergeMergeRequest: (id) => mergeReview.mergeMergeRequest(id),
+  closeMergeRequest: (id) => mergeReview.closeMergeRequest(id),
 };

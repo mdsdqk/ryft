@@ -2,10 +2,14 @@ import type { RevisionStatus } from "../model.ts";
 import { STATUS_SEQUENCE, statusLabel } from "../format.ts";
 
 /**
- * The revision-status dial. A drawing's issue/approval plate, and — the point of
- * the design — a dial that *turns*: the whole sequence stays visible and the
- * boxed marker advances along it when the status changes (an authored move,
+ * The status dial. A dial that *turns*: the whole lifecycle stays visible and
+ * the boxed marker advances along it when the status changes (an authored move,
  * neutralised under prefers-reduced-motion). It never reads as a stamp.
+ *
+ * `closed` is off the sequence (ADR 0012 §3) — the request left the line rather
+ * than reaching its end. `indexOf` returns -1, so no step is marked current and
+ * the whole run reads as unreached; the dial says Closed and the sequence goes
+ * quiet behind it.
  */
 export function RevisionDial({
   status,
@@ -16,8 +20,8 @@ export function RevisionDial({
 }) {
   const current = STATUS_SEQUENCE.indexOf(status);
   return (
-    <div className="mr-dial" role="group" aria-label="Revision status">
-      <span className="mr-dial__label">Revision status</span>
+    <div className="mr-dial" role="group" aria-label="Status" data-closed={status === "closed"}>
+      <span className="mr-dial__label">Status</span>
       <strong className="mr-dial__now" data-status={status}>
         {statusLabel(status)}
       </strong>

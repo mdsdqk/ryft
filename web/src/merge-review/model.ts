@@ -146,7 +146,13 @@ export interface Conflict {
   gates: string[];
 }
 
-export type RevisionStatus = "received" | "in-check" | "cleared" | "released";
+/**
+ * The merge-request lifecycle, by its internal keys — the screen shows
+ * Queued / Under review / Reviewed / Merged (ADR 0011). `closed` is the fifth
+ * and it is off the line rather than at the end of it: a request withdrawn
+ * without merging (ADR 0012 §3). Terminal, like `released`.
+ */
+export type RevisionStatus = "received" | "in-check" | "cleared" | "released" | "closed";
 
 export interface DdlStatement {
   sql: string;
@@ -182,6 +188,21 @@ export interface MergeReview {
   openedBy: Party;
   openedAt: string;
   status: RevisionStatus;
+  /**
+   * Queue placement (ADR 0004 §3). `ahead` is how many requests must merge
+   * before this one; a request at the front has `ahead: 0`. Absent on fixtures
+   * that predate the queue — treat as "at the front".
+   */
+  queue?: { position: number; ahead: number; behind: number };
+  /**
+   * The server re-freezes `ours` from the source branch's live head on every
+   * read (ADR 0012 §1), so a branch edit made after the request opened lands
+   * here. When that refresh invalidated conflict choices already recorded, this
+   * names them — one pre-rendered line each — so the screen can say what was
+   * un-chosen instead of dropping it in silence (ADR 0012 §2). Absent when
+   * nothing dropped; never blocks the merge.
+   */
+  refreshNote?: { droppedResolutions: string[] };
   rows: ComparisonRow[];
   conflicts: Conflict[];
   revisions: RevisionRef[];
@@ -203,7 +224,17 @@ export function isMergeable(review: MergeReview): boolean {
   return openConflicts(review).length === 0 && review.commutativity === "passed";
 }
 
+/**
+ * `cleared` is derived, not stored — a request is Reviewed the moment nothing is
+ * outstanding. The two terminal states short-circuit that: a merged or closed
+ * request is what it is, however its conflicts happen to read now.
+ */
 export function effectiveStatus(review: MergeReview): RevisionStatus {
-  if (review.status === "released") return "released";
+  if (review.status === "released" || review.status === "closed") return review.status;
   return isMergeable(review) ? "cleared" : review.status;
+}
+
+/** Terminal — the request is finished either way, so the screen is read-only. */
+export function isTerminal(status: RevisionStatus): boolean {
+  return status === "released" || status === "closed";
 }

@@ -99,6 +99,28 @@ export function AppShell() {
         )}
 
         <div className="app-bar__theme" role="group" aria-label="Colour theme">
+          <svg
+            className="app-bar__theme-icon"
+            viewBox="0 0 16 16"
+            width="13"
+            height="13"
+            aria-hidden="true"
+          >
+            <circle
+              cx="8"
+              cy="8"
+              r="3.2"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.3"
+            />
+            <path
+              d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M13 3l-1.4 1.4M4.4 11.6L3 13"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
+          </svg>
           {(
             [
               ["light", "Light"],

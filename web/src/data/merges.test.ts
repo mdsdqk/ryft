@@ -30,6 +30,13 @@ describe("mergeStatusLabel", () => {
     expect(mergeStatusLabel(row({ status: "held", conflicts: 1 }))).toBe("Held · 1 conflict");
     expect(mergeStatusLabel(row({ status: "stale" }))).toBe("Stale base");
   });
+
+  it("dates a closed request, and does not fall back to its old queue place", () => {
+    expect(mergeStatusLabel(row({ status: "closed", position: 0, closedOn: "2026-02-05" }))).toBe(
+      "Closed · 2026-02-05",
+    );
+    expect(mergeStatusLabel(row({ status: "closed", position: 0 }))).toBe("Closed");
+  });
 });
 
 describe("mergeStatusTone", () => {
@@ -37,5 +44,9 @@ describe("mergeStatusTone", () => {
     expect(mergeStatusTone(row({ status: "queued", position: 2 }))).toBe("neutral");
     expect(mergeStatusTone(row({ status: "clean" }))).toBe("ok");
     expect(mergeStatusTone(row({ status: "held" }))).toBe("held");
+  });
+
+  it("reads a closed request as an outcome, not a failure", () => {
+    expect(mergeStatusTone(row({ status: "closed", position: 0 }))).toBe("neutral");
   });
 });

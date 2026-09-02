@@ -333,9 +333,40 @@
   }
 }
 
+/* ── collapse-all / expand-all control ───────────────────────────────── */
+
+.kit-collapseall {
+  display: inline-flex;
+  gap: 4px;
+}
+.kit-collapseall__btn {
+  font-family: var(--ff-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px solid var(--line-strong);
+  padding: 3px 7px;
+  background: transparent;
+}
+.kit-collapseall__btn:disabled {
+  color: var(--ink-faint);
+  border-color: var(--line);
+  cursor: default;
+}
+@media (hover: hover) {
+  .kit-collapseall__btn:not(:disabled):hover {
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+}
+
 @media (forced-colors: active) {
   .kit-facts,
   .kit-list {
+    border: 1px solid CanvasText;
+  }
+  .kit-collapseall__btn {
     border: 1px solid CanvasText;
   }
   .kit-pill__dot {

@@ -85,6 +85,15 @@ describe("golden path", () => {
     const overview = await j(await app.request("/api/overview", { headers: grace }));
     expect((overview.database as { trunkRevision: number }).trunkRevision).toBe(2);
     expect((overview.merges as unknown[]).length).toBe(0);
+
+    // the revisions list: one entry per merge, newest first, `n` the real number
+    const revisions = overview.revisions as Array<{ n: number; sourceBranch: string; at: string; summary: string }>;
+    expect(revisions.map((r) => [r.n, r.sourceBranch])).toEqual([
+      [2, "titles"],
+      [1, "contact-fields"],
+    ]);
+    expect(revisions[0]!.summary).toMatch(/Grace Okoro/); // grace ran both merges
+    expect(revisions[0]!.at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 

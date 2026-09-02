@@ -1,7 +1,7 @@
 /**
  * Branches list — `/branches`.
  *
- * THESIS: a revision-set index of named cuts from main, not a GitHub branch
+ * THESIS: a revision-set index of named branches from main, not a GitHub branch
  * list. Refuses badges, avatars, relative time, rounded chips, and any modal
  * for create or delete.
  *
@@ -10,14 +10,17 @@
  * tnum. Trunk is a labelled row; working rows carry △N / "no changes" in
  * --ink-soft (neutral), never colour alone.
  *
- * STORY: see every cut, name a new one from main, delete one that is not held.
- * An open merge request names why delete is refused. Empty keeps the sheet and
- * the trunk row; the working-list slot is the first-run notice + Create branch.
+ * STORY: see every branch, name a new one from main, delete one that is not
+ * held. An open merge request names why delete is refused. Empty keeps the
+ * sheet and the trunk row; the working-list slot is the first-run notice +
+ * Create branch. A collapsed "Deleted branches" archive sits at the foot of the
+ * sheet (ADR 0013) — a hairline list of dropped branches, name · author ·
+ * deleted date.
  *
- * FIRST VIEWPORT: title strip "Branches" + demonstration tag; right cell is
- * the create plate (label, name field, Cut). Body: trunk first, then working
- * rows (name → /branch/:name, author · cut date, marker, Delete). Primary
- * action is Cut from main.
+ * FIRST VIEWPORT: title strip "Branches"; right cell is the create plate
+ * (label, name field, Create). Body: trunk first, then working rows (name →
+ * /branch/:name, author · branched date, marker, Delete). Primary action is
+ * creating a branch from main.
  *
  * FORM: revision sheet, established world, code-led V0 (no motion).
  *
@@ -43,12 +46,15 @@ import {
   source,
   useResource,
   type BranchSummary,
+  type DeletedBranchSummary,
+  type Resource,
 } from "../data/index.ts";
 import { Link, useSearchParams } from "react-router";
 import { useSession } from "../session/session.ts";
 import {
   EmptyState,
   Loading,
+  Row,
   SheetList,
   SurfaceBody,
   SurfaceSheet,
@@ -103,6 +109,7 @@ export function Branches() {
   const { data, loading, error, reload } = useResource(() =>
     source.listBranches(),
   );
+  const deletedRes = useResource(() => source.listDeletedBranches());
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -159,7 +166,7 @@ export function Branches() {
   const countLine =
     working.length === 0
       ? `no working branches · trunk ${trunkName}`
-      : `${working.length.toLocaleString()} working branch${working.length === 1 ? "" : "es"} · cut from ${trunkName}`;
+      : `${working.length.toLocaleString()} working branch${working.length === 1 ? "" : "es"} · branched from ${trunkName}`;
 
   const onCreated = (name: string) => {
     if (forceEmpty) {
@@ -172,7 +179,7 @@ export function Branches() {
         { replace: true },
       );
     }
-    setNotice(`Branch ${name} cut from ${trunkName}.`);
+    setNotice(`Branch ${name} branched from ${trunkName}.`);
     setPending(null);
     focusSoon(() => createRef.current);
   };
@@ -197,7 +204,6 @@ export function Branches() {
     <div className="br">
       <SurfaceSheet
         title="Branches"
-        demo
         subtitle={countLine}
         action={
           <CreatePlate
@@ -248,7 +254,7 @@ export function Branches() {
                   </button>
                 }
               >
-                Every branch starts from <code>main</code>. Cut one to change
+                Every branch starts from <code>main</code>. Create one to change
                 the schema without touching the trunk.
               </EmptyState>
             ) : (
@@ -268,9 +274,52 @@ export function Branches() {
               ))
             )}
           </SheetList>
+
+          <DeletedBranches resource={deletedRes} />
         </SurfaceBody>
       </SurfaceSheet>
     </div>
+  );
+}
+
+/**
+ * The archive at the foot of the sheet — a collapsible hairline list of dropped
+ * branches (name · author · deleted date). Native `<details>`, closed by
+ * default; the archive is reference, not a working surface. Kept quiet: a load
+ * error just hides it, and an empty archive still shows the section with a
+ * one-line notice.
+ */
+function DeletedBranches({
+  resource,
+}: {
+  resource: Resource<DeletedBranchSummary[]>;
+}) {
+  const { data, error } = resource;
+  if (error) return null;
+  const rows = data ?? [];
+
+  return (
+    <details className="br-deleted">
+      <summary className="br-deleted__k">
+        Deleted branches
+        {rows.length > 0 && (
+          <span className="br-deleted__ct">{rows.length.toLocaleString()}</span>
+        )}
+      </summary>
+      {rows.length === 0 ? (
+        <p className="br-deleted__empty">No deleted branches.</p>
+      ) : (
+        <SheetList label="Deleted branches">
+          {rows.map((b) => (
+            <Row
+              key={`${b.name} ${b.deletedAt}`}
+              primary={b.name}
+              meta={`${b.author} · deleted ${b.deletedAt.slice(0, 10)}`}
+            />
+          ))}
+        </SheetList>
+      )}
+    </details>
   );
 }
 
@@ -310,7 +359,7 @@ function CreatePlate({
       setName("");
       onCreated(created.name);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not cut the branch.");
+      setError(err instanceof Error ? err.message : "Could not create the branch.");
     } finally {
       setCutting(false);
       onBusy(false);
@@ -320,7 +369,7 @@ function CreatePlate({
   return (
     <form className="br-create" onSubmit={(e) => void submit(e)}>
       <label className="br-create__label" htmlFor={id}>
-        Cut from main
+        New branch from main
       </label>
       <div className="br-create__row">
         <input
@@ -350,7 +399,7 @@ function CreatePlate({
           type="submit"
           disabled={!clean || blocked || !author}
         >
-          {cutting ? "Cutting…" : "Cut"}
+          {cutting ? "Creating…" : "Create"}
         </button>
       </div>
       {error && (
@@ -447,7 +496,7 @@ function BranchRow({
 
   const meta = branch.trunk
     ? `trunk · last changed ${branch.cutOn}`
-    : `${branch.author} · cut ${branch.cutOn}`;
+    : `${branch.author} · branched ${branch.cutOn}`;
 
   const message =
     pending?.kind === "confirm"

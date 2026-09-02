@@ -9,11 +9,12 @@
  * and drop. One row's editor is open at a time.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import type { Table } from "@engine/schema.js";
 
-import { EmptyState } from "../kit/index.ts";
+import { Chevron, EmptyState } from "../kit/index.ts";
+import { TableDdl } from "./TableDdl.tsx";
 import { AddColumnForm, AddIndexForm } from "./AddForms.tsx";
 import { ColumnEditor } from "./ColumnEditor.tsx";
 import {
@@ -39,6 +40,8 @@ import {
 
 /** `seq` if an operation touched this object id, else `undefined`. */
 type MarkOf = (objectId: string) => number | undefined;
+
+export type CardGroup = "columns" | "indexes" | "constraints";
 
 type RowSpec = { id: string; name: string; spec: string; pk?: boolean };
 
@@ -186,6 +189,10 @@ export function TableCard({
   landedSeq,
   apply,
   editable,
+  cardCollapsed = false,
+  onToggleCard,
+  groupCollapsed = () => false,
+  onToggleGroup = () => {},
 }: {
   table: Table;
   tables: Table[];
@@ -194,9 +201,26 @@ export function TableCard({
   landedSeq: number | null;
   apply: ApplyFn;
   editable: boolean;
+  cardCollapsed?: boolean;
+  onToggleCard?: () => void;
+  groupCollapsed?: (g: CardGroup) => boolean;
+  onToggleGroup?: (g: CardGroup) => void;
 }) {
   const [open, setOpen] = useState<Open>(null);
   const [dropErr, setDropErr] = useState<string | null>(null);
+  const [showDdl, setShowDdl] = useState(false);
+
+  const GroupHead = ({ g, children }: { g: CardGroup; children: ReactNode }) => (
+    <button
+      type="button"
+      className="bw-group__k bw-group__k--btn"
+      aria-expanded={!groupCollapsed(g)}
+      onClick={() => onToggleGroup(g)}
+    >
+      <Chevron open={!groupCollapsed(g)} />
+      <span>{children}</span>
+    </button>
+  );
 
   const pkMembers = new Set(table.primaryKey?.columnIds ?? []);
   const cols = table.columns.map((c) => ({ id: c.id, name: c.name, nullable: c.nullable }));
@@ -230,12 +254,41 @@ export function TableCard({
     !table.primaryKey && table.uniques.length === 0 && table.foreignKeys.length === 0;
   const addingConstraint = open?.kind === "add-pk" || open?.kind === "add-unique" || open?.kind === "add-fk";
 
+  const counts = `${table.columns.length} col${table.columns.length === 1 ? "" : "s"} · ${
+    table.indexes.length
+  } index${table.indexes.length === 1 ? "" : "es"}`;
+
   return (
-    <article className="bw-card" aria-labelledby={`card-${table.id}`}>
+    <article
+      className={`bw-card${cardCollapsed ? " bw-card--collapsed" : ""}`}
+      aria-labelledby={`card-${table.id}`}
+    >
       <header className="bw-card__strip">
+        {onToggleCard && (
+          <button
+            type="button"
+            className="bw-card__toggle"
+            aria-expanded={!cardCollapsed}
+            aria-label={`${cardCollapsed ? "Expand" : "Collapse"} table ${table.name}`}
+            onClick={onToggleCard}
+          >
+            <Chevron open={!cardCollapsed} />
+          </button>
+        )}
         <TableName table={table} apply={apply} editable={editable} />
         <span className="bw-card__right">
+          {cardCollapsed && <span className="bw-card__counts">{counts}</span>}
           <span className="bw-card__id">{table.id}</span>
+          <span className="bw-card__acts">
+            <button
+              className="bw-mini"
+              type="button"
+              aria-pressed={showDdl}
+              onClick={() => setShowDdl((v) => !v)}
+            >
+              {showDdl ? "table view" : "view SQL"}
+            </button>
+          </span>
           {editable && (
             <span className="bw-card__acts">
               <button className="bw-mini" type="button" onClick={() => setOpen({ kind: "add-column" })}>
@@ -259,6 +312,10 @@ export function TableCard({
         </span>
       </header>
 
+      {cardCollapsed ? null : showDdl ? (
+        <TableDdl table={table} />
+      ) : (
+      <>
       {open?.kind === "drop-table" && (
         <div className="bw-ed bw-ed--warn bw-ed--strip" role="group" aria-label={`Drop table ${table.name}`}>
           {dropErr ? (
@@ -282,7 +339,9 @@ export function TableCard({
       )}
 
       <div className="bw-group">
-        <p className="bw-group__k">Columns</p>
+        <GroupHead g="columns">Columns</GroupHead>
+        {!groupCollapsed("columns") && (
+        <>
         {table.columns.map((c) => {
           const seq = markOf(c.id);
           const isOpen = open?.kind === "column" && open.id === c.id;
@@ -318,10 +377,14 @@ export function TableCard({
             onClose={close}
           />
         )}
+        </>
+        )}
       </div>
 
       <div className="bw-group">
-        <p className="bw-group__k">Indexes</p>
+        <GroupHead g="indexes">Indexes</GroupHead>
+        {!groupCollapsed("indexes") && (
+        <>
         {indexRows.length === 0 && open?.kind !== "add-index" && (
           <EmptyState layout="inline" title="No indexes on this table.">
             {editable ? "Add one with + index on this card." : null}
@@ -364,11 +427,13 @@ export function TableCard({
             onClose={close}
           />
         )}
+        </>
+        )}
       </div>
 
       <div className="bw-group">
         <div className="bw-group__head">
-          <p className="bw-group__k">Constraints</p>
+          <GroupHead g="constraints">Constraints</GroupHead>
           {editable && (
             <span className="bw-card__acts">
               {!table.primaryKey && (
@@ -385,6 +450,8 @@ export function TableCard({
             </span>
           )}
         </div>
+        {!groupCollapsed("constraints") && (
+        <>
         {noConstraints && !addingConstraint && (
           <EmptyState layout="inline" title="No constraints on this table.">
             {editable
@@ -490,7 +557,11 @@ export function TableCard({
         {open?.kind === "add-fk" && (
           <AddForeignKeyForm table={table} tables={tables} apply={apply} onClose={close} />
         )}
+        </>
+        )}
       </div>
+      </>
+      )}
     </article>
   );
 }

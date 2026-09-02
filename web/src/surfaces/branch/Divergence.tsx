@@ -74,7 +74,7 @@ export function Divergence({ detail }: { detail: BranchDetail }) {
             {changeCount} object{changeCount === 1 ? "" : "s"} diverged from main
           </>
         }
-        gutterLabel="Object · stable id"
+        gutterLabel="Table object"
         left={{ label: "On main", shortLabel: "on main" }}
         right={{ label: "On this branch — ours", shortLabel: "on this branch", tone: "ours" }}
         baseNote={

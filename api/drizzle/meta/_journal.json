@@ -8,6 +8,13 @@
       "when": 1788111051813,
       "tag": "0000_warm_grandmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788353841074,
+      "tag": "0001_deleted_branches_archive",
+      "breakpoints": true
     }
   ]
 }

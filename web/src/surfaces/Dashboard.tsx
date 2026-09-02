@@ -12,12 +12,13 @@
  * Trunk name links out to the branch workspace.
  *
  * STORY: orient. What is this database, what is main's shape, what is in
- * flight. Cut a branch from here. Empty lists keep their zone headings:
- * merges name the zero, branches offer Create branch into the title plate.
+ * flight. Create a branch from here. Empty lists keep their zone headings:
+ * merge requests name the zero, branches offer Create branch into the title
+ * plate.
  *
- * FIRST VIEWPORT: title strip names the database + demonstration tag; right
- * cell is Cut from main. Body: Overview facts, Open merges, recent Branches
- * capped at 6 with more →. Primary action is Cut.
+ * FIRST VIEWPORT: title strip names the database; right cell is the create
+ * plate ("New branch from main"). Body: Overview facts, Open merge requests,
+ * recent Branches capped at 6 with more →. Primary action is creating a branch.
  *
  * FORM: revision sheet, established world, code-led V0 (no motion). Consumes
  * the list pattern from /branches; does not define one.
@@ -121,10 +122,10 @@ function mergeMeta(merge: MergeSummary): string {
 function branchMeta(branch: BranchSummary): string {
   const author = branch.author.trim();
   const cut = branch.cutOn.trim();
-  if (author && cut) return `${author} · cut ${cut}`;
+  if (author && cut) return `${author} · branched ${cut}`;
   if (author) return author;
-  if (cut) return `cut ${cut}`;
-  return "cut date unknown";
+  if (cut) return `branched ${cut}`;
+  return "branch date unknown";
 }
 
 export function Dashboard() {
@@ -193,6 +194,7 @@ export function Dashboard() {
   // `?empty` is deterministic here, not just through the data seam (parity with
   // /merges, which filters locally)
   const merges = forceEmpty ? [] : data.merges;
+  const revisions = forceEmpty ? [] : data.revisions;
   let branches = forceEmpty ? [] : [...data.branches].sort(byRecent);
   if (forceBusy) branches = padBusy(branches);
   if (forceLong) branches = withLongName(branches);
@@ -212,7 +214,7 @@ export function Dashboard() {
         { replace: true },
       );
     }
-    setNotice(`Branch ${name} cut from ${db.trunk}.`);
+    setNotice(`Branch ${name} branched from ${db.trunk}.`);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         createRef.current?.focus();
@@ -230,14 +232,13 @@ export function Dashboard() {
     <div className="db">
       <SurfaceSheet
         title={db.name}
-        demo
         subtitle={
           <>
             {db.connection} · schema <b>{db.name}</b> · trunk{" "}
             <Link className="mr-linkbtn" to={trunkPath}>
               {db.trunk}
             </Link>{" "}
-            at revision {db.trunkRevision.toLocaleString()}
+            · rev {db.trunkRevision.toLocaleString()} · updated {db.trunkChangedOn}
           </>
         }
         action={
@@ -270,7 +271,7 @@ export function Dashboard() {
                   label: "Constraints",
                   value: db.constraints.toLocaleString(),
                 },
-                { label: "Main changed", value: db.trunkChangedOn },
+                { label: "main last updated", value: db.trunkChangedOn },
                 {
                   label: "Working branches",
                   value: branches.length.toLocaleString(),
@@ -279,8 +280,8 @@ export function Dashboard() {
             />
           </Zone>
 
-          <Zone title="Open merges" count={merges.length}>
-            <SheetList label="Open merges">
+          <Zone title="Open merge requests" count={merges.length}>
+            <SheetList label="Open merge requests">
               {merges.length === 0 ? (
                 <EmptyState layout="row" title="Nothing waiting to merge." />
               ) : (
@@ -338,6 +339,22 @@ export function Dashboard() {
               )}
             </SheetList>
           </Zone>
+
+          <Zone title="Revisions" count={db.trunkRevision}>
+            <SheetList label="Recent revisions">
+              {revisions.length === 0 ? (
+                <EmptyState layout="row" title="No merges into main yet." />
+              ) : (
+                revisions.map((r) => (
+                  <Row
+                    key={r.n}
+                    primary={`revision ${r.n} · ${r.sourceBranch} → ${db.trunk}`}
+                    meta={`${r.at} · ${r.summary}`}
+                  />
+                ))
+              )}
+            </SheetList>
+          </Zone>
         </SurfaceBody>
       </SurfaceSheet>
     </div>
@@ -380,7 +397,7 @@ function CreatePlate({
       setName("");
       onCreated(created.name);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not cut the branch.");
+      setError(err instanceof Error ? err.message : "Could not create the branch.");
     } finally {
       setCutting(false);
       onBusy(false);
@@ -390,7 +407,7 @@ function CreatePlate({
   return (
     <form className="db-create" onSubmit={(e) => void submit(e)}>
       <label className="db-create__label" htmlFor={id}>
-        Cut from main
+        New branch from main
       </label>
       <div className="db-create__row">
         <input
@@ -420,7 +437,7 @@ function CreatePlate({
           type="submit"
           disabled={!clean || blocked || !author}
         >
-          {cutting ? "Cutting…" : "Cut"}
+          {cutting ? "Creating…" : "Create"}
         </button>
       </div>
       {error && (

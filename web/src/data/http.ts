@@ -19,7 +19,7 @@ import { BranchHeldError, heldByMergeMessage } from "./branches.ts";
 import { BranchNotFoundError } from "./branchSchema.ts";
 import { MergeRevalidationError, MergeRequestNotFoundError } from "./merges.ts";
 import type { DataSource } from "./source.ts";
-import type { BranchSummary, MergeSummary, Overview } from "./types.ts";
+import type { BranchSummary, DeletedBranchSummary, MergeSummary, Overview } from "./types.ts";
 import { invalidateData } from "./watch.ts";
 
 /** A non-2xx response, carrying the parsed `{ error }` body for callers to map. */
@@ -98,7 +98,8 @@ export const httpSource: DataSource = {
 
   listBranches: () => request<BranchSummary[]>("/branches"),
 
-  listMerges: () => request<MergeSummary[]>("/merge-requests"),
+  listMerges: (state) =>
+    request<MergeSummary[]>(state === "closed" ? "/merge-requests?state=closed" : "/merge-requests"),
 
   async createBranch(args) {
     let detail: BranchDetail;
@@ -134,6 +135,9 @@ export const httpSource: DataSource = {
     }
     invalidateData();
   },
+
+  listDeletedBranches: () =>
+    request<DeletedBranchSummary[]>("/branches/deleted"),
 
   async getBranchDetail(name) {
     let detail: BranchDetailBody;
@@ -326,6 +330,27 @@ export const httpSource: DataSource = {
       throw err;
     } finally {
       invalidateData();
+    }
+  },
+
+  async closeMergeRequest(id) {
+    try {
+      await request<MergeRequestResponseBody>(`/merge-requests/${encodeURIComponent(id)}/close`, {
+        method: "POST",
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw new MergeRequestNotFoundError(id);
+      }
+      if (err instanceof ApiError && err.status === 409) {
+        // the only 409 the route raises: it already merged, so there is nothing
+        // to withdraw. Say that, not the bare error key.
+        throw new Error("This merge request has already merged and cannot be closed.");
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    } finally {
+      invalidateData(); // it leaves the queue, so every list that shows it moves
     }
   },
 };

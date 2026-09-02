@@ -120,7 +120,13 @@
 
 .app-bar__theme {
   display: flex;
+  align-items: center;
   border: 1px solid var(--line-strong);
+}
+.app-bar__theme-icon {
+  flex: 0 0 auto;
+  margin-inline: 8px 2px;
+  color: var(--ink-faint);
 }
 .app-bar__theme button {
   padding: 6px 11px;
@@ -139,17 +145,22 @@
   color: var(--sheet);
 }
 
+/* the session cluster is its own zone: a divider sets it off from the theme
+ * group, and the username reads as a quiet label bound to Sign out — not a
+ * control floating between two bordered buttons (usability review point 11). */
 .app-bar__session {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
+  padding-inline-start: 16px;
+  border-inline-start: 1px solid var(--line-strong);
 }
 .app-bar__user {
   font-family: var(--ff-mono);
   font-size: 11px;
   letter-spacing: 0.04em;
-  color: var(--ink-soft);
+  color: var(--ink-faint);
   max-width: 20ch;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -263,6 +274,32 @@ kbd {
   color: var(--ink-soft);
   border: 1px dashed var(--line-strong);
 }
+/* the source branch moved after the request opened and the re-run un-chose some
+ * resolutions (ADR 0012 §2) — advisory, so it takes the dashed marginal note
+ * treatment, not the conflict red. */
+.mr-titlestrip__refresh {
+  margin-top: 10px;
+  padding: 7px 10px;
+  border: 1px dashed var(--line-strong);
+  border-inline-start-width: 2px;
+  max-width: 66ch;
+}
+.mr-titlestrip__refresh-k {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.mr-titlestrip__refresh-l {
+  list-style: none;
+  margin-top: 4px;
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
 .mr-o {
   color: var(--ours);
 }
@@ -299,6 +336,16 @@ kbd {
 .mr-dial__now[data-status="cleared"],
 .mr-dial__now[data-status="released"] {
   color: var(--ok);
+}
+/* closed: withdrawn, not failed — quiet ink, and the lifecycle it left behind
+ * goes fainter still rather than showing a marker it never reached. */
+.mr-dial__now[data-status="closed"] {
+  color: var(--ink-soft);
+}
+.mr-dial[data-closed="true"] .mr-dial__seq {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
 }
 .mr-dial__seq {
   display: flex;
@@ -466,10 +513,16 @@ kbd {
   padding: 6px 10px;
   color: var(--ink-soft);
 }
-.mr-chip[aria-pressed="true"] {
+.mr-chip[aria-pressed="true"],
+/* the chip is a real link when it selects a view rather than a filter — the
+ * view lives in the URL, so `aria-current` marks it instead of `aria-pressed` */
+a.mr-chip[aria-current="page"] {
   background: var(--ink);
   color: var(--sheet);
   border-color: var(--ink);
+}
+a.mr-chip {
+  text-decoration: none;
 }
 .mr-filters__count {
   font-family: var(--ff-mono);
@@ -1166,11 +1219,64 @@ kbd {
     transition: background-color 200ms var(--ease-mark) !important;
   }
 }
+
+/* queued: neutral, not an error — the request simply isn't at the front yet */
+.mr-fab__status[data-queued="true"] .mr-fab__dot {
+  background: var(--ink-faint);
+}
+.mr-fab__status[data-queued="true"] b {
+  color: var(--ink);
+}
+.mr-fab__status[data-queued="true"] {
+  animation: none;
+}
+.mr-fab__queued {
+  margin: 0 24px 11px 0;
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px solid var(--line-strong);
+  padding: 6px 10px;
+}
 .mr-fab__status[data-released="true"] .mr-fab__dot {
   background: var(--ok);
 }
 .mr-fab__status[data-released="true"] b {
   color: var(--ok);
+}
+
+/* closed: withdrawn, so it takes the same neutral treatment as queued — an
+ * outcome, not a fault. */
+.mr-fab__status[data-closed="true"] .mr-fab__dot {
+  background: var(--ink-faint);
+}
+.mr-fab__status[data-closed="true"] b {
+  color: var(--ink-soft);
+}
+.mr-fab__status[data-closed="true"] {
+  animation: none;
+}
+
+/* the queued note and the two actions share one trailing cluster, so "Close
+ * request" sits beside "Merge into main" instead of replacing it */
+.mr-fab__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.mr-fab__close {
+  margin: 0 24px 11px 0;
+}
+.mr-fab__actions .mr-fab__close + .mr-fab__release,
+.mr-fab__actions .mr-fab__queued + .mr-fab__close {
+  margin-inline-start: 0;
+}
+.mr-fab__actions .mr-fab__queued,
+.mr-fab__actions .mr-fab__close:not(:last-child) {
+  margin-inline-end: 0;
 }
 .mr-fab__err {
   margin: 0 24px 14px;
@@ -1276,6 +1382,11 @@ kbd {
   .app-bar {
     flex-wrap: wrap;
     row-gap: 10px;
+  }
+  /* wrapped onto its own row — the divider/indent no longer separates anything */
+  .app-bar__session {
+    padding-inline-start: 0;
+    border-inline-start: none;
   }
   .mr-titlestrip__demo {
     margin-top: 12px;

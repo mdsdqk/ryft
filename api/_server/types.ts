@@ -44,16 +44,49 @@ export type MergeSummary = {
   author: string;
   openedOn: string;
   operations: number;
-  /** 1-based place in the open queue (oldest first). */
+  /** 1-based place in the open queue (oldest first); 0 for a closed request. */
   position: number;
-  status: "clean" | "held" | "stale" | "queued";
+  status: "clean" | "held" | "stale" | "queued" | "closed";
   conflicts: number;
+  /** ISO-8601 date the request was closed; set iff `status` is `closed`. */
+  closedOn?: string;
+};
+
+/**
+ * One entry in `main`'s revision history — a merge that has landed on trunk.
+ * Newest first, capped at ten by `GET /overview`. `n` is the real revision
+ * number, so the newest entry's `n` equals `Database.trunkRevision`.
+ */
+export type TrunkRevision = {
+  /** revision number — 1 for the first merge into `main` */
+  n: number;
+  /** the branch whose merge produced this revision */
+  sourceBranch: string;
+  /** ISO-8601 date the merge landed */
+  at: string;
+  /** the one fact the marker adds beyond `sourceBranch`/`at` — who ran the merge */
+  summary: string;
 };
 
 export type Overview = {
   database: Database;
   branches: BranchSummary[];
   merges: MergeSummary[];
+  /** `main`'s recent revisions — newest first, at most ten (ADR 0014) */
+  revisions: TrunkRevision[];
+};
+
+/**
+ * One row of the `deleted_branches` archive — `GET /branches/deleted` (ADR 0013).
+ * `divergence` is the `base` → `head` delta count frozen at deletion, the same
+ * cheap `diffSnapshots` the live list runs.
+ */
+export type DeletedBranchSummary = {
+  name: string;
+  author: string;
+  /** ISO-8601 timestamp the branch was dropped */
+  deletedAt: string;
+  divergence: number;
 };
 
 export type SessionResponse = { user: User; organization: Organization };
@@ -80,7 +113,13 @@ export type MergeRequestResponse = {
   report: MergeReport;
   /** `emitMigration(theirs, merged)` — `null` when the merge is not clean (no merged doc to render). */
   migration: Migration | null;
-  queue: { status: "queued" | "open" | "held" | "merged"; position: number; ahead: number; behind: number };
+  queue: {
+    status: "queued" | "open" | "held" | "merged" | "closed";
+    /** 0 for a terminal request — it holds no place in the queue. */
+    position: number;
+    ahead: number;
+    behind: number;
+  };
   stale: boolean;
   /**
    * The stored resolutions that are currently in force (ADR 0004 §6). A resolved

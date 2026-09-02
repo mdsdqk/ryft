@@ -1,6 +1,6 @@
 {
-  "id": "1f4a573a-834d-4268-b3d1-e1ca00a56b99",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "d6441f28-c249-4b67-874f-a37e5fde2e08",
+  "prevId": "1f4a573a-834d-4268-b3d1-e1ca00a56b99",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -74,6 +74,121 @@
           "tableTo": "users",
           "columnsFrom": [
             "author_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deleted_branches": {
+      "name": "deleted_branches",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_id": {
+          "name": "author_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "head": {
+          "name": "head",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_snapshot": {
+          "name": "base_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "head_version": {
+          "name": "head_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "deleted_by_id": {
+          "name": "deleted_by_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "deleted_branches_organization_id_organizations_id_fk": {
+          "name": "deleted_branches_organization_id_organizations_id_fk",
+          "tableFrom": "deleted_branches",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "deleted_branches_author_id_users_id_fk": {
+          "name": "deleted_branches_author_id_users_id_fk",
+          "tableFrom": "deleted_branches",
+          "tableTo": "users",
+          "columnsFrom": [
+            "author_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "deleted_branches_deleted_by_id_users_id_fk": {
+          "name": "deleted_branches_deleted_by_id_users_id_fk",
+          "tableFrom": "deleted_branches",
+          "tableTo": "users",
+          "columnsFrom": [
+            "deleted_by_id"
           ],
           "columnsTo": [
             "id"

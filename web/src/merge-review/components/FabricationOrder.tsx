@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 
 import type { MergeReview } from "../model.ts";
 import { effectiveStatus, isMergeable, openConflicts } from "../model.ts";
+import { statusLabel } from "../format.ts";
 
 /**
- * Irreversible release — hold 2s on a pointer, or Enter then Enter on the
- * keyboard. A slip click must not fire. The fill lives in CSS (clip-path on
+ * Irreversible merge into main — hold 2s on a pointer, or Enter then Enter on
+ * the keyboard. A slip click must not fire. The fill lives in CSS (clip-path on
  * ::before; background-color under reduced motion).
  */
-function ReleaseToMainButton({
+function MergeIntoMainButton({
   releasing,
   onRelease,
 }: {
@@ -64,10 +65,10 @@ function ReleaseToMainButton({
       data-keyed={keyed ? "true" : undefined}
       aria-label={
         releasing
-          ? "Releasing"
+          ? "Merging"
           : keyed
-            ? "Press Enter again to release to main"
-            : "Release to main. Hold for two seconds, or press Enter twice."
+            ? "Press Enter again to merge into main"
+            : "Merge into main. Hold for two seconds, or press Enter twice."
       }
       onPointerDown={(e) => {
         if (e.button !== 0 || releasing) return;
@@ -96,7 +97,7 @@ function ReleaseToMainButton({
       onBlur={() => setKeyed(false)}
     >
       <span className="mr-fab__release-label">
-        {releasing ? "Releasing…" : keyed ? "Confirm release" : "Release to main"}
+        {releasing ? "Merging…" : keyed ? "Confirm merge" : "Merge into main"}
       </span>
     </button>
   );
@@ -106,8 +107,13 @@ function ReleaseToMainButton({
  * Zone D — the fabrication order. The ordered, forward-only DDL that comes out of
  * a clean merge, each statement tagged to the revision that produced it. Blocked
  * groups are listed with the reason, including any downstream objects a conflict
- * gates. A status line — not a stamp — says what advances the dial to Cleared,
- * and the one primary action that turns it to Released.
+ * gates. A status line — not a stamp — says what advances the dial to Reviewed,
+ * and the one primary action that turns it to Merged.
+ *
+ * The zone also carries the way *out*: "Close request" withdraws the request
+ * without merging (ADR 0012 §3). It sits next to the merge button as a secondary
+ * action because the two are the same decision — this request either lands or it
+ * does not — and it is absent once either has happened.
  */
 export function FabricationOrder({
   review,
@@ -115,18 +121,30 @@ export function FabricationOrder({
   releasing = false,
   releaseError = null,
   onRelease,
+  canClose = false,
+  closing = false,
+  onClose,
 }: {
   review: MergeReview;
   canRelease?: boolean;
   releasing?: boolean;
   releaseError?: string | null;
   onRelease?: () => void;
+  canClose?: boolean;
+  closing?: boolean;
+  onClose?: () => void;
 }) {
   const fo = review.fabricationOrder;
   const open = openConflicts(review);
   const mergeable = isMergeable(review);
   const status = effectiveStatus(review);
   const released = status === "released";
+  const closed = status === "closed";
+  // this request is behind others in the merge queue — it is not reviewed here
+  // and cannot merge until it reaches the front, where it is re-checked against
+  // main (ADR 0004 §3).
+  const queued = review.status === "received";
+  const ahead = review.queue?.ahead ?? 0;
   // commutativity failed while nothing is left in the queue — an order-dependent
   // divergence that is not one of the named conflict classes.
   const unclassified = open.length === 0 && review.commutativity === "failed";
@@ -200,16 +218,33 @@ export function FabricationOrder({
           data-mergeable={mergeable}
           data-unclassified={unclassified}
           data-released={released}
+          data-queued={queued}
+          data-closed={closed}
         >
           <span className="mr-fab__dot" aria-hidden="true" />
-          {released ? (
+          {closed ? (
             <>
-              <b>Released</b> — signed off. <code>main</code> now holds this schema.
+              <b>Closed</b> — this request was withdrawn without merging.{" "}
+              <code>{review.target}</code> is unchanged, and the branch is still there to
+              open a new request from.
+            </>
+          ) : released ? (
+            <>
+              <b>Merged</b> — <code>main</code> now holds this schema.
+            </>
+          ) : queued ? (
+            <>
+              <b>Queued</b> —{" "}
+              {ahead > 0
+                ? `${ahead} request${ahead === 1 ? "" : "s"} ahead in the merge queue`
+                : "waiting for the merge queue"}
+              . It is re-checked against <code>main</code> and reviewed here once it
+              reaches the front.
             </>
           ) : mergeable ? (
             <>
-              <b>Cleared</b> — the queue is empty and applying each side's delta to base in either
-              order agrees. Ready for the checker to sign off and release.
+              <b>Reviewed</b> — the queue is empty and applying each side's delta to base in either
+              order agrees. Ready to merge into <code>main</code>.
             </>
           ) : unclassified ? (
             <>
@@ -224,15 +259,37 @@ export function FabricationOrder({
               {fo.statements.length} {fo.statements.length === 1 ? "statement" : "statements"} staged.
               <span className="mr-fab__adv">
                 {" "}
-                Advances to <b>Cleared</b> when the queue is empty and the commutativity check passes.
-                Currently: {review.commutativity}.
+                Advances to <b>Reviewed</b> when the queue is empty and the commutativity check
+                passes. Currently: {review.commutativity}.
               </span>
             </>
           )}
-          <span className="mr-vh"> Current status: {status}.</span>
+          <span className="mr-vh"> Current status: {statusLabel(status)}.</span>
         </p>
-        {canRelease && onRelease && (
-          <ReleaseToMainButton releasing={releasing} onRelease={onRelease} />
+        {(queued || canRelease || canClose) && (
+          <div className="mr-fab__actions">
+            {queued && (
+              <p className="mr-fab__queued">
+                Queued · position #{review.queue?.position ?? "—"}
+                {ahead > 0 && (
+                  <>
+                    {" "}
+                    · blocked by {ahead} ahead
+                  </>
+                )}
+              </p>
+            )}
+            {/* the way out, offered wherever the request is still live — a
+             * queued request is exactly the one you most want to withdraw */}
+            {canClose && onClose && (
+              <button className="mr-btn mr-fab__close" type="button" disabled={closing} onClick={onClose}>
+                {closing ? "Closing…" : "Close request"}
+              </button>
+            )}
+            {!queued && canRelease && onRelease && (
+              <MergeIntoMainButton releasing={releasing} onRelease={onRelease} />
+            )}
+          </div>
         )}
       </div>
       {releaseError && (
