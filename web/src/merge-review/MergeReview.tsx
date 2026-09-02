@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { ColumnType } from "@engine/schema.js";
+
+import { MergeRevalidationError, source } from "../data/index.ts";
 import type { MergeReview as MergeReviewModel } from "./model.ts";
-import { effectiveStatus, openConflicts } from "./model.ts";
+import { effectiveStatus, isMergeable, openConflicts } from "./model.ts";
 import { statusLabel } from "./format.ts";
-import { source } from "../data/index.ts";
 
 import { ComparisonTable } from "./components/ComparisonTable.tsx";
 import { ConflictQueue } from "./components/ConflictQueue.tsx";
@@ -15,40 +17,51 @@ import { TitleBlock } from "./components/TitleBlock.tsx";
 const FILTER_ID = "mr-filter-changes";
 const ZONE_IDS = { a: "mr-zone-a", b: "mr-zone-b", c: "mr-zone-c", d: "mr-zone-d" } as const;
 
-/** A queue option id → the API's resolution `choice`. `"custom"` has no
- * type-picker UI yet, so it stays a client-only pick — see `resolve()`. */
-function choiceFor(optionId: string): "ours" | "theirs" | null {
+function seedResolutions(review: MergeReviewModel): Record<string, string> {
+  return Object.fromEntries(
+    review.conflicts
+      .filter((c) => c.resolvedWith !== null)
+      .map((c) => [c.id, c.resolvedWith as string]),
+  );
+}
+
+/** A queue option id → the API's resolution `choice`. `"custom"` needs a type. */
+function choiceFor(optionId: string, type?: ColumnType): "ours" | "theirs" | "type" | null {
   if (optionId === "ours") return "ours";
   if (optionId === "theirs") return "theirs";
+  if (optionId === "custom" && type) return "type";
   return null;
 }
 
 export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId?: string }) {
-  // seed the working resolutions from any the incoming review already carries
-  const [resolutions, setResolutions] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      base.conflicts
-        .filter((c) => c.resolvedWith !== null)
-        .map((c) => [c.id, c.resolvedWith as string]),
-    ),
-  );
-  // an explicit selection; when it resolves or is empty, the derived active
-  // below falls through to the first still-open conflict.
+  // the last server-backed review; `base` is the route's fetch, mutations
+  // replace this immediately so Zone D's DDL updates without a full remount
+  const [live, setLive] = useState(base);
+  const [resolutions, setResolutions] = useState(() => seedResolutions(base));
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
+  const [pickingTypeFor, setPickingTypeFor] = useState<string | null>(null);
+  const [releasing, setReleasing] = useState(false);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLive(base);
+    setResolutions(seedResolutions(base));
+    setPickingTypeFor(null);
+    setReleaseError(null);
+  }, [base]);
 
   // fold the working resolutions back into the model the whole screen renders from
   const review = useMemo<MergeReviewModel>(() => {
-    const conflicts = base.conflicts.map((c) => ({
+    const conflicts = live.conflicts.map((c) => ({
       ...c,
       resolvedWith: resolutions[c.id] ?? null,
     }));
-    // Zone A rows stop pointing at Zone B once their conflict is settled
-    const rows = base.rows.map((r) => {
+    const rows = live.rows.map((r) => {
       const res = r.resolution;
       if (res.state !== "conflict") return r;
       const pick = resolutions[res.conflictId];
       if (!pick) return r;
-      const opt = base.conflicts
+      const opt = live.conflicts
         .find((c) => c.id === res.conflictId)
         ?.options.find((o) => o.id === pick);
       return {
@@ -60,22 +73,24 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
       };
     });
     const allResolved = conflicts.every((c) => c.resolvedWith !== null);
-    // a review that arrives already failing keeps failing until its resolutions
-    // change; otherwise the check only "passes" once the queue is empty.
     const commutativity: MergeReviewModel["commutativity"] =
-      base.commutativity === "failed" && allResolved
+      live.commutativity === "failed" && allResolved
         ? "failed"
         : allResolved
           ? "passed"
           : "pending";
-    return { ...base, conflicts, rows, commutativity };
-  }, [base, resolutions]);
+    return { ...live, conflicts, rows, commutativity };
+  }, [live, resolutions]);
 
   const open = openConflicts(review);
   const rebased = review.rows.filter((r) => r.leader?.tone === "ok").length;
+  const released = review.status === "released";
+  // Release is gated on the *server* review, not the optimistic overlay — a
+  // local pick that hasn't landed yet would 409 the merge transaction. Only the
+  // MR at the front of the queue is mergeable: `fromResponse` maps `open`/`held`
+  // → "in-check", `queued` → "received", `merged` → "released".
+  const canRelease = Boolean(mergeId) && live.status === "in-check" && isMergeable(live);
 
-  // the active conflict: an explicit pick if it is still open, otherwise the
-  // first open one, otherwise the explicit pick (all resolved), otherwise the first.
   const activeConflictId = useMemo(() => {
     const picked = review.conflicts.find((c) => c.id === selectedConflictId);
     if (picked && picked.resolvedWith === null) return picked.id;
@@ -83,21 +98,29 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
     return firstOpen?.id ?? picked?.id ?? review.conflicts[0]?.id ?? "";
   }, [review.conflicts, selectedConflictId]);
 
+  const adopt = useCallback((next: MergeReviewModel) => {
+    setLive(next);
+    setResolutions(seedResolutions(next));
+  }, []);
+
   const resolve = useCallback(
-    (conflictId: string, optionId: string) => {
+    (conflictId: string, optionId: string, type?: ColumnType) => {
+      if (released) return;
+      if (optionId === "custom" && !type) {
+        setPickingTypeFor(conflictId);
+        setSelectedConflictId(conflictId);
+        return;
+      }
+      setPickingTypeFor(null);
       setResolutions((prev) => ({ ...prev, [conflictId]: optionId }));
-      setSelectedConflictId(null); // let the derived active advance to the next open one
+      setSelectedConflictId(null);
       requestAnimationFrame(() =>
         document.querySelector<HTMLElement>(".mr-queue__list")?.focus(),
       );
 
-      // Persist when this review is backed by a real merge request. `choiceFor`
-      // is null for "custom" (no type-picker UI yet) — that pick stays local.
-      const choice = mergeId ? choiceFor(optionId) : null;
-      if (!choice) return;
-      source.postResolution(mergeId!, conflictId, choice).catch(() => {
-        // revert the optimistic pick so the screen doesn't claim a resolution
-        // the server never recorded
+      const choice = mergeId ? choiceFor(optionId, type) : null;
+      if (!choice || !mergeId) return;
+      source.postResolution(mergeId, conflictId, choice, type).then(adopt, () => {
         setResolutions((prev) => {
           const next = { ...prev };
           delete next[conflictId];
@@ -105,40 +128,63 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
         });
       });
     },
-    [mergeId],
+    [adopt, mergeId, released],
   );
 
   const reopen = useCallback(
     (conflictId: string) => {
+      if (released) return;
       setResolutions((prev) => {
         const next = { ...prev };
         delete next[conflictId];
         return next;
       });
       setSelectedConflictId(conflictId);
+      setPickingTypeFor(null);
 
       if (!mergeId) return;
-      source.deleteResolution(mergeId, conflictId).catch(() => {
+      source.deleteResolution(mergeId, conflictId).then(adopt, () => {
         /* best-effort — the next full reload reconciles either way */
       });
     },
-    [mergeId],
+    [adopt, mergeId, released],
   );
+
+  const release = useCallback(async () => {
+    if (!mergeId || releasing) return;
+    setReleasing(true);
+    setReleaseError(null);
+    try {
+      await source.mergeMergeRequest(mergeId);
+      adopt(await source.getMergeReview(mergeId));
+    } catch (err) {
+      if (err instanceof MergeRevalidationError) {
+        setReleaseError(err.message);
+        try {
+          adopt(await source.getMergeReview(mergeId));
+        } catch {
+          /* the error line is enough */
+        }
+      } else {
+        setReleaseError(err instanceof Error ? err.message : "The merge could not be released.");
+      }
+    } finally {
+      setReleasing(false);
+    }
+  }, [adopt, mergeId, releasing]);
 
   const move = useCallback(
     (delta: number) => {
-      const ids = base.conflicts.map((c) => c.id);
+      const ids = live.conflicts.map((c) => c.id);
       const i = Math.max(0, ids.indexOf(activeConflictId));
       setSelectedConflictId(ids[(i + delta + ids.length) % ids.length]!);
-      // bring the queue into view if it isn't — J/K from the top of the sheet
-      // should not move an active card the reader cannot see
       requestAnimationFrame(() =>
         document
           .getElementById(ZONE_IDS.b)
           ?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
       );
     },
-    [base.conflicts, activeConflictId],
+    [live.conflicts, activeConflictId],
   );
 
   const openConflictFromRow = useCallback((conflictId: string) => {
@@ -147,7 +193,6 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
     document.getElementById(`mr-cf-${conflictId}`)?.closest<HTMLElement>(".mr-queue__list")?.focus();
   }, []);
 
-  // global keyboard: J/K move · 1/2/3 resolve active · / filter · g-then-letter jump
   const gPending = useRef(false);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -176,7 +221,7 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
         move(1);
       } else if (e.key === "k" || e.key === "K") {
         move(-1);
-      } else if (["1", "2", "3"].includes(e.key)) {
+      } else if (["1", "2", "3"].includes(e.key) && !released) {
         const c = review.conflicts.find((x) => x.id === activeConflictId);
         if (c && c.resolvedWith === null) {
           const opt = c.options.find((o) => o.hint === e.key);
@@ -189,7 +234,7 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [move, resolve, review.conflicts, activeConflictId]);
+  }, [move, resolve, review.conflicts, activeConflictId, released]);
 
   const status = effectiveStatus(review);
   const dialDetail = `${review.revisions.length} revisions · ${open.length} ${
@@ -223,6 +268,8 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
             <ConflictQueue
               conflicts={review.conflicts}
               activeId={activeConflictId}
+              pickingTypeFor={pickingTypeFor}
+              readOnly={released}
               onActivate={setSelectedConflictId}
               onResolve={resolve}
               onReopen={reopen}
@@ -239,7 +286,13 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
       </div>
 
       <div id={ZONE_IDS.d} tabIndex={-1} className="mr-zone-anchor">
-        <FabricationOrder review={review} />
+        <FabricationOrder
+          review={review}
+          canRelease={canRelease}
+          releasing={releasing}
+          releaseError={releaseError}
+          onRelease={() => void release()}
+        />
       </div>
 
       <p className="mr-vh" aria-live="polite">

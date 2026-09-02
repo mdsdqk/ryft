@@ -7,13 +7,11 @@
  * MergeReviewRoute.tsx` keeps `?scenario=` as the fixture/dev override, so
  * this only serves the plain-`/merge/:id` path).
  *
- * `postResolution` / `deleteResolution` are inert here: the fixture has no
- * per-id storage to persist a choice into, and `MergeReview.tsx` only calls
- * the seam when it's given a real `mergeId` (the http path) — on the fixture
- * path it keeps its existing pure local-state resolve/reopen. They exist so
- * `fixtureSource` satisfies `DataSource` and so calling them directly (a
- * test, a script) does not throw.
+ * Resolutions and release are session-local so the screen can round-trip
+ * through `adopt()` the same way the HTTP source does.
  */
+
+import type { ColumnType } from "@engine/schema.js";
 
 import type { MergeReview } from "../merge-review/model.ts";
 import { REVIEW_SCENARIOS, readScenario } from "../merge-review/scenarios.ts";
@@ -24,15 +22,55 @@ function currentReview(): MergeReview {
   return REVIEW_SCENARIOS[scenario === "loading" || scenario === "error" ? "default" : scenario];
 }
 
+const released = new Set<string>();
+const picks = new Map<string, Record<string, string>>();
+
+function withSession(id: string, review: MergeReview): MergeReview {
+  const by = picks.get(id) ?? {};
+  const conflicts = review.conflicts.map((c) => ({
+    ...c,
+    resolvedWith: by[c.id] ?? c.resolvedWith,
+  }));
+  const allResolved = conflicts.every((c) => c.resolvedWith !== null);
+  return {
+    ...review,
+    conflicts,
+    commutativity: allResolved ? "passed" : review.commutativity,
+    status: released.has(id) ? "released" : review.status,
+  };
+}
+
 export async function getById(id: string): Promise<MergeReview> {
-  if (!listOpen().some((m) => m.id === id)) throw new MergeRequestNotFoundError(id);
-  return currentReview();
+  if (!listOpen().some((m) => m.id === id) && !released.has(id)) {
+    throw new MergeRequestNotFoundError(id);
+  }
+  return withSession(id, currentReview());
 }
 
-export async function postResolution(id: string): Promise<MergeReview> {
+export async function postResolution(
+  id: string,
+  conflictId?: string,
+  choice?: "ours" | "theirs" | "type",
+  _type?: ColumnType,
+): Promise<MergeReview> {
+  if (conflictId && choice) {
+    const by = picks.get(id) ?? {};
+    by[conflictId] = choice === "type" ? "custom" : choice;
+    picks.set(id, by);
+  }
   return getById(id);
 }
 
-export async function deleteResolution(id: string): Promise<MergeReview> {
+export async function deleteResolution(id: string, conflictId?: string): Promise<MergeReview> {
+  if (conflictId) {
+    const by = picks.get(id);
+    if (by) delete by[conflictId];
+  }
   return getById(id);
+}
+
+export async function mergeMergeRequest(id: string): Promise<{ status: "merged" }> {
+  await getById(id);
+  released.add(id);
+  return { status: "merged" };
 }

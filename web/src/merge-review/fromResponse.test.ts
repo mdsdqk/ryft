@@ -126,3 +126,15 @@ describe("mergeReviewFromResponse — applied resolution", () => {
     expect(openConflicts(review)).toHaveLength(0);
   });
 });
+
+describe("mergeReviewFromResponse — queue status", () => {
+  it("maps a merged queue status to Released", () => {
+    const review = mergeReviewFromResponse(response({ queue: { status: "merged", position: 1, ahead: 0, behind: 0 } }));
+    expect(review.status).toBe("released");
+  });
+
+  it("maps a queued request to Received", () => {
+    const review = mergeReviewFromResponse(response({ queue: { status: "queued", position: 2, ahead: 1, behind: 0 } }));
+    expect(review.status).toBe("received");
+  });
+});

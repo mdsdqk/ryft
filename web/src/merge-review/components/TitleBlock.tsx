@@ -18,7 +18,7 @@ export function TitleBlock({
     ["Opened", `${review.openedBy.name} · ${shortDate(review.openedAt)}`],
     ["Revisions", `${review.revisions.length} · ${unresolved} unresolved`],
     ["Rebased", `${rebased} · auto`],
-    ["Checker", unresolved > 0 ? "— awaiting" : "ready to sign"],
+    ["Checker", review.status === "released" ? "signed off" : unresolved > 0 ? "— awaiting" : "ready to sign"],
   ];
   return (
     <dl className="mr-titleblock">

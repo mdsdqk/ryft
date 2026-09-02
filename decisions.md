@@ -562,6 +562,15 @@ MR5 are both clean behind three held MRs, which merges first, and do they form t
 queue. The accepted cost is that an abandoned active MR freezes the line until someone deletes
 it, which is how a real merge queue behaves. See ADR 0004 §3.
 
+Built after V0 (`api/_server/routes/merge-requests.ts` + `views.ts`, no migration — the enum
+and `previewed_main_version` were already in the frozen schema). `POST .../merge`,
+`POST /merge-requests`, and `DELETE /merge-requests/:id` each run under
+`SELECT … FROM branches WHERE name = <target> FOR UPDATE`; a clean merge or an abandon promotes
+the oldest `queued` MR; the active MR's frozen `ours`/`theirs` are rewritten to live heads on
+its next `GET` (`refreshActiveTriple`); a non-clean re-run returns the `409` kick-back body
+with `landed` + a plain-language `summary`. Backend only so far — no UI for queue state, and
+`POST .../merge` / `DELETE /merge-requests/:id` are still reachable only over the wire.
+
 ### The merge is one transaction with a row lock, not an optimistic version check
 
 Ticket 0004. The ticket offers an optimistic check on `main`'s head as the cheap alternative

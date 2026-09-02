@@ -136,7 +136,8 @@ frontend.
 
 ## 4. The V0 endpoint subset
 
-V0 ships the `docs/backend-contract.md` §3 table **minus the queue machinery**:
+V0 shipped the `docs/backend-contract.md` §3 table minus the queue machinery; the queue landed
+afterward (see "The merge queue shipped after V0" below). The V0 subset was:
 
 **Ships now:** `POST /session`, `POST /workspace/reset` (with `?bare`), `GET /overview`,
 `GET /branches`, `GET /branches/:name`, `POST /branches`, `DELETE /branches/:name`,
@@ -164,14 +165,21 @@ single-object conflicts — `add-vs-add`, primary-key divergence, and any two-ob
 cut). The API stores and echoes those choices via `appliedResolutions`; the merge stays held
 until that engine work lands.
 
-**V1, not built here:** the `queued` / `held` status transitions, FIFO promotion,
-`previewed_main_version` tracking, and the `409` kick-back body (ADR 0004 §3–§4);
-`validateDocument` on the merge path (ADR 0008 §5); `POST /merge-requests/:id/verify`
-(ADR 0009); `SELECT … FOR UPDATE` contention control.
+**The merge queue shipped after V0** (the queue build, ADR 0004 §3–§6). `merge_requests.status`
+now uses all four enum values; `POST /merge-requests` enqueues `queued` when the front is
+taken; `POST .../merge`, `DELETE /merge-requests/:id`, and `POST /merge-requests` each run in
+one transaction under `SELECT … FROM branches WHERE name = <target> FOR UPDATE`; a clean merge
+or an abandon promotes the oldest `queued` MR to `open`; the promoted MR's frozen `ours`/`theirs`
+are lazily rewritten to live heads on its next `GET` (`refreshActiveTriple`); `POST .../merge`
+on a non-clean re-run sets `held` and returns the `409` kick-back body (`error`, `reason`,
+`landed`, `conflicts`, `droppedResolutions`, `summary` — `docs/backend-contract.md` §6);
+`queue.position/ahead/behind` and `stale` are computed for real. No migration was needed — the
+enum and `previewed_main_version` were already in the frozen schema.
 
-`merge_requests.status` takes only `open` and `merged` in V0 — there is no `queued` state
-because there is no queue. Multiple `open` merge requests are allowed; `POST /merge-requests`
-does not block on an existing one.
+**Still V1, not built here:** `validateDocument` on the merge path (ADR 0008 §5);
+`POST /merge-requests/:id/verify` and the verification blob (ADR 0009); and every frontend
+surface for queue state (a `queued`/`stale` list badge, a kicked-back banner, a Merge/Abandon
+action — `POST .../merge` and `DELETE /merge-requests/:id` remain reachable only over the wire).
 
 **Why no `queued` state and no creation guard.** The queue's job is to serialise merges,
 order them, and give a kicked-back author a good message — all V1, multi-author concerns.
@@ -188,26 +196,32 @@ never asked for and buy nothing.
 unguarded-race case as §5 and get the same answer: fine at one reviewer, fixed by the V1 row
 lock.
 
-## 5. The merge transaction, V0 form: one transaction, no row lock
+## 5. The merge transaction (V1 form — the queue build replaced the V0 form)
 
 `POST /merge-requests/:id/merge`, in one Drizzle transaction:
 
-1. Load the merge request; respond `409` unless `status = open`.
-2. Re-read `source.head` and `main.head` **live** from `branches` (the author may have
-   applied more operations since the request opened).
-3. `threeWayMerge(mr.base, source.head, main.head, resolutions)` — `resolutions` are the MR's
-   stored `merge_request_resolutions` rows, re-validated against this live re-run the same way
-   `assembleMergeResponse` does (`resolveMerge`, `docs/backend-contract.md` §4).
+1. `SELECT * FROM branches WHERE name = <target> FOR UPDATE`, then re-read the MR row under the
+   lock. Respond `409 { error: "not-front", status }` unless `status ∈ {open, held}` (a
+   `queued` MR is not at the front).
+2. Re-read `source.head` and `main.head` **live** inside the transaction.
+3. `resolveMerge(tx, mr, { base: mr.base, ours: source.head, theirs: main.head })` — folds in
+   the MR's stored `merge_request_resolutions` rows, re-validated against this live re-run
+   (`docs/backend-contract.md` §4/§6).
 4. On `report.verdict`:
-   - **`clean`** → `emitMigration(main.head, merged)` (ADR 0003 §1: `source = theirs =
-     main.head`, `target = merged`); `UPDATE branches SET head = merged, head_version =
-     head_version + 1 WHERE name = target`; append a `MergeMarker`
-     (`src/domain/operations.ts`) to the target's `operations` at the next `seq`;
-     `UPDATE merge_requests SET status = 'merged', merged_at = now()`; rewrite the frozen
-     triple to what was used. `COMMIT`. Respond `200 { status: "merged", migration }`.
-   - **`conflicts`** or **`unclassified-divergence`** → `COMMIT` (nothing changed); respond
-     `409 { error: "revalidation-failed", report }`. The merge request stays `open`; there is
-     no `held` status and no kick-back body in V0.
+   - **`clean`** → `emitMigration(main.head, merged)`; `UPDATE branches SET head = merged,
+     head_version = head_version + 1`; append a `MergeMarker` at the next `seq`;
+     `UPDATE merge_requests SET status = 'merged', merged_at = now()` and rewrite its frozen
+     triple + `previewed_main_version` to what was used; **promote the oldest `queued` MR to
+     `open`**. `COMMIT`. Respond `200 { status: "merged", migration }`.
+   - **`conflicts`** or **`unclassified-divergence`** → `UPDATE merge_requests SET
+     status = 'held'` and refresh its frozen triple + `previewed_main_version` so the next
+     `GET` shows the current three-way; `COMMIT`. Respond `409` with the kick-back body
+     (`error`, `reason`, `landed`, `conflicts`, `droppedResolutions`, `summary`). The MR stays
+     at the front.
+
+The V0 form had no `FOR UPDATE`, allowed only `status = open`, and returned a bare
+`409 { error: "revalidation-failed", report }` without a `held` transition — see the history
+note in §4.
 
 **Why no `FOR UPDATE`.** ADR 0004 §4 uses a row lock to serialise concurrent merges and
 queue promotions. V0 has neither — one merge request at a time (§4), single trunk — so there

@@ -111,11 +111,11 @@ are in `docs/backend-contract.md` §4. **V1 rows from that table are omitted** �
 | `POST /branches/:name/operations` | `ops` applied in order through `applyOperation`; progressive `validateOperation` (batch semantics — `docs/robustness.md` §5). One transaction. `422` body per `docs/backend-contract.md` §5 on the first `OpError`. `OpWarning[]` returned with the success body. No MR-freeze interaction (V0 branches are never frozen). |
 | `GET /branches/:name/operations` | Unchanged. Whole log, ascending `seq`. |
 | `DELETE /branches/:name/operations?after=<seq>` | Undo (WU-E). Drops entries past `<seq>`, replays the surviving prefix from `base_snapshot`, bumps `head_version` once. `403` `main`; `404` unknown branch; `422` missing / non-integer / negative `after`. Returns `{ head, headVersion }`. |
-| `GET /merge-requests` | Unchanged shape. Non-terminal first, ascending `created_at`. `position`/`ahead`/`behind` are informational, always `1`/`0`/`0` in V0. |
-| `POST /merge-requests` | Freezes `base = source.base_snapshot`, `ours = source.head`, `theirs = main.head`. Status is always `open` — no `queued` state, no guard on an existing open MR (ADR 0010 §4). `409` only if a non-terminal MR already has this `source`. |
-| `GET /merge-requests/:id` | Recomputes `report` + `migration` every call. `queue = { status, position: 1, ahead: 0, behind: 0 }`; `stale: false`; `droppedResolutions: []` (all V1-inert in V0). |
-| `POST /merge-requests/:id/merge` | The ADR 0010 §5 transaction. `409` unless `status = open`. `409 { error: "revalidation-failed", report }` if the re-run is not `clean` — MR stays `open`, no `held`. |
-| `DELETE /merge-requests/:id` | Abandon. No queue promotion (nothing queued in V0). |
+| `GET /merge-requests` | Non-terminal first, ascending `created_at` (queue order). Active MR's report is re-run against live `main.head` (its frozen triple is refreshed on read). |
+| `POST /merge-requests` | One transaction under `SELECT … FROM branches WHERE name = 'main' FOR UPDATE`. Freezes `base = source.base_snapshot`, `ours = source.head`, `theirs = main.head`, `previewed_main_version = main.head_version`. Status is `open` if the front is free, else `queued`. `409 merge-request-exists` if a non-terminal MR already has this `source`. |
+| `GET /merge-requests/:id` | Recomputes `report` + `migration` every call. If the MR is `open`/`held`, its frozen `ours`/`theirs` are first rewritten to live `source.head`/`main.head` (`base` never moves). `queue = { status, position, ahead, behind }` from the `created_at` ordering; `stale = previewed_main_version !== main.head_version` (a `queued` MR that `main` outran). |
+| `POST /merge-requests/:id/merge` | The ADR 0004 §4 transaction — `FOR UPDATE` on `main`, re-run against live heads. `409 { error: "not-front", status }` unless `status ∈ {open, held}`. Clean → merge + promote the oldest `queued` MR to `open`. Non-clean → `status = 'held'`, refresh triple, `409` kick-back body (below). |
+| `DELETE /merge-requests/:id` | Abandon, under `FOR UPDATE`. If the MR was `open`/`held`, promote the oldest `queued` MR to `open`. |
 
 ### `POST /branches/:name/operations` — 422 body
 
@@ -129,6 +129,21 @@ Exactly `docs/backend-contract.md` §5:
 
 Other `OpError` reasons (`docs/robustness.md` §1) return
 `422 { error: <reason>, failedAt, op, message }` with no `dependents`.
+
+### `POST /merge-requests/:id/merge` — 409 kick-back body
+
+Returned when the re-run against live `main` is not `clean` (`docs/backend-contract.md` §6).
+The MR moves to `held` and keeps its place at the front.
+
+```ts
+{ error: "revalidation-failed",
+  reason: "conflicts" | "unclassified-divergence",
+  landed: Array<{ branch: string; mergedAt: string }>,   // merges into main since previewed_main_version
+  conflicts: Conflict[],                                  // fresh from the re-run
+  droppedResolutions: Array<{ conflictId: string; why: "changed" | "absent" }>,
+  summary: string }   // "Main moved on while this was open: contact-fields merged ahead of you.
+                      //  Two of your changes now conflict with what landed."
+```
 
 ## 5. The golden-path curl walk (`docs/first-run.md` §4)
 

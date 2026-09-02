@@ -94,6 +94,21 @@ export type MergeRequestResponse = {
   droppedResolutions: Array<{ conflictId: string; why: "changed" | "absent" }>;
 };
 
+/**
+ * `POST /merge-requests/:id/merge` — the `409` body when the re-run against live
+ * `main` is not clean (ADR 0004 §4, `docs/backend-contract.md` §6). Names what
+ * landed ahead and what now conflicts; never says the author's state is invalid.
+ * The MR moves to `held` and keeps its place at the front of the queue.
+ */
+export type MergeKickback = {
+  error: "revalidation-failed";
+  reason: MergeReport["verdict"]; // "conflicts" | "unclassified-divergence"
+  landed: Array<{ branch: string; mergedAt: string }>; // merges into the target since previewed_main_version
+  conflicts: MergeReport["conflicts"]; // fresh from the re-run
+  droppedResolutions: MergeRequestResponse["droppedResolutions"];
+  summary: string;
+};
+
 export type OperationsResponse = {
   head: SchemaDocument;
   appliedSeqs: number[];

@@ -6,24 +6,26 @@
  * reads so the routes stay thin.
  */
 
-import { eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { diffSnapshots } from "../../engine/diff.js";
 import { threeWayMerge } from "../../engine/merge.js";
 import { emitMigration, type Migration } from "../../engine/emit.js";
 import type { SchemaDocument, ColumnType } from "../../engine/schema.js";
 import type { MergeReport, Resolution } from "../../engine/merge-types.js";
-import type { Db } from "./db/client.js";
+import type { Db, DbOrTx } from "./db/client.js";
 import { branches, mergeRequests, mergeRequestResolutions, operations, users } from "./db/schema.js";
 import type {
   Database,
   BranchDetail,
   BranchSummary,
+  MergeKickback,
   MergeRequestResponse,
   MergeSummary,
   Overview,
 } from "./types.js";
 
 const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
+const sameDoc = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 type MrRow = typeof mergeRequests.$inferSelect;
 
@@ -45,7 +47,7 @@ export type ResolvedMerge = {
  * `report.conflicts`).
  */
 export async function resolveMerge(
-  db: Db,
+  db: DbOrTx,
   mr: MrRow,
   triple: { base: SchemaDocument; ours: SchemaDocument; theirs: SchemaDocument } = mr,
 ): Promise<ResolvedMerge> {
@@ -105,9 +107,117 @@ function countObjects(doc: SchemaDocument): Pick<Database, "tables" | "columns" 
   return { tables: doc.tables.length, columns, indexes, constraints };
 }
 
-async function nameMap(db: Db): Promise<Map<string, string>> {
+async function nameMap(db: DbOrTx): Promise<Map<string, string>> {
   const rows = await db.select({ id: users.id, displayName: users.displayName }).from(users);
   return new Map(rows.map((u) => [u.id, u.displayName]));
+}
+
+// ── merge queue (ADR 0004 §3–§6) ────────────────────────────────────────────
+
+/**
+ * The active MR (`open`/`held`) always resolves against **live** heads — its
+ * frozen `ours`/`theirs` are lazily rewritten to `source.head`/`main.head` on
+ * read (ADR 0004 §5: "its next `GET` rewrites the frozen `theirs` and `ours`").
+ * `base` never moves. A `queued` MR keeps its provisional frozen triple.
+ *
+ * Plain `UPDATE`, no `FOR UPDATE`: the merge transaction is the real
+ * serialization point, and a read that races a merge simply self-corrects on
+ * the next read (`stale` briefly shows the drift).
+ */
+export async function refreshActiveTriple(db: DbOrTx, mr: MrRow): Promise<MrRow> {
+  if (mr.status !== "open" && mr.status !== "held") return mr;
+  const [main] = await db.select().from(branches).where(eq(branches.name, mr.targetBranch));
+  const [source] = await db.select().from(branches).where(eq(branches.name, mr.sourceBranch));
+  if (!main || !source) return mr;
+  if (
+    mr.previewedMainVersion === main.headVersion &&
+    sameDoc(mr.ours, source.head) &&
+    sameDoc(mr.theirs, main.head)
+  ) {
+    return mr;
+  }
+  const [updated] = await db
+    .update(mergeRequests)
+    .set({ ours: source.head, theirs: main.head, previewedMainVersion: main.headVersion })
+    .where(eq(mergeRequests.id, mr.id))
+    .returning();
+  return updated ?? mr;
+}
+
+/** Queue framing for one MR — `position` (1 = front / active), `ahead`, `behind`. */
+export async function queueFraming(
+  db: DbOrTx,
+  mr: MrRow,
+): Promise<MergeRequestResponse["queue"]> {
+  if (mr.status === "merged") {
+    return { status: "merged", position: 0, ahead: 0, behind: 0 };
+  }
+  const rows = await db
+    .select({ id: mergeRequests.id })
+    .from(mergeRequests)
+    .where(and(eq(mergeRequests.targetBranch, mr.targetBranch), ne(mergeRequests.status, "merged")))
+    .orderBy(asc(mergeRequests.createdAt));
+  const idx = rows.findIndex((r) => r.id === mr.id);
+  const position = idx < 0 ? rows.length + 1 : idx + 1;
+  return { status: mr.status, position, ahead: position - 1, behind: Math.max(0, rows.length - position) };
+}
+
+const joinAnd = (xs: string[]): string =>
+  xs.length <= 1 ? xs[0] ?? "" : xs.length === 2 ? `${xs[0]} and ${xs[1]}` : `${xs.slice(0, -1).join(", ")}, and ${xs.at(-1)}`;
+
+const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+const numberWord = (n: number): string => WORDS[n] ?? String(n);
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * The `409` kick-back body for a non-clean merge re-run (ADR 0004 §4,
+ * `docs/backend-contract.md` §6). `landed` is the merge markers appended to the
+ * target's op log since this MR's `previewed_main_version` — the most recent
+ * `(main.headVersion - previewedMainVersion)` of them.
+ */
+export async function revalidationKickback(
+  db: DbOrTx,
+  mr: MrRow,
+  report: MergeReport,
+  droppedResolutions: ResolvedMerge["droppedResolutions"],
+): Promise<MergeKickback> {
+  const [main] = await db.select().from(branches).where(eq(branches.name, mr.targetBranch));
+  const behind = Math.max(0, (main?.headVersion ?? 0) - mr.previewedMainVersion);
+
+  let landed: MergeKickback["landed"] = [];
+  if (behind > 0) {
+    const markerRows = await db
+      .select()
+      .from(operations)
+      .where(eq(operations.branchName, mr.targetBranch))
+      .orderBy(asc(operations.seq));
+    landed = markerRows
+      .filter((r) => r.op.type === "merge")
+      .slice(-behind)
+      .map((r) => ({ branch: (r.op as { sourceBranch: string }).sourceBranch, mergedAt: r.at.toISOString() }));
+  }
+
+  const n = report.conflicts.length;
+  // `landed` is only populated in the window between promotion and the first
+  // read of the MR — once a `GET` refreshes `previewed_main_version` to the
+  // current head (ADR 0004 §5), "merges since previewed" is empty and the
+  // conflict is stated without naming what jumped ahead.
+  const lead = landed.length
+    ? `${mr.targetBranch} moved on while this was open: ${joinAnd(landed.map((l) => l.branch))} merged ahead of you. `
+    : `this branch now diverges from ${mr.targetBranch}. `;
+  const tail =
+    report.verdict === "unclassified-divergence"
+      ? "Applying your changes and what landed in different orders now disagree."
+      : `${cap(numberWord(n))} of your changes now conflict${n === 1 ? "s" : ""} with what landed.`;
+
+  return {
+    error: "revalidation-failed",
+    reason: report.verdict as MergeKickback["reason"],
+    landed,
+    conflicts: report.conflicts,
+    droppedResolutions,
+    summary: cap(lead) + tail,
+  };
 }
 
 /** Non-terminal merge request whose source is `branchName`, if any. */
@@ -158,7 +268,10 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
   return Promise.all(
-    nonTerminal.map(async (mr) => {
+    nonTerminal.map(async (row) => {
+      // the active MR resolves against live heads (ADR 0004 §5); a queued MR
+      // keeps its provisional frozen triple.
+      const mr = await refreshActiveTriple(db, row);
       const { report, appliedResolutions } = await resolveMerge(db, mr);
       // `report.conflicts` is the engine's full detected set — it does not drop
       // an entry once resolved (the engine `Conflict` carries no `resolvedWith`;
@@ -215,10 +328,17 @@ export async function assembleBranchDetail(db: Db, name: string): Promise<Branch
   };
 }
 
-/** Recompute `report` + `migration` (with stored resolutions) for a merge-request row; attach the V0 queue framing. */
-export async function assembleMergeResponse(db: Db, mr: MrRow): Promise<MergeRequestResponse> {
+/**
+ * Recompute `report` + `migration` (with stored resolutions) for a merge-request
+ * row, plus real queue framing (ADR 0004 §3–§5). The active MR's frozen triple
+ * is refreshed to live heads first; a `queued` MR is read as frozen and shows
+ * `stale` if `main` has moved since it was previewed.
+ */
+export async function assembleMergeResponse(db: DbOrTx, row: MrRow): Promise<MergeRequestResponse> {
   const names = await nameMap(db);
+  const mr = await refreshActiveTriple(db, row);
   const { report, migration, appliedResolutions, droppedResolutions } = await resolveMerge(db, mr);
+  const [main] = await db.select().from(branches).where(eq(branches.name, mr.targetBranch));
 
   return {
     id: mr.id,
@@ -231,8 +351,8 @@ export async function assembleMergeResponse(db: Db, mr: MrRow): Promise<MergeReq
     theirs: mr.theirs,
     report,
     migration,
-    queue: { status: mr.status, position: 1, ahead: 0, behind: 0 },
-    stale: false,
+    queue: await queueFraming(db, mr),
+    stale: main ? mr.previewedMainVersion !== main.headVersion : false,
     appliedResolutions,
     droppedResolutions,
   };
