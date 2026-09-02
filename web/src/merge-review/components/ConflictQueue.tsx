@@ -1,5 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import type { ColumnType } from "@engine/schema.js";
+
+import { TYPE_PRESETS, typeForValue } from "../../surfaces/branch/format.ts";
 import type { Conflict } from "../model.ts";
 import { conflictLabel } from "../format.ts";
 import { RevisionTriangle } from "./RevisionTriangle.tsx";
@@ -8,8 +11,12 @@ export interface ConflictQueueProps {
   conflicts: Conflict[];
   /** id of the conflict currently expanded / focused. */
   activeId: string;
+  /** conflict whose "specify type" picker is open */
+  pickingTypeFor: string | null;
+  /** a released merge is a record, not a working queue */
+  readOnly?: boolean;
   onActivate: (id: string) => void;
-  onResolve: (conflictId: string, optionId: string) => void;
+  onResolve: (conflictId: string, optionId: string, type?: ColumnType) => void;
   onReopen: (conflictId: string) => void;
 }
 
@@ -24,6 +31,8 @@ export interface ConflictQueueProps {
 export function ConflictQueue({
   conflicts,
   activeId,
+  pickingTypeFor,
+  readOnly = false,
   onActivate,
   onResolve,
   onReopen,
@@ -64,7 +73,7 @@ export function ConflictQueue({
     } else if (e.key === "ArrowUp" || e.key === "k" || e.key === "K") {
       e.preventDefault();
       move(-1);
-    } else if (active && active.resolvedWith === null && ["1", "2", "3"].includes(e.key)) {
+    } else if (!readOnly && active && active.resolvedWith === null && ["1", "2", "3"].includes(e.key)) {
       const opt = active.options.find((o) => o.hint === e.key);
       if (opt) {
         e.preventDefault();
@@ -94,8 +103,9 @@ export function ConflictQueue({
             {allResolved ? `All ${conflicts.length} resolved` : `Conflict ${activeIndex + 1} of ${conflicts.length}`}
           </span>
           <span className="mr-queue__prog">
-            {resolvedCount} of {conflicts.length} resolved · merge holds until the queue is empty and
-            the commutativity check agrees
+            {readOnly
+              ? "Released — this queue is a record of the choices that landed."
+              : `${resolvedCount} of ${conflicts.length} resolved · merge holds until the queue is empty and the commutativity check agrees`}
           </span>
           <span className="mr-queue__nav">
             <button className="mr-btn mr-btn--ghost" onClick={() => move(-1)}>
@@ -120,6 +130,7 @@ export function ConflictQueue({
             const isActive = i === activeIndex;
             const resolved = c.resolvedWith !== null;
             const chosen = resolved ? c.options.find((o) => o.id === c.resolvedWith) : null;
+            const picking = pickingTypeFor === c.id;
             return (
               <li
                 key={c.id}
@@ -149,7 +160,7 @@ export function ConflictQueue({
                   </p>
                 )}
 
-                {isActive && !resolved && (
+                {isActive && !resolved && !readOnly && (
                   <>
                     <div className="mr-cf__grid">
                       <div className="mr-side mr-side--ours">
@@ -166,22 +177,29 @@ export function ConflictQueue({
                         <button
                           key={o.id}
                           className={`mr-btn ${o.kind === "ours" ? "mr-btn--primary" : ""}`}
-                          onClick={() => onResolve(c.id, o.id)}
+                          aria-expanded={o.kind === "custom" ? picking : undefined}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onResolve(c.id, o.id);
+                          }}
                         >
                           {o.label}
                           {o.hint && <kbd>{o.hint}</kbd>}
                         </button>
                       ))}
                     </div>
+                    {picking && <TypePick onApply={(type) => onResolve(c.id, "custom", type)} />}
                   </>
                 )}
 
                 {resolved && (
                   <p className="mr-cf__done">
                     resolved — {chosen?.label ?? c.resolvedWith}
-                    <button className="mr-linkbtn" onClick={() => onReopen(c.id)}>
-                      undo
-                    </button>
+                    {!readOnly && (
+                      <button className="mr-linkbtn" onClick={() => onReopen(c.id)}>
+                        undo
+                      </button>
+                    )}
                   </p>
                 )}
               </li>
@@ -193,5 +211,38 @@ export function ConflictQueue({
 
       <p ref={liveRef} className="mr-vh" aria-live="polite" />
     </section>
+  );
+}
+
+function TypePick({ onApply }: { onApply: (type: ColumnType) => void }) {
+  const [value, setValue] = useState(TYPE_PRESETS[0]!.value);
+  return (
+    <form
+      className="mr-cf__type"
+      onClick={(e) => e.stopPropagation()}
+      onSubmit={(e) => {
+        e.preventDefault();
+        onApply(typeForValue(value));
+      }}
+    >
+      <label className="mr-cf__type-lab">
+        <span>target type</span>
+        <select
+          className="mr-cf__type-sel"
+          value={value}
+          autoFocus
+          onChange={(e) => setValue(e.target.value)}
+        >
+          {TYPE_PRESETS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button className="mr-btn mr-btn--primary" type="submit">
+        Apply
+      </button>
+    </form>
   );
 }

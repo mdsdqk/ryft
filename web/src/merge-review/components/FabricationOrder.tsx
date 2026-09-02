@@ -5,13 +5,27 @@ import { effectiveStatus, isMergeable, openConflicts } from "../model.ts";
  * Zone D — the fabrication order. The ordered, forward-only DDL that comes out of
  * a clean merge, each statement tagged to the revision that produced it. Blocked
  * groups are listed with the reason, including any downstream objects a conflict
- * gates. A status line — not a stamp — says what advances the dial to Cleared.
+ * gates. A status line — not a stamp — says what advances the dial to Cleared,
+ * and the one primary action that turns it to Released.
  */
-export function FabricationOrder({ review }: { review: MergeReview }) {
+export function FabricationOrder({
+  review,
+  canRelease = false,
+  releasing = false,
+  releaseError = null,
+  onRelease,
+}: {
+  review: MergeReview;
+  canRelease?: boolean;
+  releasing?: boolean;
+  releaseError?: string | null;
+  onRelease?: () => void;
+}) {
   const fo = review.fabricationOrder;
   const open = openConflicts(review);
   const mergeable = isMergeable(review);
   const status = effectiveStatus(review);
+  const released = status === "released";
   // commutativity failed while nothing is left in the queue — an order-dependent
   // divergence that is not one of the named conflict classes.
   const unclassified = open.length === 0 && review.commutativity === "failed";
@@ -75,33 +89,59 @@ export function FabricationOrder({ review }: { review: MergeReview }) {
         </code>
       </pre>
 
-      <p className="mr-fab__status" data-mergeable={mergeable} data-unclassified={unclassified}>
-        <span className="mr-fab__dot" aria-hidden="true" />
-        {mergeable ? (
-          <>
-            <b>Cleared</b> — the queue is empty and applying each side's delta to base in either
-            order agrees. Ready for the checker to sign off and release.
-          </>
-        ) : unclassified ? (
-          <>
-            <b>Held — unclassified divergence.</b> Every conflict is resolved, but replaying the two
-            deltas against base in the two orders produces different schemas. The engine will not
-            merge a result it cannot prove stable.
-            <span className="mr-fab__adv"> Re-open the resolutions and adjust, or escalate.</span>
-          </>
-        ) : (
-          <>
-            <b>Held</b> — {open.length} unresolved {open.length === 1 ? "conflict" : "conflicts"},{" "}
-            {fo.statements.length} {fo.statements.length === 1 ? "statement" : "statements"} staged.
-            <span className="mr-fab__adv">
-              {" "}
-              Advances to <b>Cleared</b> when the queue is empty and the commutativity check passes.
-              Currently: {review.commutativity}.
-            </span>
-          </>
+      <div className="mr-fab__foot">
+        <p
+          className="mr-fab__status"
+          data-mergeable={mergeable}
+          data-unclassified={unclassified}
+          data-released={released}
+        >
+          <span className="mr-fab__dot" aria-hidden="true" />
+          {released ? (
+            <>
+              <b>Released</b> — signed off. <code>main</code> now holds this schema.
+            </>
+          ) : mergeable ? (
+            <>
+              <b>Cleared</b> — the queue is empty and applying each side's delta to base in either
+              order agrees. Ready for the checker to sign off and release.
+            </>
+          ) : unclassified ? (
+            <>
+              <b>Held — unclassified divergence.</b> Every conflict is resolved, but replaying the two
+              deltas against base in the two orders produces different schemas. The engine will not
+              merge a result it cannot prove stable.
+              <span className="mr-fab__adv"> Re-open the resolutions and adjust, or escalate.</span>
+            </>
+          ) : (
+            <>
+              <b>Held</b> — {open.length} unresolved {open.length === 1 ? "conflict" : "conflicts"},{" "}
+              {fo.statements.length} {fo.statements.length === 1 ? "statement" : "statements"} staged.
+              <span className="mr-fab__adv">
+                {" "}
+                Advances to <b>Cleared</b> when the queue is empty and the commutativity check passes.
+                Currently: {review.commutativity}.
+              </span>
+            </>
+          )}
+          <span className="mr-vh"> Current status: {status}.</span>
+        </p>
+        {canRelease && onRelease && (
+          <button
+            className="mr-btn mr-btn--primary mr-fab__release"
+            type="button"
+            disabled={releasing}
+            onClick={onRelease}
+          >
+            {releasing ? "Releasing…" : "Release to main"}
+          </button>
         )}
-        <span className="mr-vh"> Current status: {status}.</span>
-      </p>
+      </div>
+      {releaseError && (
+        <p className="mr-fab__err" role="alert">
+          {releaseError}
+        </p>
+      )}
     </section>
   );
 }
