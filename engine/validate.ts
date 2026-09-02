@@ -26,9 +26,12 @@
  *
  * Every rule here is a property of the current `SchemaDocument` plus the one
  * proposed `Operation`. It cannot see the operation log or the database, which
- * is correct — `docs/robustness.md` §2 is exactly that table. Whole-document
- * structural validity (`validateDocument`) is ADR 0008 §5 and is V1; it is not
- * in this module.
+ * is correct — `docs/robustness.md` §2 is exactly that table.
+ *
+ * Whole-document structural validity is `validateDocument` (ADR 0008 §5), at the
+ * bottom of this module — the typed, list-returning superset of
+ * `checkReferences` (engine/replay.ts, ADR 0003 §4) that the API runs on a
+ * merged candidate and on a fresh branch head.
  *
  * Batch semantics (ADR 0008 §5): a caller applying `ops[]` validates op *n*
  * against the document with ops *1 … n−1* already applied, stops at the first
@@ -650,4 +653,169 @@ function describe(t: ColumnType): string {
   if (t.kind === "varchar") return `varchar(${t.n})`;
   if (t.kind === "numeric") return `numeric(${t.precision},${t.scale})`;
   return t.kind;
+}
+
+// ── whole-document structural validity (ADR 0008 §5, `docs/robustness.md` §1) ──
+
+export type StructuralErrorReason =
+  | "duplicate-name" // two tables, or two columns on one table, share a name
+  | "dangling-reference" // a PK / index / unique member, or an FK endpoint, resolves to nothing
+  | "nullable-primary-key-member" // a resolved primary-key member column is nullable
+  | "unsafe-default" // a column default outside the §4 allowlist
+  | "orphaned-foreign-key"; // an FK whose referenced columns are no longer a PK / unique
+
+export interface StructuralError {
+  reason: StructuralErrorReason;
+  /** Human-readable, names the offending object. */
+  message: string;
+  /** The schema object the error is about — a table, column, constraint, or index id. */
+  objectId: string;
+}
+
+/**
+ * validateDocument — whole-document structural validity for a candidate schema
+ * (ADR 0008 §5). Pure, the same import budget as `validateOperation`.
+ *
+ * This is the typed, list-returning form of `checkReferences` (engine/replay.ts,
+ * ADR 0003 §4) — the same table-name / column-name uniqueness and
+ * member/endpoint resolution rules — extended with the three checks ADR 0008 §5
+ * hands this ticket: no nullable primary-key member, no default outside the §4
+ * allowlist, and no foreign key whose target columns have lost their PK / unique
+ * backing (`orphaned-foreign-key`). `checkReferences` itself is untouched and
+ * still backs `verifyPrefixes`, whose intermediate states only need reference
+ * resolution.
+ *
+ * ── Where it runs (never inside `threeWayMerge` — ADR 0008 §5) ──────────────
+ *
+ *  - the API layer, after `POST /branches/:name/operations` applies a batch, on
+ *    the new branch head — a backstop; `validateOperation` should already have
+ *    blocked any single-op route to an invalid state;
+ *  - the API layer, after `threeWayMerge` returns `verdict: "clean"`, on the
+ *    merged candidate — the case ADR 0002 deferred: two individually-valid
+ *    deltas that compose into an invalid document (a dangling reference or a
+ *    duplicate name the merge left behind). A `StructuralError` here makes the
+ *    merge endpoint respond `409` with the `StructuralError[]`.
+ *
+ * Returns every problem it finds — it does not stop at the first — so a caller
+ * can surface the whole list.
+ */
+export function validateDocument(doc: SchemaDocument): StructuralError[] {
+  const out: StructuralError[] = [];
+  const err = (reason: StructuralErrorReason, message: string, objectId: string) =>
+    out.push({ reason, message, objectId });
+
+  // table-name uniqueness (`checkReferences` parity)
+  const seenTable = new Set<string>();
+  for (const t of doc.tables) {
+    if (seenTable.has(t.name)) err("duplicate-name", `two tables are named "${t.name}"`, t.id);
+    seenTable.add(t.name);
+  }
+
+  const tableById = new Map(doc.tables.map((t) => [t.id, t]));
+
+  for (const t of doc.tables) {
+    const colById = new Map(t.columns.map((c) => [c.id, c]));
+
+    // column-name uniqueness within the table (`checkReferences` parity)
+    const seenCol = new Set<string>();
+    for (const c of t.columns) {
+      if (seenCol.has(c.name)) {
+        err("duplicate-name", `table "${t.name}" has two columns named "${c.name}"`, c.id);
+      }
+      seenCol.add(c.name);
+    }
+
+    // column defaults — the §4 allowlist backstop for the import path (`docs/robustness.md` §4)
+    for (const c of t.columns) {
+      if (c.default !== null && !isRenderableDefault(c.default)) {
+        err(
+          "unsafe-default",
+          `column "${t.name}"."${c.name}" default \`${c.default}\` is not renderable — allowed: ${DEFAULT_FORMS}`,
+          c.id,
+        );
+      }
+    }
+
+    // primary key: members resolve, and every resolved member is NOT NULL
+    if (t.primaryKey) {
+      for (const cid of t.primaryKey.columnIds) {
+        const c = colById.get(cid);
+        if (!c) {
+          err(
+            "dangling-reference",
+            `primary key "${t.primaryKey.name}" on "${t.name}" references missing column ${cid}`,
+            t.primaryKey.id,
+          );
+        } else if (c.nullable) {
+          err(
+            "nullable-primary-key-member",
+            `column "${c.name}" is in primary key "${t.primaryKey.name}" on "${t.name}" but is nullable`,
+            c.id,
+          );
+        }
+      }
+    }
+
+    for (const idx of t.indexes) {
+      for (const cid of idx.columnIds) {
+        if (!colById.has(cid)) {
+          err("dangling-reference", `index "${idx.name}" on "${t.name}" references missing column ${cid}`, idx.id);
+        }
+      }
+    }
+
+    for (const uq of t.uniques) {
+      for (const cid of uq.columnIds) {
+        if (!colById.has(cid)) {
+          err("dangling-reference", `unique "${uq.name}" on "${t.name}" references missing column ${cid}`, uq.id);
+        }
+      }
+    }
+
+    for (const fk of t.foreignKeys) {
+      let dangling = false;
+      for (const cid of fk.columnIds) {
+        if (!colById.has(cid)) {
+          err(
+            "dangling-reference",
+            `foreign key "${fk.name}" on "${t.name}" references missing local column ${cid}`,
+            fk.id,
+          );
+          dangling = true;
+        }
+      }
+      const ref = tableById.get(fk.refTableId);
+      if (!ref) {
+        err(
+          "dangling-reference",
+          `foreign key "${fk.name}" on "${t.name}" references missing table ${fk.refTableId}`,
+          fk.id,
+        );
+        continue;
+      }
+      const refColIds = new Set(ref.columns.map((c) => c.id));
+      for (const cid of fk.refColumnIds) {
+        if (!refColIds.has(cid)) {
+          err(
+            "dangling-reference",
+            `foreign key "${fk.name}" on "${t.name}" references missing column ${cid} on "${ref.name}"`,
+            fk.id,
+          );
+          dangling = true;
+        }
+      }
+      // orphaned FK: the referenced columns must still be exactly a primary key
+      // or unique on the referenced table — the ADR 0002 case where one branch
+      // adds the FK and another drops the constraint that backed it.
+      if (!dangling && !coveredByKeyOrUnique(ref, fk.refColumnIds, "")) {
+        err(
+          "orphaned-foreign-key",
+          `foreign key "${fk.name}" on "${t.name}" references columns on "${ref.name}" that are not a primary key or unique constraint`,
+          fk.id,
+        );
+      }
+    }
+  }
+
+  return out;
 }

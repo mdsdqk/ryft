@@ -33,6 +33,7 @@ import {
   revalidationKickback,
 } from "../views.js";
 import { threeWayMerge } from "../../../engine/merge.js";
+import { validateDocument } from "../../../engine/validate.js";
 
 export const mergeRequestRoutes = new Hono<Env>();
 
@@ -224,6 +225,17 @@ mergeRequestRoutes.post("/merge-requests/:id/merge", async (c) => {
       return { kind: "kickback" as const, body };
     }
 
+    // ADR 0008 §5: the merge is `clean`, but two individually-valid deltas can
+    // still compose into a structurally broken document (a dangling reference, a
+    // duplicate name, an FK orphaned by a dropped constraint). Validate the
+    // candidate before it becomes `main.head`; on failure respond `409` and
+    // leave the MR where it is — nothing is written, the author fixes the source
+    // branch and retries.
+    const structural = validateDocument(merged);
+    if (structural.length) {
+      return { kind: "structural" as const, errors: structural };
+    }
+
     const now = new Date();
     const newVersion = main.headVersion + 1;
     const seq = await nextSeq(tx, main.name);
@@ -255,6 +267,9 @@ mergeRequestRoutes.post("/merge-requests/:id/merge", async (c) => {
   if (result.kind === "gone") throw new HTTPException(404, { message: "no such merge request" });
   if (result.kind === "not-front") return c.json({ error: "not-front", status: result.status }, 409);
   if (result.kind === "kickback") return c.json(result.body, 409);
+  if (result.kind === "structural") {
+    return c.json({ error: "structural-validation-failed", errors: result.errors }, 409);
+  }
   return c.json({ status: "merged", migration: result.migration });
 });
 

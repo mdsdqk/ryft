@@ -743,6 +743,17 @@ duplicate name, a dangling reference two clean deltas leave behind — to this t
 `verifyPrefixes` is unchanged — a migration's intermediate states only need reference
 resolution. See ADR 0008 §5.
 
+Shipped on the merge path: `validateDocument` is a typed, list-returning superset of
+`checkReferences` (it does not call it — `checkReferences` still returns a single string for
+`verifyPrefixes`) that adds a fifth check the ADR names in passing, `orphaned-foreign-key`:
+an FK whose referenced columns are no longer a primary key or unique, which is the concrete
+shape "one branch adds the FK, another drops the constraint that backed it" takes. The
+`POST /merge-requests/:id/merge` transaction runs it on the `clean` candidate before any
+write; a failure returns `409 { error: "structural-validation-failed", errors }` and leaves
+the MR untouched — it is not a divergence the queue can resolve, so the MR is not moved to
+`held`. The operations-batch backstop is not wired yet — `validateOperation` already blocks
+every single-op route to an invalid whole, so it stays a follow-up.
+
 ### The engine test catalogue is real tests, not a document to transcribe later
 
 Ticket 0006. The ticket's literal deliverable was "the filled matrices and invariant list,

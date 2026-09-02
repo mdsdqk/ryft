@@ -12,6 +12,7 @@
 import type { SchemaDocument, ColumnType } from "../../engine/schema.js";
 import type { MergeReport } from "../../engine/merge-types.js";
 import type { Migration } from "../../engine/emit.js";
+import type { StructuralError } from "../../engine/validate.js";
 import type { LogEntry } from "../../src/domain/operations.js";
 import type { User, Organization } from "../../src/domain/users.js";
 
@@ -109,6 +110,19 @@ export type MergeKickback = {
   summary: string;
 };
 
+/**
+ * `POST /merge-requests/:id/merge` — the `409` body when the re-run against live
+ * `main` is `clean` but the merged candidate fails whole-document structural
+ * validation (ADR 0008 §5). Two individually-valid branches composed into an
+ * invalid document — a dangling reference, a duplicate name, an orphaned foreign
+ * key. Nothing is written; the MR keeps its status and its place at the front,
+ * and the author fixes the source branch and retries.
+ */
+export type MergeStructuralKickback = {
+  error: "structural-validation-failed";
+  errors: StructuralError[];
+};
+
 export type OperationsResponse = {
   head: SchemaDocument;
   appliedSeqs: number[];
@@ -123,3 +137,4 @@ export type UndoResponse = {
 };
 
 export type { LogEntry };
+export type { StructuralError, StructuralErrorReason } from "../../engine/validate.js";
