@@ -19,7 +19,7 @@ import { BranchHeldError, heldByMergeMessage } from "./branches.ts";
 import { BranchNotFoundError } from "./branchSchema.ts";
 import { MergeRevalidationError, MergeRequestNotFoundError } from "./merges.ts";
 import type { DataSource } from "./source.ts";
-import type { BranchSummary, MergeSummary, Overview } from "./types.ts";
+import type { BranchSummary, DeletedBranchSummary, MergeSummary, Overview } from "./types.ts";
 import { invalidateData } from "./watch.ts";
 
 /** A non-2xx response, carrying the parsed `{ error }` body for callers to map. */
@@ -135,6 +135,9 @@ export const httpSource: DataSource = {
     }
     invalidateData();
   },
+
+  listDeletedBranches: () =>
+    request<DeletedBranchSummary[]>("/branches/deleted"),
 
   async getBranchDetail(name) {
     let detail: BranchDetailBody;

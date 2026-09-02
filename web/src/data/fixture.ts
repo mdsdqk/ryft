@@ -41,6 +41,7 @@ export const fixtureSource: DataSource = {
   deleteBranch: async (name: string) => {
     branches.deleteBranch(name, database, merges.listOpen());
   },
+  listDeletedBranches: async () => branches.listDeleted(),
   getBranchDetail: (name: string) => branchSchema.getBranchDetail(name),
   listBranchOperations: (name: string) => branchSchema.listBranchOperations(name),
   applyOperations: (name, ops) => branchSchema.applyOperations(name, ops),

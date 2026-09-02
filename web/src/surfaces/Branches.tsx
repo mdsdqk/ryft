@@ -13,7 +13,9 @@
  * STORY: see every branch, name a new one from main, delete one that is not
  * held. An open merge request names why delete is refused. Empty keeps the
  * sheet and the trunk row; the working-list slot is the first-run notice +
- * Create branch.
+ * Create branch. A collapsed "Deleted branches" archive sits at the foot of the
+ * sheet (ADR 0013) — a hairline list of dropped branches, name · author ·
+ * deleted date.
  *
  * FIRST VIEWPORT: title strip "Branches"; right cell is the create plate
  * (label, name field, Create). Body: trunk first, then working rows (name →
@@ -44,12 +46,15 @@ import {
   source,
   useResource,
   type BranchSummary,
+  type DeletedBranchSummary,
+  type Resource,
 } from "../data/index.ts";
 import { Link, useSearchParams } from "react-router";
 import { useSession } from "../session/session.ts";
 import {
   EmptyState,
   Loading,
+  Row,
   SheetList,
   SurfaceBody,
   SurfaceSheet,
@@ -104,6 +109,7 @@ export function Branches() {
   const { data, loading, error, reload } = useResource(() =>
     source.listBranches(),
   );
+  const deletedRes = useResource(() => source.listDeletedBranches());
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -268,9 +274,52 @@ export function Branches() {
               ))
             )}
           </SheetList>
+
+          <DeletedBranches resource={deletedRes} />
         </SurfaceBody>
       </SurfaceSheet>
     </div>
+  );
+}
+
+/**
+ * The archive at the foot of the sheet — a collapsible hairline list of dropped
+ * branches (name · author · deleted date). Native `<details>`, closed by
+ * default; the archive is reference, not a working surface. Kept quiet: a load
+ * error just hides it, and an empty archive still shows the section with a
+ * one-line notice.
+ */
+function DeletedBranches({
+  resource,
+}: {
+  resource: Resource<DeletedBranchSummary[]>;
+}) {
+  const { data, error } = resource;
+  if (error) return null;
+  const rows = data ?? [];
+
+  return (
+    <details className="br-deleted">
+      <summary className="br-deleted__k">
+        Deleted branches
+        {rows.length > 0 && (
+          <span className="br-deleted__ct">{rows.length.toLocaleString()}</span>
+        )}
+      </summary>
+      {rows.length === 0 ? (
+        <p className="br-deleted__empty">No deleted branches.</p>
+      ) : (
+        <SheetList label="Deleted branches">
+          {rows.map((b) => (
+            <Row
+              key={`${b.name} ${b.deletedAt}`}
+              primary={b.name}
+              meta={`${b.author} · deleted ${b.deletedAt.slice(0, 10)}`}
+            />
+          ))}
+        </SheetList>
+      )}
+    </details>
   );
 }
 

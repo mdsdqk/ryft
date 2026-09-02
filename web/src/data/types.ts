@@ -58,6 +58,23 @@ export type MergeSummary = {
   closedOn?: string;
 };
 
+/**
+ * One archived branch — a working branch that was deleted. `DELETE /branches/:name`
+ * moves the row into the `deleted_branches` archive so the name frees up for
+ * reuse; `GET /branches/deleted` lists them, most-recently dropped first. The
+ * `/branches` surface shows these in a collapsible section at the bottom.
+ * Mirrors the API's `DeletedBranchSummary` (docs/backend-contract.md §3),
+ * projected: `author` is already a display name.
+ */
+export type DeletedBranchSummary = {
+  name: string;
+  author: string;
+  /** ISO-8601 timestamp the branch was dropped */
+  deletedAt: string;
+  /** count of derived deltas `base` → `head`, frozen at deletion */
+  divergence: number;
+};
+
 /** The landing aggregate — everything the rail and the dashboard need in one read. */
 export type Overview = {
   database: Database;

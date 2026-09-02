@@ -17,6 +17,7 @@ import type {
   BranchDetail,
   BranchOperationEntry,
   BranchSummary,
+  DeletedBranchSummary,
   MergeSummary,
   Overview,
 } from "./types.ts";
@@ -43,6 +44,8 @@ export interface DataSource {
   createBranch(args: CreateBranchArgs): Promise<BranchSummary>;
   /** drop a working branch; throws if it is the trunk or held by an open MR */
   deleteBranch(name: string): Promise<void>;
+  /** archived (deleted) branches, most-recently dropped first — `/branches/deleted` */
+  listDeletedBranches(): Promise<DeletedBranchSummary[]>;
 
   /** one branch's `head` + `base` documents; throws `BranchNotFoundError` on a miss */
   getBranchDetail(name: string): Promise<BranchDetail>;
