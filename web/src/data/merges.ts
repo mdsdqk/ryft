@@ -20,6 +20,18 @@ export class MergeRequestNotFoundError extends Error {
 }
 
 /**
+ * `POST /merge-requests/:id/merge` came back 409 — live `main` no longer
+ * produces a clean three-way. The request stays open (V0) or becomes `held`
+ * (V1 queue); the next GET is the current three-way.
+ */
+export class MergeRevalidationError extends Error {
+  override name = "MergeRevalidationError";
+  constructor(message = "main moved on while this was open. The three-way no longer merges clean.") {
+    super(message);
+  }
+}
+
+/**
  * Worked-example queue. `1` is the contact-fields review the merge-review
  * surface already ships. The other two exist so the list can show a clean
  * request and a stale base in the same queue.

@@ -17,7 +17,7 @@ import { currentUsername } from "../session/session.ts";
 import { mergeReviewFromResponse, type MergeRequestResponseBody } from "../merge-review/fromResponse.ts";
 import { BranchHeldError, heldByMergeMessage } from "./branches.ts";
 import { BranchNotFoundError } from "./branchSchema.ts";
-import { MergeRequestNotFoundError } from "./merges.ts";
+import { MergeRevalidationError, MergeRequestNotFoundError } from "./merges.ts";
 import type { DataSource } from "./source.ts";
 import type { BranchSummary, MergeSummary, Overview } from "./types.ts";
 import { invalidateData } from "./watch.ts";
@@ -298,6 +298,26 @@ export const httpSource: DataSource = {
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         throw new MergeRequestNotFoundError(id);
+      }
+      if (err instanceof ApiError) throw new Error(err.message);
+      throw err;
+    } finally {
+      invalidateData();
+    }
+  },
+
+  async mergeMergeRequest(id) {
+    try {
+      return await request<{ status: "merged" }>(
+        `/merge-requests/${encodeURIComponent(id)}/merge`,
+        { method: "POST" },
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        throw new MergeRequestNotFoundError(id);
+      }
+      if (err instanceof ApiError && err.status === 409 && err.body.error === "revalidation-failed") {
+        throw new MergeRevalidationError();
       }
       if (err instanceof ApiError) throw new Error(err.message);
       throw err;

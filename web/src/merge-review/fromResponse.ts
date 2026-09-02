@@ -488,7 +488,8 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
 
   const commutativity: MergeReview["commutativity"] =
     res.report.verdict === "clean" ? "passed" : res.report.verdict === "unclassified-divergence" ? "failed" : "pending";
-  const status: RevisionStatus = "in-check"; // effectiveStatus() derives "cleared" once mergeable
+  const status: RevisionStatus =
+    res.queue.status === "merged" ? "released" : res.queue.status === "queued" ? "received" : "in-check";
   const autoMergedCount = rows.filter((r) => r.resolution.state === "auto-merged").length;
 
   return {

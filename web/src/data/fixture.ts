@@ -47,6 +47,8 @@ export const fixtureSource: DataSource = {
   undoAfter: (name, seq) => branchSchema.undoAfter(name, seq),
   createMergeRequest: (name) => branchSchema.createMergeRequest(name),
   getMergeReview: (id) => mergeReview.getById(id),
-  postResolution: (id) => mergeReview.postResolution(id),
-  deleteResolution: (id) => mergeReview.deleteResolution(id),
+  postResolution: (id, conflictId, choice, type) =>
+    mergeReview.postResolution(id, conflictId, choice, type),
+  deleteResolution: (id, conflictId) => mergeReview.deleteResolution(id, conflictId),
+  mergeMergeRequest: (id) => mergeReview.mergeMergeRequest(id),
 };

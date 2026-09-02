@@ -5,6 +5,7 @@
  * V0 ships `getOverview` (rail + dashboard), the branches resource (WU-A),
  * the merges resource (WU-B), and the branch-workspace reads (WU-E · E1).
  * E2–E4 add `applyOperations`, `undoAfter`, and the open-merge-request call.
+ * Merge-review wiring adds `getMergeReview` / resolution mutations / `mergeMergeRequest`.
  */
 
 import type { Operation } from "@engine/operations.js";
@@ -77,4 +78,9 @@ export interface DataSource {
   ): Promise<MergeReview>;
   /** Drop a recorded choice, reopening the conflict. */
   deleteResolution(id: string, conflictId: string): Promise<MergeReview>;
+  /**
+   * Sign off a cleared merge request (`POST /merge-requests/:id/merge`).
+   * Throws `MergeRevalidationError` if live `main` no longer merges clean.
+   */
+  mergeMergeRequest(id: string): Promise<{ status: "merged" }>;
 }
