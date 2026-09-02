@@ -230,12 +230,23 @@ counter just to keep a label.
 
 ### Follow-ups surfaced during the build
 
-- Closing a merge request still leaves its source-branch FK, so a `closed` MR
-  blocks deleting that branch (clean 409 rather than an FK 500). ADR 0012.
-- No branch-restore from the archive — it's a create-or-conflict flow with its
-  own UI. ADR 0013.
-- Per-merge schema deltas for the revisions list would need `main`'s head
-  snapshotted per merge; not built. ADR 0014.
+- **A `closed` / `merged` merge request should not hold its source branch.**
+  Intended behaviour: once no *active* (queued / open / held) MR references a
+  branch, it is deletable. Today the `merge_requests.source_branch` FK from any
+  surviving MR row (terminal ones included) blocks the archive-then-delete.
+  Fix is a schema/route change — repoint or null those rows on archive, or make
+  the FK `ON DELETE SET NULL`. **Low priority, stretch.** (ADR 0012 / 0013.)
+- **No branch-restore from the archive** — confirmed out of scope. The freed
+  name may already be re-taken, so restore is a create-or-conflict flow with
+  its own UI. Not planned. (ADR 0013.)
+- **Per-merge schema delta** for the Revisions list — not built. A revision
+  entry shows *that* a merge landed and from where, not *what it changed*,
+  because the only record of a past merge is the thin merge-marker row (MR id,
+  source branch, author, timestamp). Showing the object-level diff for
+  revision N would need `main`'s schema document snapshotted at each revision so
+  `diffSnapshots(revN-1, revN)` could be rendered — i.e. reintroducing the
+  per-revision history the declarative model deliberately omits. Bigger design
+  change; noted as a gap. (ADR 0014.)
 - The parallel subagents branched from `main`, not this branch, and git's
   shared stash stack across worktrees caused one cross-contamination incident
   (recovered). Consolidated here by cherry-pick with conflict resolution.
