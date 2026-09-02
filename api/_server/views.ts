@@ -6,7 +6,7 @@
  * reads so the routes stay thin.
  */
 
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, notInArray } from "drizzle-orm";
 import { diffSnapshots } from "../../engine/diff.js";
 import { threeWayMerge } from "../../engine/merge.js";
 import { emitMigration, type Migration } from "../../engine/emit.js";
@@ -33,7 +33,8 @@ type MrRow = typeof mergeRequests.$inferSelect;
  * A terminal merge request — one that will never merge, so it is out of the
  * queue, does not block its source branch, and is never re-freshened on read.
  */
-export const isTerminal = (status: MrRow["status"]): boolean => status === "merged";
+export const isTerminal = (status: MrRow["status"]): boolean =>
+  status === "merged" || status === "closed";
 
 export type ResolvedMerge = {
   merged: SchemaDocument | null;
@@ -171,13 +172,18 @@ export async function queueFraming(
   db: DbOrTx,
   mr: MrRow,
 ): Promise<MergeRequestResponse["queue"]> {
-  if (mr.status === "merged") {
-    return { status: "merged", position: 0, ahead: 0, behind: 0 };
+  if (isTerminal(mr.status)) {
+    return { status: mr.status, position: 0, ahead: 0, behind: 0 };
   }
   const rows = await db
     .select({ id: mergeRequests.id })
     .from(mergeRequests)
-    .where(and(eq(mergeRequests.targetBranch, mr.targetBranch), ne(mergeRequests.status, "merged")))
+    .where(
+      and(
+        eq(mergeRequests.targetBranch, mr.targetBranch),
+        notInArray(mergeRequests.status, ["merged", "closed"]),
+      ),
+    )
     .orderBy(asc(mergeRequests.createdAt));
   const idx = rows.findIndex((r) => r.id === mr.id);
   const position = idx < 0 ? rows.length + 1 : idx + 1;
@@ -248,7 +254,7 @@ export async function openMergeIdFor(db: Db, branchName: string): Promise<string
     .select({ id: mergeRequests.id, status: mergeRequests.status })
     .from(mergeRequests)
     .where(eq(mergeRequests.sourceBranch, branchName));
-  return rows.find((r) => r.status !== "merged")?.id;
+  return rows.find((r) => !isTerminal(r.status))?.id;
 }
 
 export async function listBranchSummaries(db: Db): Promise<BranchSummary[]> {
@@ -258,7 +264,7 @@ export async function listBranchSummaries(db: Db): Promise<BranchSummary[]> {
     nameMap(db),
   ]);
   const openMr = new Map<string, string>();
-  for (const mr of mrRows) if (mr.status !== "merged") openMr.set(mr.source, mr.id);
+  for (const mr of mrRows) if (!isTerminal(mr.status)) openMr.set(mr.source, mr.id);
 
   const out = branchRows.map((b) => {
     const s: BranchSummary = {
@@ -286,7 +292,7 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
   const opCount = (branch: string) => ops.filter((o) => o.branchName === branch).length;
 
   const nonTerminal = mrRows
-    .filter((mr) => mr.status !== "merged")
+    .filter((mr) => !isTerminal(mr.status))
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
   return Promise.all(
@@ -321,6 +327,38 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
       };
     }),
   );
+}
+
+/**
+ * The closed list — requests withdrawn without merging (ADR 0012 §3), most
+ * recently closed first. Deliberately *not* a three-way re-run: a closed
+ * request is a record, its triple is never re-frozen, and re-deriving a
+ * conflict count for something that will never merge would be noise. `position`
+ * is 0 (it holds no place in the queue) and `conflicts` is 0.
+ */
+export async function listClosedMergeSummaries(db: Db): Promise<MergeSummary[]> {
+  const [rows, names, ops] = await Promise.all([
+    db
+      .select()
+      .from(mergeRequests)
+      .where(eq(mergeRequests.status, "closed"))
+      .orderBy(desc(mergeRequests.closedAt)),
+    nameMap(db),
+    db.select({ branchName: operations.branchName }).from(operations),
+  ]);
+
+  return rows.map((mr) => ({
+    id: mr.id,
+    source: mr.sourceBranch,
+    target: mr.targetBranch,
+    author: names.get(mr.authorId) ?? mr.authorId,
+    openedOn: isoDate(mr.createdAt),
+    operations: ops.filter((o) => o.branchName === mr.sourceBranch).length,
+    position: 0,
+    status: "closed" as const,
+    conflicts: 0,
+    ...(mr.closedAt ? { closedOn: isoDate(mr.closedAt) } : {}),
+  }));
 }
 
 export async function assembleOverview(db: Db): Promise<Overview> {

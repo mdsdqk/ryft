@@ -1,4 +1,4 @@
-CREATE TYPE "public"."merge_request_status" AS ENUM('queued', 'open', 'held', 'merged');--> statement-breakpoint
+CREATE TYPE "public"."merge_request_status" AS ENUM('queued', 'open', 'held', 'merged', 'closed');--> statement-breakpoint
 CREATE TABLE "branches" (
 	"name" text PRIMARY KEY NOT NULL,
 	"organization_id" uuid NOT NULL,
@@ -28,6 +28,7 @@ CREATE TABLE "merge_requests" (
 	"status" "merge_request_status" NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"merged_at" timestamp with time zone,
+	"closed_at" timestamp with time zone,
 	"base" jsonb NOT NULL,
 	"ours" jsonb NOT NULL,
 	"theirs" jsonb NOT NULL,

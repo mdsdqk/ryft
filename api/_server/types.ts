@@ -44,10 +44,12 @@ export type MergeSummary = {
   author: string;
   openedOn: string;
   operations: number;
-  /** 1-based place in the open queue (oldest first). */
+  /** 1-based place in the open queue (oldest first); 0 for a closed request. */
   position: number;
-  status: "clean" | "held" | "stale" | "queued";
+  status: "clean" | "held" | "stale" | "queued" | "closed";
   conflicts: number;
+  /** ISO-8601 date the request was closed; set iff `status` is `closed`. */
+  closedOn?: string;
 };
 
 export type Overview = {
@@ -80,7 +82,13 @@ export type MergeRequestResponse = {
   report: MergeReport;
   /** `emitMigration(theirs, merged)` — `null` when the merge is not clean (no merged doc to render). */
   migration: Migration | null;
-  queue: { status: "queued" | "open" | "held" | "merged"; position: number; ahead: number; behind: number };
+  queue: {
+    status: "queued" | "open" | "held" | "merged" | "closed";
+    /** 0 for a terminal request — it holds no place in the queue. */
+    position: number;
+    ahead: number;
+    behind: number;
+  };
   stale: boolean;
   /**
    * The stored resolutions that are currently in force (ADR 0004 §6). A resolved

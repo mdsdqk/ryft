@@ -228,6 +228,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "base": {
           "name": "base",
           "type": "jsonb",
@@ -503,7 +509,8 @@
         "queued",
         "open",
         "held",
-        "merged"
+        "merged",
+        "closed"
       ]
     }
   },

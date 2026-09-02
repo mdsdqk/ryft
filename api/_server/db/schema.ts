@@ -9,8 +9,10 @@
  * engine's job (ADR 0004 §1).
  *
  * All six tables are the frozen ADR 0004 §1 contract. The `merge_request_status`
- * enum carries all four values and `previewed_main_version` exists, so the V1
- * merge queue (ADR 0004 §3–§6) needed no migration on top of this.
+ * enum carried all four lifecycle values and `previewed_main_version` exists, so
+ * the V1 merge queue (ADR 0004 §3–§6) needed no migration on top of this. The
+ * one addition since: a fifth status `closed` plus `closed_at`, for the
+ * soft-close (ADR 0012 §3).
  */
 
 import {
@@ -77,11 +79,18 @@ export const operations = pgTable(
 
 // ── merge requests (ADR 0004 §3–§5) ────────────────────────────────────────
 
+/**
+ * `closed` is the soft-close (ADR 0012 §3): a request withdrawn without
+ * merging. It is terminal alongside `merged` — out of the queue, no longer
+ * blocking its source branch — but the row survives so "what happened to that
+ * request" has an answer. Hard `DELETE` remains as the admin escape valve.
+ */
 export const mergeRequestStatus = pgEnum("merge_request_status", [
   "queued",
   "open",
   "held",
   "merged",
+  "closed",
 ]);
 
 export const mergeRequests = pgTable("merge_requests", {
@@ -92,6 +101,7 @@ export const mergeRequests = pgTable("merge_requests", {
   status: mergeRequestStatus("status").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   mergedAt: timestamp("merged_at", { withTimezone: true }), // null until merged
+  closedAt: timestamp("closed_at", { withTimezone: true }), // null unless soft-closed (ADR 0012 §3)
   // frozen at creation; refreshed on a merge attempt or on promotion to `open` (ADR 0004 §5)
   base: jsonb("base").$type<SchemaDocument>().notNull(),
   ours: jsonb("ours").$type<SchemaDocument>().notNull(),
