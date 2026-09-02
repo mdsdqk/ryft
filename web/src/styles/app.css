@@ -86,7 +86,13 @@
 
 .app-bar__theme {
   display: flex;
+  align-items: center;
   border: 1px solid var(--line-strong);
+}
+.app-bar__theme-icon {
+  flex: 0 0 auto;
+  margin-inline: 8px 2px;
+  color: var(--ink-faint);
 }
 .app-bar__theme button {
   padding: 6px 11px;
@@ -105,17 +111,22 @@
   color: var(--sheet);
 }
 
+/* the session cluster is its own zone: a divider sets it off from the theme
+ * group, and the username reads as a quiet label bound to Sign out — not a
+ * control floating between two bordered buttons (usability review point 11). */
 .app-bar__session {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
+  padding-inline-start: 16px;
+  border-inline-start: 1px solid var(--line-strong);
 }
 .app-bar__user {
   font-family: var(--ff-mono);
   font-size: 11px;
   letter-spacing: 0.04em;
-  color: var(--ink-soft);
+  color: var(--ink-faint);
   max-width: 20ch;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1207,6 +1218,11 @@ kbd {
   .app-bar {
     flex-wrap: wrap;
     row-gap: 10px;
+  }
+  /* wrapped onto its own row — the divider/indent no longer separates anything */
+  .app-bar__session {
+    padding-inline-start: 0;
+    border-inline-start: none;
   }
   .mr-titlestrip__demo {
     margin-top: 12px;
