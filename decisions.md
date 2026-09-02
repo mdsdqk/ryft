@@ -882,6 +882,23 @@ clicks could both pass the `status = open` check before either commits — accep
 reviewer driving one demo, and fixed properly by the V1 row lock, which this explicitly
 defers rather than approximates.
 
+### The app speaks SQL and Git, not the drafting metaphor's coined words
+
+ADR 0011. A usability review with the intended user (a DBA / app engineer) found the
+UI's invented vocabulary — *cut* a branch, *sheets* for navigation, a merge lifecycle of
+*received / in-check / cleared / released*, "fabrication order", "Demonstration data" on every
+sheet — left them guessing. The drafting *visual* language (DESIGN.md's "Revised Drawing") is
+good and stays; the words were the problem. So user-facing text now uses the term a Postgres
+DBA or Git user already knows: "create a branch", "branched from main", "merge requests", and a
+lifecycle of **Queued / Under review / Reviewed / Merged**. Internal identifiers (the
+`RevisionStatus` keys, the `merge_request_status` enum, `cutOn`, route paths, CSS classes) did
+not change, so this is a copy-and-label pass, not a refactor. The non-functional `main @ rev N`
+line — `trunkRevision` was a hardcoded fixture — was dropped for a last-updated date; a real
+revision counter with per-merge highlighting is a stretch item. Full rename table and the
+small visual tweaks carried alongside (column-spec keyword casing, the app-bar session
+cluster, the rail naming the open entity) are in ADR 0011. Prompted by
+`docs/usability-review-triage.md`.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:

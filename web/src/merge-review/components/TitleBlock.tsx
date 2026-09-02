@@ -12,20 +12,20 @@ export function TitleBlock({
   rebased: number;
 }) {
   const rows: Array<[string, string]> = [
-    ["Drawing", `${review.table} schema`],
-    ["Merge", `${review.source} → ${review.target}`],
+    ["Table", `${review.table} schema`],
+    ["Merging", `${review.source} → ${review.target}`],
     ["Base", review.base],
     ["Opened", `${review.openedBy.name} · ${shortDate(review.openedAt)}`],
     ["Revisions", `${review.revisions.length} · ${unresolved} unresolved`],
-    ["Rebased", `${rebased} · auto`],
-    ["Checker", review.status === "released" ? "signed off" : unresolved > 0 ? "— awaiting" : "ready to sign"],
+    ["Auto-adjusted", `${rebased}`],
+    ["Review", review.status === "released" ? "complete" : unresolved > 0 ? "awaiting" : "ready"],
   ];
   return (
     <dl className="mr-titleblock">
       {rows.map(([k, v]) => (
         <div key={k} className="mr-titleblock__row">
           <dt>{k}</dt>
-          <dd data-warn={k === "Checker" && unresolved > 0 ? "" : undefined}>{v}</dd>
+          <dd data-warn={k === "Review" && unresolved > 0 ? "" : undefined}>{v}</dd>
         </div>
       ))}
     </dl>

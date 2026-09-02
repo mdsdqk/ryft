@@ -296,7 +296,7 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
       </div>
 
       <p className="mr-vh" aria-live="polite">
-        Revision status: {statusLabel(status)}.
+        Status: {statusLabel(status)}.
       </p>
     </article>
   );

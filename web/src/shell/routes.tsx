@@ -18,9 +18,9 @@ import { PlannedSheet } from "../surfaces/PlannedSheet.tsx";
 
 function NotFound() {
   return (
-    <PlannedSheet title="No such sheet">
-      That route does not exist. The database sheets — Database, Branches,
-      Merges — are in the rail.
+    <PlannedSheet title="Page not found">
+      That route does not exist. Database, Branches, and Merge requests are in
+      the rail.
     </PlannedSheet>
   );
 }

@@ -2,9 +2,8 @@ import type { RevisionStatus } from "../model.ts";
 import { STATUS_SEQUENCE, statusLabel } from "../format.ts";
 
 /**
- * The revision-status dial. A drawing's issue/approval plate, and — the point of
- * the design — a dial that *turns*: the whole sequence stays visible and the
- * boxed marker advances along it when the status changes (an authored move,
+ * The status dial. A dial that *turns*: the whole lifecycle stays visible and
+ * the boxed marker advances along it when the status changes (an authored move,
  * neutralised under prefers-reduced-motion). It never reads as a stamp.
  */
 export function RevisionDial({
@@ -16,8 +15,8 @@ export function RevisionDial({
 }) {
   const current = STATUS_SEQUENCE.indexOf(status);
   return (
-    <div className="mr-dial" role="group" aria-label="Revision status">
-      <span className="mr-dial__label">Revision status</span>
+    <div className="mr-dial" role="group" aria-label="Status">
+      <span className="mr-dial__label">Status</span>
       <strong className="mr-dial__now" data-status={status}>
         {statusLabel(status)}
       </strong>

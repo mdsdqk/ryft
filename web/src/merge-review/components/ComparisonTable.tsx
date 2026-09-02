@@ -167,7 +167,7 @@ export function ComparisonTable({
         <p className="mr-zone__warn" role="note">
           <b>{review.destructiveCount}</b> destructive change
           {review.destructiveCount === 1 ? "" : "s"} in this merge — dropped objects are
-          irreversible once released. Marked on the rows and in the fabrication order.
+          irreversible once merged. Marked on the rows and in the fabrication order.
         </p>
       )}
 
@@ -185,7 +185,7 @@ export function ComparisonTable({
             showing {shown.length} of {review.rows.length} · {changedCount} changed
           </>
         }
-        gutterLabel="Object · stable id"
+        gutterLabel="Table object"
         left={{ label: `On ${review.source} — ours`, shortLabel: "on ours", tone: "ours" }}
         right={{ label: `On ${review.target} — theirs`, shortLabel: "on theirs", tone: "theirs" }}
         baseNote={

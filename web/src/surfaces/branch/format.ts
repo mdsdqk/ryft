@@ -82,10 +82,15 @@ export function typeForValue(value: string): ColumnType {
   return { kind: "text" };
 }
 
-/** `varchar(255) · not null` — the type, nullability, and any default. */
+/**
+ * `varchar(255) · NOT NULL · DEFAULT 'x'` — type, then nullability and any
+ * default with the SQL keywords cased as DDL writes them, so they read as
+ * constraints rather than running into the type as one phrase (usability
+ * review: "id uuid not null" was hard to parse).
+ */
 export function columnSpec(c: Column): string {
-  const parts = [sqlType(c.type), c.nullable ? "null" : "not null"];
-  if (c.default !== null) parts.push(`default ${c.default}`);
+  const parts = [sqlType(c.type), c.nullable ? "NULL" : "NOT NULL"];
+  if (c.default !== null) parts.push(`DEFAULT ${c.default}`);
   return parts.join(" · ");
 }
 

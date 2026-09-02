@@ -1,12 +1,13 @@
 import type { MergeReview } from "../model.ts";
 import { effectiveStatus, isMergeable, openConflicts } from "../model.ts";
+import { statusLabel } from "../format.ts";
 
 /**
  * Zone D — the fabrication order. The ordered, forward-only DDL that comes out of
  * a clean merge, each statement tagged to the revision that produced it. Blocked
  * groups are listed with the reason, including any downstream objects a conflict
- * gates. A status line — not a stamp — says what advances the dial to Cleared,
- * and the one primary action that turns it to Released.
+ * gates. A status line — not a stamp — says what advances the dial to Reviewed,
+ * and the one primary action that turns it to Merged.
  */
 export function FabricationOrder({
   review,
@@ -103,12 +104,12 @@ export function FabricationOrder({
           <span className="mr-fab__dot" aria-hidden="true" />
           {released ? (
             <>
-              <b>Released</b> — signed off. <code>main</code> now holds this schema.
+              <b>Merged</b> — <code>main</code> now holds this schema.
             </>
           ) : mergeable ? (
             <>
-              <b>Cleared</b> — the queue is empty and applying each side's delta to base in either
-              order agrees. Ready for the checker to sign off and release.
+              <b>Reviewed</b> — the queue is empty and applying each side's delta to base in either
+              order agrees. Ready to merge into <code>main</code>.
             </>
           ) : unclassified ? (
             <>
@@ -123,12 +124,12 @@ export function FabricationOrder({
               {fo.statements.length} {fo.statements.length === 1 ? "statement" : "statements"} staged.
               <span className="mr-fab__adv">
                 {" "}
-                Advances to <b>Cleared</b> when the queue is empty and the commutativity check passes.
-                Currently: {review.commutativity}.
+                Advances to <b>Reviewed</b> when the queue is empty and the commutativity check
+                passes. Currently: {review.commutativity}.
               </span>
             </>
           )}
-          <span className="mr-vh"> Current status: {status}.</span>
+          <span className="mr-vh"> Current status: {statusLabel(status)}.</span>
         </p>
         {canRelease && onRelease && (
           <button
@@ -137,7 +138,7 @@ export function FabricationOrder({
             disabled={releasing}
             onClick={onRelease}
           >
-            {releasing ? "Releasing…" : "Release to main"}
+            {releasing ? "Merging…" : "Merge into main"}
           </button>
         )}
       </div>

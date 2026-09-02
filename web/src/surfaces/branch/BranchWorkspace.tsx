@@ -108,14 +108,13 @@ export function BranchWorkspace() {
       : `${detail.divergence.toLocaleString()} operation${detail.divergence === 1 ? "" : "s"}`;
   const subtitle = isTrunk
     ? `the trunk · schema of record · last changed ${detail.cutOn}`
-    : `cut from main · ${detail.author} · ${detail.cutOn} · ${changes}`;
+    : `branched from main · ${detail.author} · ${detail.cutOn} · ${changes}`;
 
   const showAction = !isTrunk && detail.divergence > 0;
 
   return (
     <SurfaceSheet
       title={detail.name}
-      demo
       subtitle={subtitle}
       action={showAction ? <MergeRequestAction detail={detail} /> : undefined}
     >

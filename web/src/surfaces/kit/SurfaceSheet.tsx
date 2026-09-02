@@ -1,8 +1,7 @@
 /**
  * The drafting-room sheet every surface sits on: a bordered sheet with a title
- * strip. `subtitle` renders as the mono path line, `demo` stamps the
- * "Demonstration data" tag, `action` fills the strip's right cell with the
- * surface's one primary action.
+ * strip. `subtitle` renders as the mono path line, `action` fills the strip's
+ * right cell with the surface's one primary action.
  */
 
 import type { ReactNode } from "react";
@@ -10,13 +9,11 @@ import type { ReactNode } from "react";
 export function SurfaceSheet({
   title,
   subtitle,
-  demo = false,
   action,
   children,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
-  demo?: boolean;
   action?: ReactNode;
   children: ReactNode;
 }) {
@@ -28,7 +25,6 @@ export function SurfaceSheet({
           {subtitle != null && (
             <p className="mr-titlestrip__path">{subtitle}</p>
           )}
-          {demo && <p className="mr-titlestrip__demo">Demonstration data</p>}
         </div>
         {action != null && <div className="kit-sheet__action">{action}</div>}
       </header>

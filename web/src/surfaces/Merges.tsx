@@ -13,7 +13,7 @@
  * lives on the branch workspace. Empty keeps the sheet and points at
  * /branches with the first-run copy.
  *
- * FIRST VIEWPORT: title strip "Merges" + demonstration tag + queue count.
+ * FIRST VIEWPORT: title strip "Merge requests" + queue count.
  * No right-cell action. Body: oldest row first, source → main opens
  * /merge/:id, author · opened date, StatusPill. Primary action is the row itself.
  *
@@ -97,7 +97,7 @@ export function Merges() {
   if (forceLoading || (loading && !data)) {
     return (
       <div className="mg" aria-busy="true">
-        <SurfaceSheet title="Merges">
+        <SurfaceSheet title="Merge requests">
           <Loading label="Loading merge requests…" />
         </SurfaceSheet>
       </div>
@@ -107,7 +107,7 @@ export function Merges() {
   if (error || !data) {
     return (
       <div className="mg">
-        <SurfaceSheet title="Merges">
+        <SurfaceSheet title="Merge requests">
           <EmptyState
             tone="error"
             title="Could not load merge requests"
@@ -129,7 +129,7 @@ export function Merges() {
 
   return (
     <div className="mg">
-      <SurfaceSheet title="Merges" demo subtitle={countLine(rows.length)}>
+      <SurfaceSheet title="Merge requests" subtitle={countLine(rows.length)}>
         {empty ? (
           <EmptyState
             title="No open merge requests."
