@@ -212,9 +212,30 @@ counter just to keep a label.
    to the merge-review view model, Zone D shows a Queued branch.
 6. **Theme F4** (read-only `CREATE TABLE` view per table) — ✅ done;
    `TableDdl.tsx`, "view SQL" toggle on every table card.
-7. **Theme D-12** (auto-refresh `ours` when the branch moves) — M, server
-   re-freeze on read + dropped-resolution notice. **Next.**
-8. **Theme F1+F3** (soft-close MR: enum value + migration + close action +
-   "Closed" list) — M–L.
-9. **Theme F2** (deleted-branches page) — L, genuine stretch.
-10. **Theme H** (revision counter + highlighting) — stretch, last.
+7. **Theme D-12** (auto-refresh `ours` when the branch moves) — ✅ done; `ours`
+   re-freezes on every read for non-terminal requests, dropped resolutions
+   surface as a non-blocking note. ADR 0012.
+8. **Theme F1+F3** (soft-close MR) — ✅ done; `closed` status + `closed_at`,
+   `POST …/close`, Open/Closed tabs on `/merges`, "Close request" in Zone D.
+   ADR 0012.
+9. **Theme F2** (deleted-branches) — ✅ done; archive-then-delete into
+   `deleted_branches` (needed because `branches.name` is the PK),
+   `GET /branches/deleted`, collapsed "Deleted branches" zone on `/branches`.
+   ADR 0013. No restore endpoint (freed name may be re-taken) — follow-up.
+10. **Theme H** (revision counter + highlighting) — ✅ done; `trunkRevision`
+   derived from `main`'s merge-marker count (no schema change), a `revisions`
+   list on `/overview`, a "Revisions" zone on `/db`, `· rev N` back on the rail.
+   ADR 0014. Per-merge object-level highlighting not possible — the merge
+   marker is thin; noted as a gap.
+
+### Follow-ups surfaced during the build
+
+- Closing a merge request still leaves its source-branch FK, so a `closed` MR
+  blocks deleting that branch (clean 409 rather than an FK 500). ADR 0012.
+- No branch-restore from the archive — it's a create-or-conflict flow with its
+  own UI. ADR 0013.
+- Per-merge schema deltas for the revisions list would need `main`'s head
+  snapshotted per merge; not built. ADR 0014.
+- The parallel subagents branched from `main`, not this branch, and git's
+  shared stash stack across worktrees caused one cross-contamination incident
+  (recovered). Consolidated here by cherry-pick with conflict resolution.
