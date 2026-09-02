@@ -127,6 +127,8 @@
   font-feature-settings: "tnum" 1;
   font-size: 11.5px;
   line-height: 1.4;
+  outline: 1.5px solid transparent;
+  outline-offset: -1.5px;
 }
 .bw-row:last-child {
   border-bottom: none;
@@ -136,8 +138,28 @@
  * the state never rests on the wash alone */
 .bw-row--changed {
   background: var(--ours-wash);
-  outline: 1.5px solid var(--ours);
-  outline-offset: -1.5px;
+  outline-color: var(--ours);
+}
+/* just-applied only — SchemaView sets this when seq just landed, never on first paint */
+.bw-row--landing {
+  transition:
+    outline-color 220ms var(--ease-mark),
+    background-color 220ms var(--ease-mark);
+}
+@starting-style {
+  .bw-row--landing.bw-row--changed {
+    outline-color: transparent;
+    background-color: transparent;
+  }
+}
+.bw-row--landing .mr-tri {
+  opacity: 1;
+  transition: opacity 220ms var(--ease-mark);
+}
+@starting-style {
+  .bw-row--landing .mr-tri {
+    opacity: 0;
+  }
 }
 
 /* editable row: the whole spec is one button; an `edit` hint appears on
@@ -223,6 +245,27 @@
   font-feature-settings: "tnum" 1;
   font-size: 10.5px;
 }
+.bw-ops__entry--landing {
+  transition:
+    opacity 220ms var(--ease-mark),
+    transform 220ms var(--ease-mark);
+}
+@starting-style {
+  .bw-ops__entry--landing {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bw-ops__entry--landing {
+    transform: none;
+  }
+  @starting-style {
+    .bw-ops__entry--landing {
+      transform: none;
+    }
+  }
+}
 .bw-ops__entry:last-child {
   padding-bottom: 0;
 }
@@ -274,6 +317,7 @@
   line-height: 1.4;
   color: var(--conflict);
   max-width: 30ch;
+  animation: ryft-rule-in 260ms var(--ease-mark) both;
 }
 
 /* ── divergence sub-sheet (E3) ────────────────────────────────────── */
@@ -368,6 +412,7 @@
 .bw-ed--warn {
   border-color: var(--conflict-edge);
   background: var(--conflict-wash);
+  animation: ryft-rule-in 260ms var(--ease-mark) both;
 }
 .bw-ed--strip {
   border-top: none;
@@ -443,6 +488,7 @@ input.bw-in::placeholder {
   line-height: 1.45;
   color: var(--conflict);
   margin-top: 8px;
+  animation: ryft-rule-in 260ms var(--ease-mark) both;
 }
 .bw-ed__note {
   font-family: var(--ff-mono);
