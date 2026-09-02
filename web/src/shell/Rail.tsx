@@ -48,7 +48,7 @@ export function Rail() {
       <div className="shl-rail__db">{db?.name ?? "—"}</div>
       <div className="shl-rail__conn">
         {db
-          ? `${db.connection} · ${db.tables} tables · ${db.trunk} · updated ${db.trunkChangedOn}`
+          ? `${db.connection} · ${db.tables} tables · ${db.trunk} · rev ${db.trunkRevision} · updated ${db.trunkChangedOn}`
           : "loading…"}
       </div>
 

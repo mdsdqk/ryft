@@ -238,7 +238,7 @@ export function Dashboard() {
             <Link className="mr-linkbtn" to={trunkPath}>
               {db.trunk}
             </Link>{" "}
-            · updated {db.trunkChangedOn}
+            · rev {db.trunkRevision.toLocaleString()} · updated {db.trunkChangedOn}
           </>
         }
         action={

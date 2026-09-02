@@ -4,13 +4,11 @@
  * transaction; `GET /branches/deleted` lists the archive. Deleting a branch a
  * merge request holds is still refused, and a freed name can be cut again.
  *
- * The archive table has no committed migration yet (the parent session owns the
- * consolidated one) — `archiveTable()` creates it on the fresh pglite instance,
- * mirroring the `schema.ts` definition.
+ * `deleted_branches` ships in migration `0001_deleted_branches_archive.sql`, so
+ * `freshDb()` provides it — no per-test table creation.
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
 import { createApp } from "../app.js";
 import { freshDb } from "./setup.js";
 import { seedIds } from "../../../examples/seed.schema.js";
@@ -18,28 +16,8 @@ import type { Operation } from "../../../engine/operations.js";
 
 let app: ReturnType<typeof createApp>;
 
-/** `deleted_branches` as `schema.ts` declares it — see the note above. */
-const archiveTable = [
-  sql`CREATE TABLE "deleted_branches" (
-    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "name" text NOT NULL,
-    "organization_id" uuid NOT NULL,
-    "author_id" uuid NOT NULL,
-    "created_at" timestamp with time zone NOT NULL,
-    "head" jsonb NOT NULL,
-    "base_snapshot" jsonb NOT NULL,
-    "head_version" integer NOT NULL,
-    "deleted_at" timestamp with time zone DEFAULT now() NOT NULL,
-    "deleted_by_id" uuid NOT NULL
-  )`,
-  sql`ALTER TABLE "deleted_branches" ADD CONSTRAINT "deleted_branches_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action`,
-  sql`ALTER TABLE "deleted_branches" ADD CONSTRAINT "deleted_branches_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action`,
-  sql`ALTER TABLE "deleted_branches" ADD CONSTRAINT "deleted_branches_deleted_by_id_users_id_fk" FOREIGN KEY ("deleted_by_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action`,
-];
-
 beforeEach(async () => {
   const db = await freshDb();
-  for (const stmt of archiveTable) await db.execute(stmt);
   app = createApp(db);
   await app.request("/api/workspace/reset", { method: "POST" });
 });

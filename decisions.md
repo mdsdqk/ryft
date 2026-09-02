@@ -893,8 +893,8 @@ DBA or Git user already knows: "create a branch", "branched from main", "merge r
 lifecycle of **Queued / Under review / Reviewed / Merged**. Internal identifiers (the
 `RevisionStatus` keys, the `merge_request_status` enum, `cutOn`, route paths, CSS classes) did
 not change, so this is a copy-and-label pass, not a refactor. The non-functional `main @ rev N`
-line — `trunkRevision` was a hardcoded fixture — was dropped for a last-updated date; a real
-revision counter with per-merge highlighting is a stretch item. Full rename table and the
+line — `trunkRevision` was a hardcoded fixture — was dropped for a last-updated date here, then
+brought back real once ADR 0014 gave it a counter. Full rename table and the
 small visual tweaks carried alongside (column-spec keyword casing, the app-bar session
 cluster, the rail naming the open entity) are in ADR 0011. Prompted by
 `docs/usability-review-triage.md`.
