@@ -240,6 +240,32 @@ kbd {
   color: var(--ink-soft);
   border: 1px dashed var(--line-strong);
 }
+/* the source branch moved after the request opened and the re-run un-chose some
+ * resolutions (ADR 0012 §2) — advisory, so it takes the dashed marginal note
+ * treatment, not the conflict red. */
+.mr-titlestrip__refresh {
+  margin-top: 10px;
+  padding: 7px 10px;
+  border: 1px dashed var(--line-strong);
+  border-inline-start-width: 2px;
+  max-width: 66ch;
+}
+.mr-titlestrip__refresh-k {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.mr-titlestrip__refresh-l {
+  list-style: none;
+  margin-top: 4px;
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
 .mr-o {
   color: var(--ours);
 }

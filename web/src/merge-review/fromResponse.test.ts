@@ -177,6 +177,31 @@ describe("mergeReviewFromResponse — destructive warnings (ADR 0008 §6)", () =
   });
 });
 
+describe("mergeReviewFromResponse — dropped resolutions (ADR 0012 §2)", () => {
+  it("has no refresh note when nothing dropped", () => {
+    expect(mergeReviewFromResponse(response({})).refreshNote).toBeUndefined();
+  });
+
+  it("pre-renders one line per dropped resolution, naming the class, the object, and why", () => {
+    const conflictId = threeWayMerge(base, oursWide, theirsWide, []).report.conflicts[0]!.id;
+    const review = mergeReviewFromResponse(
+      response({
+        ours: oursWide,
+        theirs: theirsWide,
+        droppedResolutions: [
+          { conflictId, why: "changed" },
+          { conflictId: `add-vs-add:${COL}`, why: "absent" },
+        ],
+      }),
+    );
+
+    expect(review.refreshNote?.droppedResolutions).toEqual([
+      "divergent retype on email — the conflict changed since you chose — choose again",
+      "add vs add on email — no longer conflicts — nothing left to choose",
+    ]);
+  });
+});
+
 describe("mergeReviewFromResponse — queue status", () => {
   it("maps a merged queue status to Released", () => {
     const review = mergeReviewFromResponse(response({ queue: { status: "merged", position: 1, ahead: 0, behind: 0 } }));

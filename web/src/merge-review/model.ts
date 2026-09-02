@@ -188,6 +188,15 @@ export interface MergeReview {
    * that predate the queue — treat as "at the front".
    */
   queue?: { position: number; ahead: number; behind: number };
+  /**
+   * The server re-freezes `ours` from the source branch's live head on every
+   * read (ADR 0012 §1), so a branch edit made after the request opened lands
+   * here. When that refresh invalidated conflict choices already recorded, this
+   * names them — one pre-rendered line each — so the screen can say what was
+   * un-chosen instead of dropping it in silence (ADR 0012 §2). Absent when
+   * nothing dropped; never blocks the merge.
+   */
+  refreshNote?: { droppedResolutions: string[] };
   rows: ComparisonRow[];
   conflicts: Conflict[];
   revisions: RevisionRef[];

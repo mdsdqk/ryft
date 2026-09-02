@@ -29,6 +29,12 @@ const sameDoc = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.
 
 type MrRow = typeof mergeRequests.$inferSelect;
 
+/**
+ * A terminal merge request — one that will never merge, so it is out of the
+ * queue, does not block its source branch, and is never re-freshened on read.
+ */
+export const isTerminal = (status: MrRow["status"]): boolean => status === "merged";
+
 export type ResolvedMerge = {
   merged: SchemaDocument | null;
   report: MergeReport;
@@ -115,30 +121,46 @@ async function nameMap(db: DbOrTx): Promise<Map<string, string>> {
 // ── merge queue (ADR 0004 §3–§6) ────────────────────────────────────────────
 
 /**
- * The active MR (`open`/`held`) always resolves against **live** heads — its
- * frozen `ours`/`theirs` are lazily rewritten to `source.head`/`main.head` on
- * read (ADR 0004 §5: "its next `GET` rewrites the frozen `theirs` and `ours`").
- * `base` never moves. A `queued` MR keeps its provisional frozen triple.
+ * Lazily re-freeze a live merge request's triple on read (ADR 0004 §5, ADR 0012 §1).
+ *
+ * `ours` **always** follows the source branch's current `head` — for a `queued`
+ * request as much as for the active one. That is the D-12 fix: before it, an
+ * author who kept editing their branch after opening the request saw a merge
+ * screen frozen at creation, with no way to tell it was showing yesterday's
+ * work. `base` never moves (it is the branch cut point).
+ *
+ * `theirs` still only follows live `main` for the **active** request
+ * (`open`/`held`), which is ADR 0004 §5's promotion refresh unchanged. A
+ * `queued` request keeps the `main` it was previewed against, so `stale` stays
+ * the honest signal that the trunk moved while it waited — refreshing `theirs`
+ * too would silently erase that.
+ *
+ * A terminal request is a record, not a live view: it is returned exactly as
+ * stored so a later `GET` recomputes the identical report.
  *
  * Plain `UPDATE`, no `FOR UPDATE`: the merge transaction is the real
  * serialization point, and a read that races a merge simply self-corrects on
  * the next read (`stale` briefly shows the drift).
  */
-export async function refreshActiveTriple(db: DbOrTx, mr: MrRow): Promise<MrRow> {
-  if (mr.status !== "open" && mr.status !== "held") return mr;
+export async function refreshTriple(db: DbOrTx, mr: MrRow): Promise<MrRow> {
+  if (isTerminal(mr.status)) return mr;
   const [main] = await db.select().from(branches).where(eq(branches.name, mr.targetBranch));
   const [source] = await db.select().from(branches).where(eq(branches.name, mr.sourceBranch));
   if (!main || !source) return mr;
+
+  const active = mr.status === "open" || mr.status === "held";
+  const theirs = active ? main.head : mr.theirs;
+  const previewedMainVersion = active ? main.headVersion : mr.previewedMainVersion;
   if (
-    mr.previewedMainVersion === main.headVersion &&
+    mr.previewedMainVersion === previewedMainVersion &&
     sameDoc(mr.ours, source.head) &&
-    sameDoc(mr.theirs, main.head)
+    sameDoc(mr.theirs, theirs)
   ) {
     return mr;
   }
   const [updated] = await db
     .update(mergeRequests)
-    .set({ ours: source.head, theirs: main.head, previewedMainVersion: main.headVersion })
+    .set({ ours: source.head, theirs, previewedMainVersion })
     .where(eq(mergeRequests.id, mr.id))
     .returning();
   return updated ?? mr;
@@ -269,9 +291,9 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
 
   return Promise.all(
     nonTerminal.map(async (row, idx) => {
-      // the active MR resolves against live heads (ADR 0004 §5); a queued MR
-      // keeps its provisional frozen triple.
-      const mr = await refreshActiveTriple(db, row);
+      // every live MR's `ours` follows its source branch; only the active one's
+      // `theirs` follows live `main` (ADR 0004 §5, ADR 0012 §1).
+      const mr = await refreshTriple(db, row);
       const { report, appliedResolutions } = await resolveMerge(db, mr);
       // `report.conflicts` is the engine's full detected set — it does not drop
       // an entry once resolved (the engine `Conflict` carries no `resolvedWith`;
@@ -339,13 +361,18 @@ export async function assembleBranchDetail(db: Db, name: string): Promise<Branch
 
 /**
  * Recompute `report` + `migration` (with stored resolutions) for a merge-request
- * row, plus real queue framing (ADR 0004 §3–§5). The active MR's frozen triple
- * is refreshed to live heads first; a `queued` MR is read as frozen and shows
- * `stale` if `main` has moved since it was previewed.
+ * row, plus real queue framing (ADR 0004 §3–§5). The frozen triple is refreshed
+ * first: `ours` to the source branch's live head either way, `theirs` to live
+ * `main` only for the active MR — so a `queued` request still shows `stale` if
+ * `main` moved since it was previewed (ADR 0012 §1).
+ *
+ * `droppedResolutions` is how that refresh reports itself: if moving `ours`
+ * invalidated a stored choice, the row is named here rather than discarded in
+ * silence (ADR 0004 §6, ADR 0012 §2).
  */
 export async function assembleMergeResponse(db: DbOrTx, row: MrRow): Promise<MergeRequestResponse> {
   const names = await nameMap(db);
-  const mr = await refreshActiveTriple(db, row);
+  const mr = await refreshTriple(db, row);
   const { report, migration, appliedResolutions, droppedResolutions } = await resolveMerge(db, mr);
   const [main] = await db.select().from(branches).where(eq(branches.name, mr.targetBranch));
 

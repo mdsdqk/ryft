@@ -288,6 +288,25 @@ function optionsFor(modes: Array<"ours" | "theirs" | "type">, ours: unknown, the
   return opts;
 }
 
+/**
+ * One dropped stored resolution as a line the screen can print (ADR 0012 §2).
+ * The API returns the raw `{ conflictId, why }` pair — pre-rendering it is the
+ * client's job (ADR 0004 §7), and the id already carries the class and the
+ * object ids, so nothing else has to be looked up.
+ */
+function droppedResolutionLabel(
+  dropped: { conflictId: string; why: "changed" | "absent" },
+  nameOf: NameOf,
+): string {
+  const { cls, objectIds } = parseConflictId(dropped.conflictId);
+  const where = objectIds.map(nameOf).join(" / ");
+  const why =
+    dropped.why === "changed"
+      ? "the conflict changed since you chose — choose again"
+      : "no longer conflicts — nothing left to choose";
+  return `${conflictLabel(CLASS_MAP[cls])} on ${where} — ${why}`;
+}
+
 /** Indexes / uniques / foreign keys (in either doc) whose columns include `columnId`. */
 function dependentsOf(columnId: string, doc: SchemaDocument): Array<{ id: string; label: string }> {
   const out: Array<{ id: string; label: string }> = [];
@@ -514,6 +533,7 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
     res.report.verdict === "clean" ? "passed" : res.report.verdict === "unclassified-divergence" ? "failed" : "pending";
   const status: RevisionStatus =
     res.queue.status === "merged" ? "released" : res.queue.status === "queued" ? "received" : "in-check";
+  const dropped = res.droppedResolutions.map((d) => droppedResolutionLabel(d, nameOf));
   const autoMergedCount = rows.filter((r) => r.resolution.state === "auto-merged").length;
   const destructiveCount = rows.filter((r) =>
     r.warnings?.some((w) => w.kind === "destructive"),
@@ -532,6 +552,7 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
       ahead: res.queue.ahead,
       behind: res.queue.behind,
     },
+    ...(dropped.length ? { refreshNote: { droppedResolutions: dropped } } : {}),
     rows,
     conflicts,
     revisions,

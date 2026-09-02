@@ -255,6 +255,26 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
               Demonstration review — a worked sample, not this merge request's own data
             </p>
           )}
+          {review.refreshNote && (
+            // The source branch moved after this request opened, and re-running
+            // the three-way against its new head un-chose these conflicts
+            // (ADR 0012 §2). Advisory: the screen stays usable, the choices are
+            // simply open again.
+            <div className="mr-titlestrip__refresh" role="status">
+              <p className="mr-titlestrip__refresh-k">
+                {review.source} moved since this request opened —{" "}
+                {review.refreshNote.droppedResolutions.length}{" "}
+                {review.refreshNote.droppedResolutions.length === 1
+                  ? "resolution no longer applies"
+                  : "resolutions no longer apply"}
+              </p>
+              <ul className="mr-titlestrip__refresh-l">
+                {review.refreshNote.droppedResolutions.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
         <RevisionDial status={status} detail={dialDetail} />
       </header>
