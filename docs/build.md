@@ -15,12 +15,14 @@ and `docs/first-run.md` §4 (the golden path).
 api/                       new pnpm workspace package (§ ADR 0010 §1)
   package.json             hono · drizzle-orm · @neondatabase/serverless · typescript
   tsconfig.json            extends root; NodeNext ESM, .js specifiers
-  drizzle.config.ts        drizzle-kit: schema → api/drizzle/*.sql  (.vercelignore'd)
   drizzle/                 committed generated SQL — applied to Neon and to pglite
   index.ts                 per-method Web handlers (GET/POST/… = app.fetch); the
                            ONLY file under api/, so the only Vercel function
                            (Hobby caps a deploy at 12)
   _server/                 the app; `_`-prefixed → a support dir, not functions
+    drizzle.config.ts      drizzle-kit: schema → api/drizzle/*.sql; here (not under
+                           api/) so it is neither a function nor stripped from the
+                           build the db:migrate step runs in
     app.ts                 the Hono app + identity middleware
     db/schema.ts           the six Drizzle tables (docs/backend-contract.md §1)
     db/client.ts           drizzle(Neon) from DATABASE_URL; injectable for tests
@@ -33,8 +35,7 @@ api/                       new pnpm workspace package (§ ADR 0010 §1)
     dev.ts                 @hono/node-server for local dev
     __tests__/             pglite-backed, app.request(...)
 web/                       unchanged — still fixture-bound this iteration
-vercel.json                web static + /api/(.*) → the function
-.vercelignore              keeps api/drizzle.config.ts from becoming a function
+vercel.json                db:migrate → web static build; /api/(.*) → the function
 ```
 
 ## 2. Running it
