@@ -34,8 +34,8 @@ describe("golden path", () => {
     expect((await app.request("/api/session", { method: "POST", headers: grace, body: JSON.stringify({ username: "grace" }) })).status).toBe(200);
 
     // ── the seeded contact-fields → main request ──────────────────────────
-    const list = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ id: string }>;
-    const seededId = list[0]!.id;
+    const list = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ number: number }>;
+    const seededId = list[0]!.number;
     const mr = await j(await app.request(`/api/merge-requests/${seededId}`, { headers: grace }));
     expect((mr.report as { verdict: string }).verdict).toBe("clean");
     const sql = (mr.migration as { sql: string }).sql;
@@ -74,7 +74,7 @@ describe("golden path", () => {
     const openedBody = await j(opened);
     expect((openedBody.report as { verdict: string }).verdict).toBe("clean");
 
-    const merge2 = await j(await app.request(`/api/merge-requests/${openedBody.id as string}/merge`, { method: "POST", headers: grace }));
+    const merge2 = await j(await app.request(`/api/merge-requests/${openedBody.number as number}/merge`, { method: "POST", headers: grace }));
     expect(merge2.status).toBe("merged");
     const sql2 = (merge2.migration as { sql: string }).sql;
     expect(sql2).toMatch(/RENAME COLUMN "body" TO "content"/);

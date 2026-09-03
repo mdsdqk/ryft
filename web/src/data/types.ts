@@ -31,12 +31,13 @@ export type BranchSummary = {
   divergence: number;
   /** the trunk (`main`) — listed on `/branches`, never deleted, never △N */
   trunk?: boolean;
-  /** id of an open merge request whose source is this branch; blocks delete */
-  openMergeId?: string;
+  /** `number` of an open merge request whose source is this branch; blocks delete */
+  openMergeId?: number;
 };
 
 export type MergeSummary = {
-  id: string;
+  /** GitHub-style public identifier — a gapless per-workspace counter. */
+  number: number;
   source: string;
   target: string;
   author: string;
@@ -122,8 +123,8 @@ export type BranchDetail = {
   base: SchemaDocument;
   /** count of derived deltas `base` → `head` */
   divergence: number;
-  /** id of an open merge request whose source is this branch, if any */
-  openMergeId?: string;
+  /** `number` of an open merge request whose source is this branch, if any */
+  openMergeId?: number;
 };
 
 /**

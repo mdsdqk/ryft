@@ -133,6 +133,15 @@ re-validation are its own source branch drifting between promotion and the merge
 the commutativity oracle (ADR 0002) failing. Promotion and create both run under the §4 row
 lock, so two MRs cannot both land on `open`.
 
+**The public identifier is a number, not the uuid.** `merge_requests.id` stays a
+`uuid().defaultRandom()` primary key and the `merge_request_resolutions` FK target, but it
+never leaves the server. Every route param, every URL (`/merge/12`), and the `number` field
+on `MergeRequestResponse` / `MergeSummary` is `merge_requests.number` — a gapless
+per-workspace counter, assigned `COALESCE(MAX(number), 0) + 1` inside the create transaction.
+That transaction already holds `SELECT … FROM branches WHERE name = 'main' FOR UPDATE`
+(below), so the read is serialised and the sequence has no gaps or races. `:id` in the route
+sketches throughout this ADR means that number. A non-numeric segment 404s.
+
 ## 4. The merge transaction: a row lock on `main`, re-validate against live head
 
 `POST /merge-requests/:id/merge`, in one transaction:
@@ -269,6 +278,9 @@ display strings or assemble `MergeReview`. The projection into the shapes
 For the merge-request endpoint that means
 `{ base, ours, theirs, report: MergeReport, migration: Migration, queue, stale, droppedResolutions }`.
 There is no `/report` sibling route — the primary endpoint already returns the raw report.
+`MergeReport` carries `deltaOurs` / `deltaTheirs` (the plain `base`→side diffs the engine
+already computed), so the client projects each side's changes without re-running the diff over
+the snapshots it was handed.
 
 **Why.** The two candidate JSON shapes are raw engine output and a pre-assembled `MergeReview`;
 both are `c.json(...)`, so this is not an SSR question. The projection between them (row

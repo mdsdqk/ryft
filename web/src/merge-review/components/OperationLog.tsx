@@ -25,6 +25,7 @@ export function OperationLog({ review }: { review: MergeReview }) {
 
   const onBranch = review.revisions.filter((r) => r.side === "ours").length;
   const onTarget = review.revisions.length - onBranch;
+  const multiTable = review.tables.length > 1;
 
   return (
     <section className="mr-zone" aria-labelledby="mr-log-h">
@@ -67,7 +68,11 @@ export function OperationLog({ review }: { review: MergeReview }) {
                   {r.author.name} · {r.side === "ours" ? clock(r.at) : review.target}
                 </span>
               </span>
-              <span className="mr-log__desc">{r.summary}</span>
+              <span className="mr-log__desc">
+                {multiTable && <code className="mr-log__tbl">{r.table}</code>}
+                {multiTable ? " " : ""}
+                {r.summary}
+              </span>
             </li>
           ))}
         </ol>

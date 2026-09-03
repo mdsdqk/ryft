@@ -39,6 +39,8 @@ export function threeWayMerge(
     rebased: c.rebased,
     overlaps: c.overlaps,
     remaps: c.remaps,
+    deltaOurs,
+    deltaTheirs,
   };
 
   if (c.unresolvedCount > 0) {

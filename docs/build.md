@@ -114,9 +114,9 @@ are in `docs/backend-contract.md` §4. **V1 rows from that table are omitted** �
 | `DELETE /branches/:name/operations?after=<seq>` | Undo (WU-E). Drops entries past `<seq>`, replays the surviving prefix from `base_snapshot`, bumps `head_version` once. `403` `main`; `404` unknown branch; `422` missing / non-integer / negative `after`. Returns `{ head, headVersion }`. |
 | `GET /merge-requests` | Non-terminal first, ascending `created_at` (queue order). Active MR's report is re-run against live `main.head` (its frozen triple is refreshed on read). |
 | `POST /merge-requests` | One transaction under `SELECT … FROM branches WHERE name = 'main' FOR UPDATE`. Freezes `base = source.base_snapshot`, `ours = source.head`, `theirs = main.head`, `previewed_main_version = main.head_version`. Status is `open` if the front is free, else `queued`. `409 merge-request-exists` if a non-terminal MR already has this `source`. |
-| `GET /merge-requests/:id` | Recomputes `report` + `migration` every call. If the MR is `open`/`held`, its frozen `ours`/`theirs` are first rewritten to live `source.head`/`main.head` (`base` never moves). `queue = { status, position, ahead, behind }` from the `created_at` ordering; `stale = previewed_main_version !== main.head_version` (a `queued` MR that `main` outran). |
-| `POST /merge-requests/:id/merge` | The ADR 0004 §4 transaction — `FOR UPDATE` on `main`, re-run against live heads. `409 { error: "not-front", status }` unless `status ∈ {open, held}`. Clean → merge + promote the oldest `queued` MR to `open`. Non-clean → `status = 'held'`, refresh triple, `409` kick-back body (below). |
-| `DELETE /merge-requests/:id` | Abandon, under `FOR UPDATE`. If the MR was `open`/`held`, promote the oldest `queued` MR to `open`. |
+| `GET /merge-requests/:number` | Recomputes `report` + `migration` every call. If the MR is `open`/`held`, its frozen `ours`/`theirs` are first rewritten to live `source.head`/`main.head` (`base` never moves). `queue = { status, position, ahead, behind }` from the `created_at` ordering; `stale = previewed_main_version !== main.head_version` (a `queued` MR that `main` outran). |
+| `POST /merge-requests/:number/merge` | The ADR 0004 §4 transaction — `FOR UPDATE` on `main`, re-run against live heads. `409 { error: "not-front", status }` unless `status ∈ {open, held}`. Clean → merge + promote the oldest `queued` MR to `open`. Non-clean → `status = 'held'`, refresh triple, `409` kick-back body (below). |
+| `DELETE /merge-requests/:number` | Abandon, under `FOR UPDATE`. If the MR was `open`/`held`, promote the oldest `queued` MR to `open`. |
 
 ### `POST /branches/:name/operations` — 422 body
 
@@ -131,7 +131,7 @@ Exactly `docs/backend-contract.md` §5:
 Other `OpError` reasons (`docs/robustness.md` §1) return
 `422 { error: <reason>, failedAt, op, message }` with no `dependents`.
 
-### `POST /merge-requests/:id/merge` — 409 kick-back body
+### `POST /merge-requests/:number/merge` — 409 kick-back body
 
 Returned when the re-run against live `main` is not `clean` (`docs/backend-contract.md` §6).
 The MR moves to `held` and keeps its place at the front.
@@ -158,7 +158,7 @@ curl -sX POST $BASE/workspace/reset
 curl -sX POST $BASE/session -d '{"username":"grace"}' -H 'content-type: application/json'
 
 # 2. the seeded contact-fields → main request
-MR=$(curl -s $BASE/merge-requests -H "x-ryft-user: grace" | jq -r '.[0].id')
+MR=$(curl -s $BASE/merge-requests -H "x-ryft-user: grace" | jq -r '.[0].number')   # public #N, not a uuid
 curl -s $BASE/merge-requests/$MR -H "x-ryft-user: grace" | jq '.report.verdict, .migration.sql'
 
 # 3. merge it
@@ -176,7 +176,7 @@ curl -sX DELETE "$BASE/branches/titles/operations?after=0" -H "x-ryft-user: grac
 curl -sX POST $BASE/branches/titles/operations -H "x-ryft-user: grace" -H 'content-type: application/json' -d @titles-ops.json
 
 # 5. open and merge
-MR2=$(curl -sX POST $BASE/merge-requests -d '{"source":"titles"}' -H "x-ryft-user: grace" -H 'content-type: application/json' | jq -r '.id')
+MR2=$(curl -sX POST $BASE/merge-requests -d '{"source":"titles"}' -H "x-ryft-user: grace" -H 'content-type: application/json' | jq -r '.number')
 curl -s $BASE/merge-requests/$MR2 -H "x-ryft-user: grace" | jq '.report.verdict'
 curl -sX POST $BASE/merge-requests/$MR2/merge -H "x-ryft-user: grace" | jq '.status, .migration.sql'
 ```

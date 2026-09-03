@@ -85,4 +85,14 @@ export interface MergeReport {
   overlaps: OverlapNote[];
   remaps: IdRemap[];
   divergence?: UnclassifiedDivergence;
+  /**
+   * The two raw per-side deltas the merge was computed from —
+   * `diffSnapshots(base, ours)` and `diffSnapshots(base, theirs)`. The engine
+   * derives these internally; exposing them means a consumer that needs to
+   * render each side's changes (the merge-review screen) does not re-run the
+   * diff. Not the *effective* deltas used by the commutativity oracle — these
+   * are the plain base→side diffs, before any resolution pruning.
+   */
+  deltaOurs: Operation[];
+  deltaTheirs: Operation[];
 }

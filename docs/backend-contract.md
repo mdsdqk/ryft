@@ -89,6 +89,12 @@ export const mergeRequestStatus = pgEnum("merge_request_status", [
 
 export const mergeRequests = pgTable("merge_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // GitHub-style public identifier — a gapless per-workspace counter, assigned
+  // `MAX(number) + 1` inside the create transaction (which holds the `main` row
+  // lock, so the read is serialised). Every route param and URL is this number;
+  // `id` stays the primary key and the resolutions FK target, server-side only.
+  // `uniqueIndex("merge_requests_number_uq").on(number)`.
+  number: integer("number").notNull(),
   sourceBranch: text("source_branch").notNull().references(() => branches.name),
   targetBranch: text("target_branch").notNull().references(() => branches.name), // 'main' in V0
   authorId: uuid("author_id").notNull().references(() => users.id),
@@ -165,7 +171,7 @@ Base path `/api`. All bodies and responses are JSON. `Actor` = the resolved `x-r
 | `GET /branches` | — | `BranchSummary[]` | |
 | `GET /branches/:name` | — | `BranchDetail` | `head` + `base` documents, divergence count, the branch's open MR id if any. |
 | `POST /branches` | `{ name: string }` | `BranchDetail` | Cuts from `main`: `base_snapshot` and `head` are id-preserving clones of `main.head`; `head_version = 0`; `author_id = Actor`. `409` if `name` is taken or is `main`; `422` if `name` is not a valid identifier. |
-| `DELETE /branches/:name` | — | `{ ok: true }` | `403` for `main`. `409` if a non-terminal merge request has this branch as `source_branch` — body: `{ error: "blocked-by-merge-request", mergeRequestId }`. |
+| `DELETE /branches/:name` | — | `{ ok: true }` | `403` for `main`. `409` if a non-terminal merge request has this branch as `source_branch` — body: `{ error: "blocked-by-merge-request", mergeRequestNumber }`. |
 
 ### Structured editor
 
@@ -185,11 +191,11 @@ and needs no inverse-op derivation. The structured editor's LIFO undo passes `la
 |---|---|---|---|
 | `GET /merge-requests` | — | `MergeSummary[]` | Non-terminal first, then merged; within non-terminal, ascending `created_at` (queue order). Each augmented with `position` / `ahead` / `behind`. |
 | `POST /merge-requests` | `{ source: string }` | `MergeRequestResponse` | `target` is always `main` in V0. Freezes `base = source.base_snapshot`, `ours = source.head`, `theirs = main.head`, `previewed_main_version = main.head_version`. Status is `open` if no active MR exists, else `queued` (ADR 0004 §3). Runs under the §4 row lock so two creates cannot both become `open`. `409` if a non-terminal MR already has this `source`. |
-| `GET /merge-requests/:id` | — | `MergeRequestResponse` | Recomputes `report`, `migration`, queue position, staleness (ADR 0004 §5). Raw engine output — no server-side projection (ADR 0004 §7). For a `queued` MR the frozen triple is stale by design; the client renders it read-only. |
-| `POST /merge-requests/:id/resolutions` | `{ conflictId: string, choice: "ours" \| "theirs" \| "type", type?: ColumnType }` | `MergeRequestResponse` | Shipped (moved forward from V1 — the table already existed and the merge transaction needed to honour resolutions anyway). `409` unless `status !== "merged"` (V0 has no `held`). `422` if `conflictId` is not a current conflict or `choice` is not in its `resolutionModes`. Upserts by `(mr_id, conflict_id)`; stores `conflict_snapshot`. Returns the response recomputed with the resolution applied. |
-| `DELETE /merge-requests/:id/resolutions/:conflictId` | — | `MergeRequestResponse` | Shipped. `409` unless `status !== "merged"`. Removes the stored choice; idempotent if absent. |
-| `POST /merge-requests/:id/merge` | — | `{ status: "merged", migration: Migration }` | The §4 transaction. `409` unless status ∈ `{open, held}` (a `queued` MR is not at the front). `409` with the kick-back body if re-validation is not clean. `409` with `{ error: "structural-validation-failed", errors: StructuralError[] }` if the re-run is clean but the merged candidate fails `validateDocument` (ADR 0008 §5) — see below. |
-| `DELETE /merge-requests/:id` | — | `{ ok: true }` | Abandon. If the MR was active (`open` / `held`), promote the oldest `queued` MR to `open`. |
+| `GET /merge-requests/:number` | — | `MergeRequestResponse` | Recomputes `report`, `migration`, queue position, staleness (ADR 0004 §5). Raw engine output — no server-side projection (ADR 0004 §7). For a `queued` MR the frozen triple is stale by design; the client renders it read-only. |
+| `POST /merge-requests/:number/resolutions` | `{ conflictId: string, choice: "ours" \| "theirs" \| "type", type?: ColumnType }` | `MergeRequestResponse` | Shipped (moved forward from V1 — the table already existed and the merge transaction needed to honour resolutions anyway). `409` unless `status !== "merged"` (V0 has no `held`). `422` if `conflictId` is not a current conflict or `choice` is not in its `resolutionModes`. Upserts by `(mr_id, conflict_id)`; stores `conflict_snapshot`. Returns the response recomputed with the resolution applied. |
+| `DELETE /merge-requests/:number/resolutions/:conflictId` | — | `MergeRequestResponse` | Shipped. `409` unless `status !== "merged"`. Removes the stored choice; idempotent if absent. |
+| `POST /merge-requests/:number/merge` | — | `{ status: "merged", migration: Migration }` | The §4 transaction. `409` unless status ∈ `{open, held}` (a `queued` MR is not at the front). `409` with the kick-back body if re-validation is not clean. `409` with `{ error: "structural-validation-failed", errors: StructuralError[] }` if the re-run is clean but the merged candidate fails `validateDocument` (ADR 0008 §5) — see below. |
+| `DELETE /merge-requests/:number` | — | `{ ok: true }` | Abandon. If the MR was active (`open` / `held`), promote the oldest `queued` MR to `open`. |
 
 ---
 
@@ -233,12 +239,13 @@ type BranchDetail = {
   head: SchemaDocument;
   base: SchemaDocument;        // base_snapshot
   divergence: number;         // count of derived deltas base → head
-  openMergeRequestId: string | null;
+  openMergeRequestNumber: number | null;   // public number of a non-terminal MR from this branch
 };
 
-// GET /merge-requests/:id, POST /merge-requests, and the return of every resolution mutation
+// GET /merge-requests/:number, POST /merge-requests, and the return of every resolution mutation
+// (`:number` is the public counter below, never the uuid — /merge-requests/12)
 type MergeRequestResponse = {
-  id: string;
+  number: number;             // GitHub-style public identifier
   source: string;
   target: string;
   author: string;             // resolved User.displayName
@@ -342,7 +349,7 @@ invalid.
 ```
 
 The MR's status becomes `held`; its frozen triple and `previewed_main_version` are refreshed,
-so the next `GET /merge-requests/:id` shows the current three-way. The MR stays at the front
+so the next `GET /merge-requests/:number` shows the current three-way. The MR stays at the front
 of the queue (ADR 0004 §3) — the author resolves and retries, or abandons.
 
 ### Structural-validation failure (ADR 0008 §5)
@@ -377,8 +384,8 @@ not moved to `held`.
 |---|---|
 | `POST /branches/:name/operations` | Fold the batch in memory (pure `applyOperation`), then `validateDocument` the resulting head; only a fully clean batch reaches the one write transaction. Rollback on any op failure. |
 | `POST /merge-requests` | `SELECT … FOR UPDATE` on the target `branches` row while checking for an active MR and inserting, so status assignment (`open` vs `queued`) is race-free. |
-| `POST /merge-requests/:id/merge` | One transaction: `FOR UPDATE` on the target row → re-read `source.head` → `threeWayMerge` → on `clean`, `validateDocument` the candidate; if that passes, write head + bump version + append merge marker + set `merged` + refresh triple + promote next. On not-clean, set `held` + refresh triple. On a structural failure, return `409` and write nothing. |
-| `DELETE /merge-requests/:id` | `FOR UPDATE` on the target row while removing the MR and promoting the next `queued` MR if the removed one was active. |
+| `POST /merge-requests/:number/merge` | One transaction: `FOR UPDATE` on the target row → re-read `source.head` → `threeWayMerge` → on `clean`, `validateDocument` the candidate; if that passes, write head + bump version + append merge marker + set `merged` + refresh triple + promote next. On not-clean, set `held` + refresh triple. On a structural failure, return `409` and write nothing. |
+| `DELETE /merge-requests/:number` | `FOR UPDATE` on the target row while removing the MR and promoting the next `queued` MR if the removed one was active. |
 | `POST /workspace/reset` | One transaction over all truncates + re-seed. |
 
 All merge throughput is one row lock wide (the target branch). V0/V1 has one trunk, so there

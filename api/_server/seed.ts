@@ -96,6 +96,7 @@ export async function seedWorkspaceInto(db: Db, opts: { bare?: boolean } = {}): 
         (m) =>
           ({
             id: m.id,
+            number: m.number,
             sourceBranch: m.sourceBranch,
             targetBranch: m.targetBranch,
             authorId: m.authorId,

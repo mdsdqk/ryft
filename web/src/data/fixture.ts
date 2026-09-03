@@ -50,10 +50,10 @@ export const fixtureSource: DataSource = {
   applyOperations: (name, ops) => branchSchema.applyOperations(name, ops),
   undoAfter: (name, seq) => branchSchema.undoAfter(name, seq),
   createMergeRequest: (name) => branchSchema.createMergeRequest(name),
-  getMergeReview: (id) => mergeReview.getById(id),
-  postResolution: (id, conflictId, choice, type) =>
-    mergeReview.postResolution(id, conflictId, choice, type),
-  deleteResolution: (id, conflictId) => mergeReview.deleteResolution(id, conflictId),
-  mergeMergeRequest: (id) => mergeReview.mergeMergeRequest(id),
-  closeMergeRequest: (id) => mergeReview.closeMergeRequest(id),
+  getMergeReview: (number) => mergeReview.getByNumber(number),
+  postResolution: (number, conflictId, choice, type) =>
+    mergeReview.postResolution(number, conflictId, choice, type),
+  deleteResolution: (number, conflictId) => mergeReview.deleteResolution(number, conflictId),
+  mergeMergeRequest: (number) => mergeReview.mergeMergeRequest(number),
+  closeMergeRequest: (number) => mergeReview.closeMergeRequest(number),
 };

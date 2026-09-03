@@ -25,8 +25,8 @@ describe("POST /workspace/reset", () => {
 
     const o = body.overview as {
       database: Record<string, number | string>;
-      branches: Array<{ name: string; trunk?: boolean; divergence: number; openMergeId?: string }>;
-      merges: Array<{ id: string; source: string; status: string }>;
+      branches: Array<{ name: string; trunk?: boolean; divergence: number; openMergeNumber?: number }>;
+      merges: Array<{ number: number; source: string; status: string }>;
       revisions: unknown[];
     };
     expect(o.database).toMatchObject({ tables: 5, columns: 23, indexes: 2, constraints: 12, trunk: "main", trunkRevision: 0 });
@@ -36,8 +36,8 @@ describe("POST /workspace/reset", () => {
     expect(o.branches.find((b) => b.name === "contact-fields")?.divergence).toBe(3);
     expect(o.merges).toHaveLength(1);
     expect(o.merges[0]).toMatchObject({ source: "contact-fields", status: "clean", position: 1 });
-    // the branch summary carries the open merge request id
-    expect(o.branches.find((b) => b.name === "contact-fields")?.openMergeId).toBe(o.merges[0]!.id);
+    // the branch summary carries the open merge request number
+    expect(o.branches.find((b) => b.name === "contact-fields")?.openMergeNumber).toBe(o.merges[0]!.number);
   });
 
   it("?bare seeds main alone", async () => {

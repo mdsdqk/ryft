@@ -17,7 +17,8 @@ import { REVIEW_SCENARIOS, readScenario } from "../merge-review/scenarios.ts";
 
 export function MergeReviewRoute() {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { number: numberParam } = useParams();
+  const number = Number(numberParam);
   const scenario = readScenario();
 
   if (scenario === "loading") return <MergeReviewLoading />;
@@ -32,10 +33,13 @@ export function MergeReviewRoute() {
   if (scenario !== "default") return <MergeReview base={REVIEW_SCENARIOS[scenario]} />;
 
   const { data, loading, error, reload } = useResource(
-    () => source.getMergeReview(id ?? ""),
-    [id],
+    () => source.getMergeReview(number),
+    [number],
   );
 
+  if (!Number.isInteger(number) || number < 1) {
+    return <MergeReviewError message="That is not a merge request number." onRetry={() => navigate("/merges")} />;
+  }
   if (loading && !data) return <MergeReviewLoading />;
   if (error || !data) {
     return (
@@ -45,5 +49,5 @@ export function MergeReviewRoute() {
       />
     );
   }
-  return <MergeReview base={data} mergeId={id} />;
+  return <MergeReview base={data} mergeNumber={number} />;
 }

@@ -22,11 +22,11 @@ function currentReview(): MergeReview {
   return REVIEW_SCENARIOS[scenario === "loading" || scenario === "error" ? "default" : scenario];
 }
 
-const released = new Set<string>();
-const picks = new Map<string, Record<string, string>>();
+const released = new Set<number>();
+const picks = new Map<number, Record<string, string>>();
 
-function withSession(id: string, review: MergeReview): MergeReview {
-  const by = picks.get(id) ?? {};
+function withSession(number: number, review: MergeReview): MergeReview {
+  const by = picks.get(number) ?? {};
   const conflicts = review.conflicts.map((c) => ({
     ...c,
     resolvedWith: by[c.id] ?? c.resolvedWith,
@@ -37,50 +37,52 @@ function withSession(id: string, review: MergeReview): MergeReview {
     conflicts,
     commutativity: allResolved ? "passed" : review.commutativity,
     // both terminal; closed wins because a closed request never merged
-    status: isClosed(id) ? "closed" : released.has(id) ? "released" : review.status,
+    status: isClosed(number) ? "closed" : released.has(number) ? "released" : review.status,
   };
 }
 
-export async function getById(id: string): Promise<MergeReview> {
+export async function getByNumber(number: number): Promise<MergeReview> {
   const known =
-    listOpen().some((m) => m.id === id) || listClosed().some((m) => m.id === id) || released.has(id);
-  if (!known) throw new MergeRequestNotFoundError(id);
-  return withSession(id, currentReview());
+    listOpen().some((m) => m.number === number) ||
+    listClosed().some((m) => m.number === number) ||
+    released.has(number);
+  if (!known) throw new MergeRequestNotFoundError(number);
+  return withSession(number, currentReview());
 }
 
 export async function postResolution(
-  id: string,
+  number: number,
   conflictId?: string,
   choice?: "ours" | "theirs" | "type",
   _type?: ColumnType,
 ): Promise<MergeReview> {
   if (conflictId && choice) {
-    const by = picks.get(id) ?? {};
+    const by = picks.get(number) ?? {};
     by[conflictId] = choice === "type" ? "custom" : choice;
-    picks.set(id, by);
+    picks.set(number, by);
   }
-  return getById(id);
+  return getByNumber(number);
 }
 
-export async function deleteResolution(id: string, conflictId?: string): Promise<MergeReview> {
+export async function deleteResolution(number: number, conflictId?: string): Promise<MergeReview> {
   if (conflictId) {
-    const by = picks.get(id);
+    const by = picks.get(number);
     if (by) delete by[conflictId];
   }
-  return getById(id);
+  return getByNumber(number);
 }
 
-export async function mergeMergeRequest(id: string): Promise<{ status: "merged" }> {
-  await getById(id);
-  released.add(id);
+export async function mergeMergeRequest(number: number): Promise<{ status: "merged" }> {
+  await getByNumber(number);
+  released.add(number);
   return { status: "merged" };
 }
 
 /** Withdraw the request — it leaves the queue and the screen goes read-only. */
-export async function closeMergeRequest(id: string): Promise<void> {
-  await getById(id);
-  if (released.has(id)) {
+export async function closeMergeRequest(number: number): Promise<void> {
+  await getByNumber(number);
+  if (released.has(number)) {
     throw new Error("This merge request has already merged and cannot be closed.");
   }
-  closeById(id);
+  closeById(number);
 }

@@ -49,6 +49,9 @@ export interface RevisionRef {
   at: string;
   /** The real derived edit. */
   op: Operation;
+  /** Name of the table this edit is on — the section it belongs to (Zone A) and
+   *  the label the operation log carries when a merge spans several tables. */
+  table: string;
   /** Pre-rendered one-line summary, e.g. "rename col_s2 → status_v2". */
   summary: string;
 }
@@ -111,6 +114,8 @@ export interface ComparisonRow {
   objectId: string;
   /** e.g. "orders.status". */
   objectLabel: string;
+  /** Owning table name — groups the row into its per-table section (Zone A). */
+  table: string;
   group: ObjectGroup;
   ours: SideChange | null;
   theirs: SideChange | null;
@@ -133,6 +138,9 @@ export interface Conflict {
   id: string;
   cls: ConflictClass;
   severity: Severity;
+  /** Table the conflicted object lives in — disambiguates `objectLabel` in the
+   *  conflict queue (Zone B) when a merge touches more than one table. */
+  table: string;
   objectLabel: string;
   objectId: string;
   /** One-line statement of the divergence. */
@@ -178,13 +186,39 @@ export interface FabricationOrder {
   transactional: true;
 }
 
+/**
+ * A table-level change — create / drop / rename — on one side. Rendered as a
+ * single banner line at the head of that table's comparison section (Zone A),
+ * not as an object row: a created table's columns are not separate ops, and a
+ * dropped table has no rows left to compare. It still appears in the operation
+ * log and the fabrication order like any other revision.
+ */
+export interface TableChange {
+  /** Table name — the section this banner sits above. For a rename, the *new* name. */
+  table: string;
+  /** Links to `RevisionRef.n`. */
+  revision: number;
+  side: Side;
+  kind: "create-table" | "drop-table" | "rename-table";
+  /** Pre-rendered: "orders → orders_v2" for a rename, "" for create / drop. */
+  detail: string;
+}
+
 export interface MergeReview {
+  /** GitHub-style public identifier — the `#N` shown in the rail and title strip. */
+  number: number;
   source: string;
   target: string;
   /** e.g. "main@3a91f4". */
   base: string;
-  /** Primary table under review — V0 is single-namespace, one table per review screen. */
-  table: string;
+  /**
+   * Every table this merge request touches, busiest first. A merge request is
+   * whole-schema (source head vs target head), so the screen shows one
+   * comparison section per entry (Zone A); the operation log and fabrication
+   * order span all of them. A single-table merge has one entry and reads
+   * exactly as it did before.
+   */
+  tables: string[];
   openedBy: Party;
   openedAt: string;
   status: RevisionStatus;
@@ -206,6 +240,9 @@ export interface MergeReview {
   rows: ComparisonRow[];
   conflicts: Conflict[];
   revisions: RevisionRef[];
+  /** Table-level create / drop / rename — one entry per side that made one.
+   *  Empty on the common case where every side only altered existing tables. */
+  tableChanges: TableChange[];
   autoMergedCount: number;
   /** Rows carrying an irreversible `drop-destructive` — the "destructive
    *  changes" roll-up (ADR 0008 §6). */

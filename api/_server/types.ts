@@ -34,11 +34,13 @@ export type BranchSummary = {
   cutOn: string;
   divergence: number;
   trunk?: boolean;
-  openMergeId?: string;
+  /** `number` of a non-terminal merge request whose source is this branch, if any. */
+  openMergeNumber?: number;
 };
 
 export type MergeSummary = {
-  id: string;
+  /** GitHub-style public identifier — a gapless per-workspace counter (ADR 0004). */
+  number: number;
   source: string;
   target: string;
   author: string;
@@ -100,11 +102,14 @@ export type BranchDetail = {
   head: SchemaDocument;
   base: SchemaDocument;
   divergence: number;
-  openMergeRequestId: string | null;
+  /** `number` of a non-terminal merge request whose source is this branch — it
+   *  blocks the branch's delete and links to the review. `null` when there is none. */
+  openMergeRequestNumber: number | null;
 };
 
 export type MergeRequestResponse = {
-  id: string;
+  /** GitHub-style public identifier — a gapless per-workspace counter (ADR 0004). */
+  number: number;
   source: string;
   target: string;
   author: string;

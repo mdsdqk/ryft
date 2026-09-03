@@ -38,11 +38,11 @@ const retypeEmail = (n: number): Operation => ({
 /** Cuts two branches that each retype `users.email`, merges the first (clean),
  * then opens the second — which now collides with what landed. Returns the
  * second's MR id and the id of its lone `divergent-retype` conflict. */
-async function openConflictedMr(): Promise<{ mrId: string; conflictId: string }> {
+async function openConflictedMr(): Promise<{ mrId: number; conflictId: string }> {
   // the queue is strict FIFO — abandon the seeded contact-fields MR so the
   // front is free and wide-email's request opens active.
-  const seeded = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ id: string }>;
-  if (seeded[0]) await app.request(`/api/merge-requests/${seeded[0].id}`, { method: "DELETE", headers: grace });
+  const seeded = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ number: number }>;
+  if (seeded[0]) await app.request(`/api/merge-requests/${seeded[0].number}`, { method: "DELETE", headers: grace });
 
   await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "wide-email" }) });
   await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "wider-email" }) });
@@ -51,7 +51,7 @@ async function openConflictedMr(): Promise<{ mrId: string; conflictId: string }>
 
   const mr1 = await j(await app.request("/api/merge-requests", { method: "POST", headers: grace, body: JSON.stringify({ source: "wide-email" }) }));
   expect((mr1.report as { verdict: string }).verdict).toBe("clean");
-  const merged1 = await j(await app.request(`/api/merge-requests/${mr1.id as string}/merge`, { method: "POST", headers: grace }));
+  const merged1 = await j(await app.request(`/api/merge-requests/${mr1.number as number}/merge`, { method: "POST", headers: grace }));
   expect(merged1.status).toBe("merged");
 
   const mr2 = await j(await app.request("/api/merge-requests", { method: "POST", headers: grace, body: JSON.stringify({ source: "wider-email" }) }));
@@ -59,7 +59,7 @@ async function openConflictedMr(): Promise<{ mrId: string; conflictId: string }>
   expect(report.verdict).toBe("conflicts");
   expect(report.conflicts).toHaveLength(1);
   expect(report.conflicts[0]!.class).toBe("divergent-retype");
-  return { mrId: mr2.id as string, conflictId: report.conflicts[0]!.id };
+  return { mrId: mr2.number as number, conflictId: report.conflicts[0]!.id };
 }
 
 /** `users.email`'s varchar width in a returned schema document. */
@@ -74,8 +74,8 @@ const applyTo = (branch: string, ops: Operation[]) =>
 
 describe("GET /merge-requests/:id re-freezes `ours` (ADR 0012 §1)", () => {
   it("an edit to the source branch after the request opened shows up on the next read", async () => {
-    const seeded = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ id: string }>;
-    if (seeded[0]) await app.request(`/api/merge-requests/${seeded[0].id}`, { method: "DELETE", headers: grace });
+    const seeded = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ number: number }>;
+    if (seeded[0]) await app.request(`/api/merge-requests/${seeded[0].number}`, { method: "DELETE", headers: grace });
 
     await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "wide-email" }) });
     await applyTo("wide-email", [retypeEmail(500)]);
@@ -87,7 +87,7 @@ describe("GET /merge-requests/:id re-freezes `ours` (ADR 0012 §1)", () => {
       { type: "retypeColumn", tableId: seedIds.users.table, columnId: seedIds.users.email, from: { kind: "varchar", n: 500 }, to: { kind: "varchar", n: 900 } },
     ]);
 
-    const reGet = await j(await app.request(`/api/merge-requests/${mr.id as string}`, { headers: grace }));
+    const reGet = await j(await app.request(`/api/merge-requests/${mr.number as number}`, { headers: grace }));
     expect(emailWidth(reGet.ours)).toBe(900);
     // and the migration is re-derived from the moved `ours`, not the frozen one
     const sql = JSON.stringify(reGet.migration);
@@ -96,8 +96,8 @@ describe("GET /merge-requests/:id re-freezes `ours` (ADR 0012 §1)", () => {
   });
 
   it("refreshes a queued request's `ours` too, without moving its `theirs`", async () => {
-    const seeded = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ id: string }>;
-    if (seeded[0]) await app.request(`/api/merge-requests/${seeded[0].id}`, { method: "DELETE", headers: grace });
+    const seeded = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ number: number }>;
+    if (seeded[0]) await app.request(`/api/merge-requests/${seeded[0].number}`, { method: "DELETE", headers: grace });
 
     await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "front" }) });
     await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "behind" }) });
@@ -110,7 +110,7 @@ describe("GET /merge-requests/:id re-freezes `ours` (ADR 0012 §1)", () => {
       { type: "retypeColumn", tableId: seedIds.users.table, columnId: seedIds.users.email, from: { kind: "varchar", n: 500 }, to: { kind: "varchar", n: 900 } },
     ]);
 
-    const reGet = await j(await app.request(`/api/merge-requests/${queued.id as string}`, { headers: grace }));
+    const reGet = await j(await app.request(`/api/merge-requests/${queued.number as number}`, { headers: grace }));
     expect((reGet.queue as { status: string }).status).toBe("queued");
     expect(emailWidth(reGet.ours)).toBe(900);
     // `theirs` stays the `main` this request was previewed against — `stale` is
@@ -119,19 +119,19 @@ describe("GET /merge-requests/:id re-freezes `ours` (ADR 0012 §1)", () => {
   });
 
   it("does not re-freeze a merged request — it is a record", async () => {
-    const seeded = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ id: string }>;
-    if (seeded[0]) await app.request(`/api/merge-requests/${seeded[0].id}`, { method: "DELETE", headers: grace });
+    const seeded = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ number: number }>;
+    if (seeded[0]) await app.request(`/api/merge-requests/${seeded[0].number}`, { method: "DELETE", headers: grace });
 
     await app.request("/api/branches", { method: "POST", headers: grace, body: JSON.stringify({ name: "wide-email" }) });
     await applyTo("wide-email", [retypeEmail(500)]);
     const mr = await j(await app.request("/api/merge-requests", { method: "POST", headers: grace, body: JSON.stringify({ source: "wide-email" }) }));
-    expect((await j(await app.request(`/api/merge-requests/${mr.id as string}/merge`, { method: "POST", headers: grace }))).status).toBe("merged");
+    expect((await j(await app.request(`/api/merge-requests/${mr.number as number}/merge`, { method: "POST", headers: grace }))).status).toBe("merged");
 
     await applyTo("wide-email", [
       { type: "retypeColumn", tableId: seedIds.users.table, columnId: seedIds.users.email, from: { kind: "varchar", n: 500 }, to: { kind: "varchar", n: 900 } },
     ]);
 
-    const reGet = await j(await app.request(`/api/merge-requests/${mr.id as string}`, { headers: grace }));
+    const reGet = await j(await app.request(`/api/merge-requests/${mr.number as number}`, { headers: grace }));
     expect(emailWidth(reGet.ours)).toBe(500);
   });
 
@@ -180,11 +180,11 @@ describe("POST /merge-requests/:id/resolutions", () => {
 
     // the list's status/conflicts must agree with the detail screen
     const list = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{
-      id: string;
+      number: number;
       status: string;
       conflicts: number;
     }>;
-    const row = list.find((m) => m.id === mrId)!;
+    const row = list.find((m) => m.number === mrId)!;
     expect(row.status).toBe("clean");
     expect(row.conflicts).toBe(0);
   });

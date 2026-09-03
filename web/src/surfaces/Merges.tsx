@@ -92,7 +92,7 @@ function StateTabs({ state }: { state: ListState }) {
 function arrowLabel(merge: MergeSummary): string {
   const from = merge.source.trim() || "unnamed";
   const to = merge.target.trim() || "main";
-  return `${from} → ${to}`;
+  return `#${merge.number} · ${from} → ${to}`;
 }
 
 function metaLine(merge: MergeSummary): string {
@@ -206,8 +206,8 @@ export function Merges() {
             <SheetList label={state === "closed" ? "Closed and merged merge requests" : "Open merge requests"}>
               {rows.map((merge) => (
                 <Row
-                  key={merge.id}
-                  to={`/merge/${encodeURIComponent(merge.id)}`}
+                  key={merge.number}
+                  to={`/merge/${merge.number}`}
                   primary={arrowLabel(merge)}
                   meta={metaLine(merge)}
                   trailing={

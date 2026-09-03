@@ -151,7 +151,7 @@ function MergeRequestAction({ detail }: { detail: BranchDetail }) {
     return (
       <Link
         className="mr-btn"
-        to={`/merge/${encodeURIComponent(detail.openMergeId)}`}
+        to={`/merge/${detail.openMergeId}`}
       >
         View merge request
       </Link>
@@ -162,8 +162,8 @@ function MergeRequestAction({ detail }: { detail: BranchDetail }) {
     setBusy(true);
     setErr(null);
     try {
-      const { id } = await source.createMergeRequest(detail.name);
-      navigate(`/merge/${encodeURIComponent(id)}`);
+      const { number } = await source.createMergeRequest(detail.name);
+      navigate(`/merge/${number}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not open the merge request.");
       setBusy(false);

@@ -80,7 +80,7 @@ type BranchDetail = {
   author: string;
   cutOn: string;
   divergence: number;
-  openMergeRequestId: string | null;
+  openMergeNumber: number | null;
 };
 
 function toBranchSummary(detail: BranchDetail): BranchSummary {
@@ -89,7 +89,7 @@ function toBranchSummary(detail: BranchDetail): BranchSummary {
     author: detail.author,
     cutOn: detail.cutOn,
     divergence: detail.divergence,
-    openMergeId: detail.openMergeRequestId ?? undefined,
+    openMergeId: detail.openMergeNumber ?? undefined,
   };
 }
 
@@ -159,8 +159,8 @@ export const httpSource: DataSource = {
       head: detail.head,
       base: detail.base,
       divergence: detail.divergence,
-      ...(detail.openMergeRequestId
-        ? { openMergeId: detail.openMergeRequestId }
+      ...(detail.openMergeNumber != null
+        ? { openMergeId: detail.openMergeNumber }
         : {}),
     };
   },
@@ -237,22 +237,22 @@ export const httpSource: DataSource = {
 
   async createMergeRequest(source) {
     try {
-      const res = await request<{ id: string; queue: { status: "open" | "queued" | "held" | "merged" } }>(
+      const res = await request<{ number: number; queue: { status: "open" | "queued" | "held" | "merged" } }>(
         "/merge-requests",
         { method: "POST", body: JSON.stringify({ source }) },
       );
       invalidateData();
-      return { id: res.id, status: res.queue.status };
+      return { number: res.number, status: res.queue.status };
     } catch (err) {
-      // 409 — a non-terminal request already has this source. Recover its id
+      // 409 — a non-terminal request already has this source. Recover its number
       // from the body so the caller can navigate to it rather than surface an
       // error the UI is designed never to show.
       if (err instanceof ApiError && err.status === 409) {
-        const body = err.body as { id?: string; mergeRequestId?: string };
-        const id = body.id ?? body.mergeRequestId;
-        if (id) {
+        const body = err.body as { number?: number; mergeRequestNumber?: number };
+        const number = body.number ?? body.mergeRequestNumber;
+        if (number != null) {
           invalidateData();
-          return { id, status: "open" as const };
+          return { number, status: "open" as const };
         }
       }
       if (err instanceof ApiError) throw new Error(err.message);
@@ -260,30 +260,30 @@ export const httpSource: DataSource = {
     }
   },
 
-  async getMergeReview(id) {
+  async getMergeReview(number) {
     try {
       return mergeReviewFromResponse(
-        await request<MergeRequestResponseBody>(`/merge-requests/${encodeURIComponent(id)}`),
+        await request<MergeRequestResponseBody>(`/merge-requests/${number}`),
       );
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        throw new MergeRequestNotFoundError(id);
+        throw new MergeRequestNotFoundError(number);
       }
       if (err instanceof ApiError) throw new Error(err.message);
       throw err;
     }
   },
 
-  async postResolution(id, conflictId, choice, type) {
+  async postResolution(number, conflictId, choice, type) {
     try {
       const body = await request<MergeRequestResponseBody>(
-        `/merge-requests/${encodeURIComponent(id)}/resolutions`,
+        `/merge-requests/${number}/resolutions`,
         { method: "POST", body: JSON.stringify({ conflictId, choice, type }) },
       );
       return mergeReviewFromResponse(body);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        throw new MergeRequestNotFoundError(id);
+        throw new MergeRequestNotFoundError(number);
       }
       if (err instanceof ApiError) throw new Error(err.message);
       throw err;
@@ -292,16 +292,16 @@ export const httpSource: DataSource = {
     }
   },
 
-  async deleteResolution(id, conflictId) {
+  async deleteResolution(number, conflictId) {
     try {
       const body = await request<MergeRequestResponseBody>(
-        `/merge-requests/${encodeURIComponent(id)}/resolutions/${encodeURIComponent(conflictId)}`,
+        `/merge-requests/${number}/resolutions/${encodeURIComponent(conflictId)}`,
         { method: "DELETE" },
       );
       return mergeReviewFromResponse(body);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        throw new MergeRequestNotFoundError(id);
+        throw new MergeRequestNotFoundError(number);
       }
       if (err instanceof ApiError) throw new Error(err.message);
       throw err;
@@ -310,15 +310,15 @@ export const httpSource: DataSource = {
     }
   },
 
-  async mergeMergeRequest(id) {
+  async mergeMergeRequest(number) {
     try {
       return await request<{ status: "merged" }>(
-        `/merge-requests/${encodeURIComponent(id)}/merge`,
+        `/merge-requests/${number}/merge`,
         { method: "POST" },
       );
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        throw new MergeRequestNotFoundError(id);
+        throw new MergeRequestNotFoundError(number);
       }
       if (err instanceof ApiError && err.status === 409 && err.body.error === "revalidation-failed") {
         // the queue's kick-back body carries a plain-language `summary` naming
@@ -333,14 +333,14 @@ export const httpSource: DataSource = {
     }
   },
 
-  async closeMergeRequest(id) {
+  async closeMergeRequest(number) {
     try {
-      await request<MergeRequestResponseBody>(`/merge-requests/${encodeURIComponent(id)}/close`, {
+      await request<MergeRequestResponseBody>(`/merge-requests/${number}/close`, {
         method: "POST",
       });
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        throw new MergeRequestNotFoundError(id);
+        throw new MergeRequestNotFoundError(number);
       }
       if (err instanceof ApiError && err.status === 409) {
         // the only 409 the route raises: it already merged, so there is nothing
@@ -363,7 +363,7 @@ type BranchDetailBody = {
   head: SchemaDocument;
   base: SchemaDocument;
   divergence: number;
-  openMergeRequestId: string | null;
+  openMergeNumber: number | null;
 };
 
 /** `GET /branches/:name/operations` — one row of the branch log. */

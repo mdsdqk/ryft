@@ -142,10 +142,10 @@ export async function getBranchDetail(name: string): Promise<BranchDetail> {
   const head = computeHead();
   const base = clone(BASE);
   const divergence = log.length;
-  const openMergeId =
+  const openMergeId: number | undefined =
     divergence === 0 || noMergeRequest()
       ? undefined
-      : listOpen().find((m) => m.source === "contact-fields")?.id;
+      : listOpen().find((m) => m.source === "contact-fields")?.number;
   return {
     name: "contact-fields",
     author: "grace",
@@ -153,7 +153,7 @@ export async function getBranchDetail(name: string): Promise<BranchDetail> {
     head: exercise === "wide" ? widen(head) : head,
     base: exercise === "wide" ? widen(base) : base,
     divergence,
-    ...(openMergeId ? { openMergeId } : {}),
+    ...(openMergeId != null ? { openMergeId } : {}),
   };
 }
 
@@ -206,8 +206,8 @@ export async function undoAfter(
 
 export async function createMergeRequest(
   name: string,
-): Promise<{ id: string; status: "open" | "queued" | "held" | "merged" }> {
+): Promise<{ number: number; status: "open" | "queued" | "held" | "merged" }> {
   if (name !== "contact-fields") throw new BranchNotFoundError(name);
   // the fixture queue always has room, so a new request opens active
-  return { id: createFor(name, log.length).id, status: "open" };
+  return { number: createFor(name, log.length).number, status: "open" };
 }

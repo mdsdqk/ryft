@@ -1006,6 +1006,52 @@ tested poorly — it reads as a broken button. One deliberate confirm click is g
 the confirm line is where the "`<source>` will be archived to Deleted branches" warning now
 lives, so the destructive facts are stated at the point of action rather than after it.
 
+### The merge-review screen is per-table sections, not one table
+
+A merge request is branch → branch, so it is whole-schema: a source branch that touched five
+tables produces one request covering all five. The review screen was built fixture-first
+around a single-table rework (`orders`), and `fromResponse` had been narrowing every real
+request down to its busiest table — counting ops per table, keeping the winner, dropping every
+row and revision on the rest. The conflict queue and the generated DDL below stayed
+whole-schema, so a multi-table request rendered a comparison grid that silently disagreed with
+the DDL under it.
+
+`MergeReview.table: string` becomes `tables: string[]` (busiest first). Every `ComparisonRow`,
+`RevisionRef`, and `Conflict` now carries its `table`; Zone A renders one collapsible section
+per table (the shared `ComparisonGrid` already had an outer section level, used by branch
+Divergence). A single-table merge has one entry and renders sectionless exactly as before.
+`createTable` / `dropTable` / `renameTable` are `MergeReview.tableChanges` — a banner row at
+the head of that table's section rather than object rows, because a created table's columns
+are not separate ops and a dropped table has no rows left to compare.
+
+### `MergeReport` exposes the two per-side deltas it already computed
+
+`threeWayMerge` diffs `base` against `ours` and against `theirs` to do its work, then discarded
+both; `fromResponse` re-ran the identical `diffSnapshots` calls on the snapshots it was handed.
+Pure and deterministic, so no correctness risk — but wasted work and a second call site that
+could drift. `MergeReport` now carries `deltaOurs` / `deltaTheirs` (the plain base→side diffs,
+not the resolution-pruned effective deltas the commutativity oracle uses), and the client
+reads them off the report. This is still raw engine output — ADR 0004 §7's line is that the
+API does not pre-assemble `MergeReview`, not that the client must recompute the engine's
+inputs.
+
+### A merge request is identified by a GitHub-style number, not its uuid
+
+`merge_requests.id` was a `uuid().defaultRandom()` that surfaced everywhere — the route params,
+the `/merge/<uuid>` URL, the rail's open-request label. It reads as noise; GitHub's `#123` is
+the thing people actually cite. A new `merge_requests.number integer` column carries a gapless
+per-workspace counter, assigned `COALESCE(MAX(number), 0) + 1` inside the create transaction —
+which already holds the `main` row lock (ADR 0004 §4), so the read is serialised and the
+sequence has no gaps or races, unlike a Postgres `SEQUENCE`. Migration `0004` adds the column
+nullable, backfills existing rows in `created_at` order, then locks it `NOT NULL` + unique.
+
+The uuid stays: it is still the primary key and the `merge_request_resolutions` FK target. It
+just never leaves the server. Every route param (`/merge-requests/12`), every URL (`/merge/12`),
+and the identifier field on `MergeRequestResponse` / `MergeSummary` — renamed `id` → `number`
+end to end — is the counter. `BranchDetail.openMergeRequestId` → `openMergeRequestNumber`. The
+rail's open-request row and the review title strip lead with `#N`; the `/merges` list rows read
+`#2 · drop-legacy-tags → main`. A non-numeric `:id` segment 404s.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:

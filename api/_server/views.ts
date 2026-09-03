@@ -251,22 +251,22 @@ export async function revalidationKickback(
 }
 
 /** Non-terminal merge request whose source is `branchName`, if any. */
-export async function openMergeIdFor(db: Db, branchName: string): Promise<string | undefined> {
+export async function openMergeNumberFor(db: Db, branchName: string): Promise<number | undefined> {
   const rows = await db
-    .select({ id: mergeRequests.id, status: mergeRequests.status })
+    .select({ number: mergeRequests.number, status: mergeRequests.status })
     .from(mergeRequests)
     .where(eq(mergeRequests.sourceBranch, branchName));
-  return rows.find((r) => !isTerminal(r.status))?.id;
+  return rows.find((r) => !isTerminal(r.status))?.number;
 }
 
 export async function listBranchSummaries(db: Db): Promise<BranchSummary[]> {
   const [branchRows, mrRows, names] = await Promise.all([
     db.select().from(branches),
-    db.select({ source: mergeRequests.sourceBranch, status: mergeRequests.status, id: mergeRequests.id }).from(mergeRequests),
+    db.select({ source: mergeRequests.sourceBranch, status: mergeRequests.status, number: mergeRequests.number }).from(mergeRequests),
     nameMap(db),
   ]);
-  const openMr = new Map<string, string>();
-  for (const mr of mrRows) if (!isTerminal(mr.status)) openMr.set(mr.source, mr.id);
+  const openMr = new Map<string, number>();
+  for (const mr of mrRows) if (!isTerminal(mr.status)) openMr.set(mr.source, mr.number);
 
   const out = branchRows.map((b) => {
     const s: BranchSummary = {
@@ -276,8 +276,8 @@ export async function listBranchSummaries(db: Db): Promise<BranchSummary[]> {
       divergence: b.name === "main" ? 0 : diffSnapshots(b.baseSnapshot, b.head).length,
     };
     if (b.name === "main") s.trunk = true;
-    const mid = openMr.get(b.name);
-    if (mid) s.openMergeId = mid;
+    const mnum = openMr.get(b.name);
+    if (mnum !== undefined) s.openMergeNumber = mnum;
     return s;
   });
   out.sort((a, b) => (a.trunk ? -1 : b.trunk ? 1 : a.name.localeCompare(b.name)));
@@ -327,7 +327,7 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
       const resolvedIds = new Set(appliedResolutions.map((r) => r.conflictId));
       const openConflicts = report.conflicts.filter((c) => !resolvedIds.has(c.id)).length;
       return {
-        id: mr.id,
+        number: mr.number,
         source: mr.sourceBranch,
         target: mr.targetBranch,
         author: names.get(mr.authorId) ?? mr.authorId,
@@ -375,7 +375,7 @@ export async function listTerminalMergeSummaries(db: Db): Promise<MergeSummary[]
   return rows
     .sort((a, b) => finishedAt(b) - finishedAt(a))
     .map((mr) => ({
-      id: mr.id,
+      number: mr.number,
       source: mr.sourceBranch,
       target: mr.targetBranch,
       author: names.get(mr.authorId) ?? mr.authorId,
@@ -459,7 +459,7 @@ export async function assembleBranchDetail(db: Db, name: string): Promise<Branch
     head: b.head,
     base: b.baseSnapshot,
     divergence: b.name === "main" ? 0 : diffSnapshots(b.baseSnapshot, b.head).length,
-    openMergeRequestId: (await openMergeIdFor(db, b.name)) ?? null,
+    openMergeRequestNumber: (await openMergeNumberFor(db, b.name)) ?? null,
   };
 }
 
@@ -481,7 +481,7 @@ export async function assembleMergeResponse(db: DbOrTx, row: MrRow): Promise<Mer
   const [main] = await db.select().from(branches).where(eq(branches.name, mr.targetBranch));
 
   return {
-    id: mr.id,
+    number: mr.number,
     source: mr.sourceBranch,
     target: mr.targetBranch,
     author: names.get(mr.authorId) ?? mr.authorId,

@@ -33,7 +33,7 @@ Concrete renames landed in this pass:
 | "Object · stable id" (comparison gutter header) | "Table object" | merge review Zone A, branch Divergence |
 | Merge lifecycle: Received / In check / Cleared / Released | **Queued / Under review / Reviewed / Merged** | `STATUS_LABEL` in `merge-review/format.ts`, dial, Zone D prose, conflict-queue record line |
 | "Revision status" (dial label) | "Status" | `RevisionDial` |
-| TitleBlock rows: Drawing / Merge / Rebased / Checker | Table / Merging / Auto-adjusted / Review | `merge-review/components/TitleBlock.tsx` |
+| TitleBlock rows: Drawing / Merge / Rebased / Checker | Table (→ "Tables" when the merge spans several) / Merging / Auto-adjusted / Review | `merge-review/components/TitleBlock.tsx` |
 | "Release to main" / "Releasing…" | "Merge into main" / "Merging…" | Zone D primary action |
 
 The internal identifiers are **unchanged**: the `RevisionStatus` union keys
