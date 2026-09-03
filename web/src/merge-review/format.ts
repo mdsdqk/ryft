@@ -1,6 +1,7 @@
 /** Small pure renderers shared by the fixture and the components. */
 
 import type { ColumnType } from "@engine/schema.js";
+import { formatDate } from "../dates.ts";
 import type { ChangeKind, ConflictClass, RevisionStatus } from "./model.ts";
 
 /** A `ColumnType` as its canonical Postgres spelling. */
@@ -92,7 +93,6 @@ export function statusLabel(s: RevisionStatus): string {
 }
 
 const TIME_FMT = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
-const DATE_FMT = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 /** A wall-clock time from an ISO string, in the viewer's locale. Display only. */
 export function clock(iso: string): string {
@@ -100,8 +100,5 @@ export function clock(iso: string): string {
   return Number.isNaN(d.getTime()) ? "—" : TIME_FMT.format(d);
 }
 
-/** A short date from an ISO string, in the viewer's locale. Display only. */
-export function shortDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : DATE_FMT.format(d);
-}
+/** A short date from an ISO string, as `dd-MMM-yyyy`. Display only. */
+export const shortDate = formatDate;

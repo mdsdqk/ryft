@@ -42,6 +42,19 @@ type Status =
   | { kind: "error"; message: string; field: boolean };
 
 /**
+ * The workspace-reset utility at the foot of the sheet. A fresh database has no
+ * organisation row, so `POST /session` 409s until someone seeds it — this is
+ * that seed, plus the escape hatch when the seeded fixture drifts. `confirm` is
+ * the in-sheet warning step; `running` locks the sign-in field too.
+ */
+type Reset =
+  | { kind: "idle" }
+  | { kind: "confirm" }
+  | { kind: "running" }
+  | { kind: "done" }
+  | { kind: "error"; message: string };
+
+/**
  * A hard ceiling on what the field will hold — a paste guard, not the logical
  * limit. `authenticate` still reports anything over `USERNAME_MAX` (64) as an
  * error the person can read and correct; this only stops a multi-KB paste from
@@ -54,6 +67,7 @@ export function SignIn() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [reset, setReset] = useState<Reset>({ kind: "idle" });
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const noteId = useId();
@@ -62,10 +76,13 @@ export function SignIn() {
   const clean = name.trim();
   const busy = status.kind === "submitting";
   const errored = status.kind === "error";
+  const resetting = reset.kind === "running";
+  // sign-in and reset lock each other out — one database mutation at a time
+  const locked = busy || resetting;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!clean || busy) return;
+    if (!clean || locked) return;
     setStatus({ kind: "submitting" });
     try {
       await authenticate(clean);
@@ -82,6 +99,32 @@ export function SignIn() {
       if (!known || err.field) {
         requestAnimationFrame(() => inputRef.current?.focus());
       }
+    }
+  };
+
+  const runReset = async () => {
+    setReset({ kind: "running" });
+    try {
+      const res = await fetch("/api/workspace/reset", { method: "POST" });
+      if (!res.ok) {
+        const message = await res
+          .json()
+          .then((body: { error?: string }) => body?.error ?? null)
+          .catch(() => null);
+        throw new Error(message ?? `Reset failed (${res.status}).`);
+      }
+      // The seeded organisation, users, and main now exist — reload so the whole
+      // app re-reads from a clean slate rather than a half-updated screen.
+      setReset({ kind: "done" });
+      setTimeout(() => window.location.reload(), 700);
+    } catch (err) {
+      setReset({
+        kind: "error",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Reset failed. Check your connection and try again.",
+      });
     }
   };
 
@@ -149,7 +192,7 @@ export function SignIn() {
               maxLength={INPUT_MAXLENGTH}
               autoFocus
               value={name}
-              disabled={busy}
+              disabled={locked}
               aria-describedby={errored ? `${errId} ${noteId}` : noteId}
               aria-invalid={errored && status.field}
               onChange={(e) => {
@@ -163,7 +206,7 @@ export function SignIn() {
           <button
             className="si__go"
             type="submit"
-            disabled={!clean || busy}
+            disabled={!clean || locked}
           >
             {busy ? "Signing in…" : "Sign in"}
           </button>
@@ -178,6 +221,62 @@ export function SignIn() {
             A name this workspace has seen resumes that user. A new name creates
             one. There is no separate sign up. No password.
           </p>
+
+          <div className="si__reset-zone">
+            {reset.kind === "idle" && (
+              <button
+                type="button"
+                className="si__reset"
+                disabled={locked}
+                onClick={() => setReset({ kind: "confirm" })}
+              >
+                Reset workspace
+              </button>
+            )}
+
+            {reset.kind === "confirm" && (
+              <div
+                className="si__reset-confirm"
+                role="group"
+                aria-label="Confirm workspace reset"
+              >
+                <p className="si__reset-warn">
+                  Wipes every branch, merge request, and edit on this database
+                  and restores the seeded workspace.
+                </p>
+                <div className="si__reset-actions">
+                  <button
+                    type="button"
+                    className="si__reset si__reset--go"
+                    onClick={() => void runReset()}
+                  >
+                    Reset
+                  </button>
+                  <button
+                    type="button"
+                    className="si__reset"
+                    onClick={() => setReset({ kind: "idle" })}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {resetting && (
+              <p className="si__reset-warn">Resetting…</p>
+            )}
+
+            {reset.kind === "done" && (
+              <p className="si__reset-warn si__reset-warn--ok">Workspace reset.</p>
+            )}
+
+            {reset.kind === "error" && (
+              <p className="si__reset-warn si__reset-warn--err" role="alert">
+                {reset.message}
+              </p>
+            )}
+          </div>
         </form>
       </article>
     </>

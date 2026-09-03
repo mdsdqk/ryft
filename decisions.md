@@ -975,6 +975,37 @@ per-merge object counts or delta descriptions: `main`'s head is not snapshotted 
 the marker stores no description, and this deliberately does not grow a history subsystem to
 invent them. The `/db` dashboard renders the list as a hairline Revisions zone below Branches.
 
+### A merge deletes its source branch
+
+Follow-up usability review, ADR 0013 §6. After a merge the branch's changes are in `main`, but
+the branch surface kept showing "N operations diverged" and re-offered "Open merge request".
+That is not a bug in the count — `divergence` is `diffSnapshots(base_snapshot, head)`, and
+`base_snapshot` is frozen at the cut point and never moves. The model has no rebase, so a
+merged branch has no way to read as "in sync": it is measured against where it started, not
+against current `main`.
+
+Two ways out were on the table. Keep the branch GitHub-style and advance its `base_snapshot`
+to the new `main.head` on merge — but that introduces a rebase concept and a "behind main"
+state the model otherwise avoids, and a true fast-forward means rewriting the branch's `head`
+and truncating its op log. Or delete the branch. We took delete: the merge transaction, on a
+clean merge, runs the same archive-then-delete as `DELETE /branches/:name` — the branch row
+goes into `deleted_branches` (attributed to the merger), out of `branches`, op log cascades —
+right after the queue promotion. A follow-up merge from the same line of work is a fresh cut.
+
+This needs the `merge_requests.source_branch` foreign key gone (migration
+`0003_drop_source_branch_fk.sql`): a `merged` or `closed` row now outlives the branch it names.
+The column stays `NOT NULL` text — the record of where the request came from — and nothing
+dereferences it for a terminal request. The `merge` marker on `main` already carried
+`sourceBranch` as text, so the revisions list is unaffected. `DELETE /branches/:name`'s guard
+still treats a `closed` request as blocking; with the FK gone that is over-strict, noted as a
+safe follow-up rather than changed here.
+
+The Zone D merge button drops its press-and-hold-2s / Enter-twice slip guard for a plain click
+into an in-sheet confirm step (`Confirm merge` / `Cancel`, `Escape` cancels). The hold gesture
+tested poorly — it reads as a broken button. One deliberate confirm click is guard enough, and
+the confirm line is where the "`<source>` will be archived to Deleted branches" warning now
+lives, so the destructive facts are stated at the point of action rather than after it.
+
 ## Deliberately cut
 
 Beyond the cuts recorded above:

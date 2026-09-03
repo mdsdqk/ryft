@@ -1,0 +1,13 @@
+/*
+ * Tailwind v4 entry. Utilities are generated on demand by `@tailwindcss/vite`
+ * (see web/vite.config.ts) — no config file, no PostCSS step.
+ *
+ * This is imported first in main.tsx, ahead of theme.css / app.css / shell.css,
+ * so the existing hand-written CSS (unlayered) keeps its authority over
+ * Tailwind's `@layer utilities` output. Nothing here migrates or replaces the
+ * per-surface stylesheets; Tailwind classes are simply available alongside them.
+ *
+ * Customize by adding a `@theme { ... }` block below to map ryft's tokens
+ * (from theme.css) onto Tailwind's scale when that becomes useful.
+ */
+@import "tailwindcss";

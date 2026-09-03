@@ -12,6 +12,7 @@ import "@fontsource/spline-sans-mono/500.css";
 import "@fontsource/spline-sans-mono/600.css";
 import "@fontsource/fraunces/700.css";
 
+import "./styles/tailwind.css";
 import "./styles/theme.css";
 import "./styles/app.css";
 import "./styles/shell.css";

@@ -10,6 +10,7 @@ import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import type { BranchDetail } from "../../data/index.ts";
+import { formatDate } from "../../dates.ts";
 import { ComparisonGrid, EmptyState } from "../kit/index.ts";
 import { toDivergenceSections } from "./divergenceModel.tsx";
 
@@ -80,7 +81,7 @@ export function Divergence({ detail }: { detail: BranchDetail }) {
         baseNote={
           <>
             measured against <code>main</code> as it stood when{" "}
-            <code>{detail.name}</code> was cut ({detail.cutOn})
+            <code>{detail.name}</code> was cut ({formatDate(detail.cutOn)})
           </>
         }
         sections={sections}

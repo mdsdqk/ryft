@@ -12,7 +12,8 @@
  * STORY: see every open request; enter one to review it. Opening a request
  * lives on the branch workspace. Empty keeps the sheet and points at
  * /branches with the first-run copy. A second view — Closed — is the record of
- * requests withdrawn without merging (ADR 0012 §3); the queue stays the default.
+ * every terminal request, merged and withdrawn alike (ADR 0012 §3, ADR 0013 §6);
+ * the queue stays the default.
  *
  * FIRST VIEWPORT: title strip "Merge requests" + queue count + an Open / Closed
  * pair. No right-cell action. Body: oldest row first, source → main opens
@@ -33,6 +34,7 @@ import {
   useResource,
   type MergeSummary,
 } from "../data/index.ts";
+import { formatDate } from "../dates.ts";
 import { Link, useSearchParams } from "react-router";
 import {
   EmptyState,
@@ -57,9 +59,9 @@ type ListState = "open" | "closed";
 
 function countLine(n: number, state: ListState): string {
   if (state === "closed") {
-    if (n === 0) return "no closed merge requests";
-    if (n === 1) return "1 closed · most recently closed first";
-    return `${n.toLocaleString()} closed · most recently closed first`;
+    if (n === 0) return "no closed or merged merge requests";
+    if (n === 1) return "1 request · most recently finished first";
+    return `${n.toLocaleString()} requests · most recently finished first`;
   }
   if (n === 0) return "no open merge requests";
   if (n === 1) return "1 in the queue · oldest first";
@@ -95,11 +97,17 @@ function arrowLabel(merge: MergeSummary): string {
 
 function metaLine(merge: MergeSummary): string {
   const author = merge.author.trim();
-  const opened = merge.openedOn.trim();
-  // a closed row is read for its outcome, so the closing date leads the meta
-  const closed = merge.closedOn?.trim();
-  if (closed) {
-    return author ? `${author} · closed ${closed} · opened ${opened || "unknown"}` : `closed ${closed}`;
+  const opened = merge.openedOn.trim() ? formatDate(merge.openedOn.trim()) : "";
+  // a terminal row is read for its outcome, so the finishing date leads the meta
+  const finished = merge.mergedOn?.trim()
+    ? { verb: "merged", on: formatDate(merge.mergedOn.trim()) }
+    : merge.closedOn?.trim()
+      ? { verb: "closed", on: formatDate(merge.closedOn.trim()) }
+      : null;
+  if (finished) {
+    return author
+      ? `${author} · ${finished.verb} ${finished.on} · opened ${opened || "unknown"}`
+      : `${finished.verb} ${finished.on}`;
   }
   if (author && opened) return `${author} · opened ${opened}`;
   if (author) return author;
@@ -172,14 +180,14 @@ export function Merges() {
         {empty ? (
           state === "closed" ? (
             <EmptyState
-              title="No closed merge requests."
+              title="Nothing here yet."
               action={
                 <Link className="mr-btn" to="/merges">
                   View the queue
                 </Link>
               }
             >
-              A request closed without merging is kept here.
+              A request that has merged or been closed is kept here.
             </EmptyState>
           ) : (
             <EmptyState
@@ -195,7 +203,7 @@ export function Merges() {
           )
         ) : (
           <SurfaceBody>
-            <SheetList label={state === "closed" ? "Closed merge requests" : "Open merge requests"}>
+            <SheetList label={state === "closed" ? "Closed and merged merge requests" : "Open merge requests"}>
               {rows.map((merge) => (
                 <Row
                   key={merge.id}

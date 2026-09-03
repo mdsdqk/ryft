@@ -212,7 +212,13 @@ describe("soft-close (ADR 0012 §3)", () => {
     const b = await openMr("b");
     expect((await close(b.id as string)).status).toBe(200);
     expect((await close(b.id as string)).status).toBe(200); // closing twice is a no-op
-    expect(await closedList()).toHaveLength(1);
+    // the Closed list now carries both terminal states; `b` appears once
+    const terminal = await closedList();
+    expect(terminal.filter((m) => m.id === b.id)).toHaveLength(1);
+    expect(terminal.map((m) => [m.source, m.status]).sort()).toEqual([
+      ["a", "merged"],
+      ["b", "closed"],
+    ]);
   });
 
   it("404s on an unknown id", async () => {
@@ -351,5 +357,61 @@ describe("structural validation on the merge path (ADR 0008 §5)", () => {
     };
     expect(overview.database.trunkRevision).toBe(1); // only a's merge landed
     expect(overview.revisions).toEqual([{ n: 1, sourceBranch: "a", at: expect.any(String), summary: expect.any(String) }]);
+  });
+});
+
+describe("a merge deletes its source branch (ADR 0013 §6)", () => {
+  it("archives the branch, drops it from the list, keeps the merged MR readable", async () => {
+    await branch("a");
+    await apply("a", [retype(64)]);
+    const a = await openMr("a");
+    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+
+    // the branch is gone from `branches` — every read and edit path 404s
+    expect((await app.request("/api/branches/a", { headers: grace })).status).toBe(404);
+    const names = (
+      (await j(await app.request("/api/branches", { headers: grace }))) as unknown as Array<{ name: string }>
+    ).map((b) => b.name);
+    expect(names).not.toContain("a");
+
+    // …and it is in the archive, attributed to whoever ran the merge
+    const deleted = (await j(
+      await app.request("/api/branches/deleted", { headers: grace }),
+    )) as unknown as Array<{ name: string; author: string }>;
+    expect(deleted.some((d) => d.name === "a" && d.author === "Grace Okoro")).toBe(true);
+
+    // the merged MR still resolves though its source branch no longer exists
+    const mr = await getMr(a.id as string);
+    expect(mr.source).toBe("a");
+    expect((mr.queue as { status: string }).status).toBe("merged");
+
+    // …and it shows in the Closed list, tagged `merged`, not `closed`
+    const terminal = (await j(
+      await app.request("/api/merge-requests?state=closed", { headers: grace }),
+    )) as unknown as Array<{ id: string; source: string; status: string; mergedOn?: string }>;
+    expect(terminal).toEqual([
+      expect.objectContaining({ id: a.id, source: "a", status: "merged", mergedOn: expect.any(String) }),
+    ]);
+  });
+
+  it("frees the branch name for a fresh cut", async () => {
+    await branch("a");
+    const a = await openMr("a");
+    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+
+    expect((await branch("a")).status).toBe(201);
+    expect((await app.request("/api/branches/a", { headers: grace })).status).toBe(200);
+  });
+
+  it("promotes the next queued MR even though the merged branch is removed", async () => {
+    await branch("a");
+    await branch("b");
+    const a = await openMr("a");
+    const b = await openMr("b");
+    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+
+    expect((await getMr(b.id as string)).queue).toMatchObject({ status: "open", position: 1, ahead: 0 });
+    expect((await app.request("/api/branches/a", { headers: grace })).status).toBe(404);
+    expect((await app.request("/api/branches/b", { headers: grace })).status).toBe(200);
   });
 });

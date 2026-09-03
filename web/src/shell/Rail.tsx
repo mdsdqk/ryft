@@ -12,6 +12,7 @@
 
 import { Link, useLocation, useMatch } from "react-router";
 
+import { formatDate } from "../dates.ts";
 import { useOverview } from "./overview.tsx";
 
 export function Rail() {
@@ -48,7 +49,7 @@ export function Rail() {
       <div className="shl-rail__db">{db?.name ?? "—"}</div>
       <div className="shl-rail__conn">
         {db
-          ? `${db.connection} · ${db.tables} tables · ${db.trunk} · rev ${db.trunkRevision} · updated ${db.trunkChangedOn}`
+          ? `${db.connection} · ${db.tables} tables · ${db.trunk} · rev ${db.trunkRevision} · updated ${formatDate(db.trunkChangedOn)}`
           : "loading…"}
       </div>
 

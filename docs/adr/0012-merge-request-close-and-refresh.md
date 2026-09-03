@@ -119,9 +119,17 @@ DBA or Git user already knows, and every forge in that user's hands says *closed
 
 - **`/merges`** gains Open / Closed as two links, not two buttons: the view lives in the URL
   (`/merges?state=closed`), so it is shareable and the back button works. The queue is still
-  the default. `GET /merge-requests?state=closed` backs it, most recently closed first, and it
-  deliberately does not re-run the three-way — a closed request will never merge, so deriving
-  a conflict count for it is noise.
+  the default. `GET /merge-requests?state=closed` backs it. It deliberately does not re-run the
+  three-way — a terminal request will never merge again, so deriving a conflict count for it is
+  noise.
+
+  *(Later — ADR 0013 §6.)* The Closed list carries **every** terminal request, `merged` as
+  well as `closed`, most recently finished first — GitHub's closed filter, which shows merged
+  PRs too. The per-row `status` tells them apart (`Merged · <date>` / `Closed · <date>`); a
+  merged row reads in the `ok` tone, a closed one stays quiet. `listClosedMergeSummaries`
+  became `listTerminalMergeSummaries` for this. A `merged` row's `operations` count is 0 — its
+  source branch and op log were removed by the merge (ADR 0013 §6) — but the Merges surface
+  does not render that field.
 - **The merge-review screen** carries "Close request" in Zone D beside "Merge into main",
   because the two are one decision: this request either lands or it does not. It shows on any
   live request, `queued` included — a queued request is the one an author most often wants to

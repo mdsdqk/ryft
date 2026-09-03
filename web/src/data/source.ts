@@ -36,8 +36,8 @@ export interface DataSource {
   listBranches(): Promise<BranchSummary[]>;
   /**
    * The `/merges` list. `state` defaults to `"open"` — the live queue, oldest
-   * first. `"closed"` is the record of requests withdrawn without merging, most
-   * recently closed first (ADR 0012 §3).
+   * first. `"closed"` is the record of every terminal request — `merged` and
+   * `closed` alike — most recently finished first (ADR 0012 §3, ADR 0013 §6).
    */
   listMerges(state?: "open" | "closed"): Promise<MergeSummary[]>;
   /** cut a working branch from `main`; throws on a bad or taken name */

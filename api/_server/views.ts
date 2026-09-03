@@ -6,7 +6,7 @@
  * reads so the routes stay thin.
  */
 
-import { and, asc, desc, eq, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import { diffSnapshots } from "../../engine/diff.js";
 import { threeWayMerge } from "../../engine/merge.js";
 import { emitMigration, type Migration } from "../../engine/emit.js";
@@ -350,35 +350,43 @@ export async function listOpenMergeSummaries(db: Db): Promise<MergeSummary[]> {
 }
 
 /**
- * The closed list — requests withdrawn without merging (ADR 0012 §3), most
- * recently closed first. Deliberately *not* a three-way re-run: a closed
- * request is a record, its triple is never re-frozen, and re-deriving a
- * conflict count for something that will never merge would be noise. `position`
- * is 0 (it holds no place in the queue) and `conflicts` is 0.
+ * The Closed list — every terminal request, `closed` and `merged` alike, most
+ * recently finished first. Like GitHub's closed filter, it carries both; the
+ * per-row `status` tells them apart (ADR 0012 §3, ADR 0013 §6). Deliberately
+ * *not* a three-way re-run: a terminal request is a record, its triple is never
+ * re-frozen, and a conflict count for something that will never merge again
+ * would be noise. `position` and `conflicts` are 0. `operations` reads 0 for a
+ * `merged` row — its source branch and op log were removed by the merge
+ * (ADR 0013 §6); the Merges surface does not render the count anyway.
  */
-export async function listClosedMergeSummaries(db: Db): Promise<MergeSummary[]> {
+export async function listTerminalMergeSummaries(db: Db): Promise<MergeSummary[]> {
   const [rows, names, ops] = await Promise.all([
     db
       .select()
       .from(mergeRequests)
-      .where(eq(mergeRequests.status, "closed"))
-      .orderBy(desc(mergeRequests.closedAt)),
+      .where(inArray(mergeRequests.status, ["closed", "merged"])),
     nameMap(db),
     db.select({ branchName: operations.branchName }).from(operations),
   ]);
 
-  return rows.map((mr) => ({
-    id: mr.id,
-    source: mr.sourceBranch,
-    target: mr.targetBranch,
-    author: names.get(mr.authorId) ?? mr.authorId,
-    openedOn: isoDate(mr.createdAt),
-    operations: ops.filter((o) => o.branchName === mr.sourceBranch).length,
-    position: 0,
-    status: "closed" as const,
-    conflicts: 0,
-    ...(mr.closedAt ? { closedOn: isoDate(mr.closedAt) } : {}),
-  }));
+  const finishedAt = (mr: MrRow): number =>
+    (mr.status === "merged" ? mr.mergedAt : mr.closedAt)?.getTime() ?? 0;
+
+  return rows
+    .sort((a, b) => finishedAt(b) - finishedAt(a))
+    .map((mr) => ({
+      id: mr.id,
+      source: mr.sourceBranch,
+      target: mr.targetBranch,
+      author: names.get(mr.authorId) ?? mr.authorId,
+      openedOn: isoDate(mr.createdAt),
+      operations: ops.filter((o) => o.branchName === mr.sourceBranch).length,
+      position: 0,
+      status: mr.status as "closed" | "merged",
+      conflicts: 0,
+      ...(mr.status === "merged" && mr.mergedAt ? { mergedOn: isoDate(mr.mergedAt) } : {}),
+      ...(mr.status === "closed" && mr.closedAt ? { closedOn: isoDate(mr.closedAt) } : {}),
+    }));
 }
 
 /**

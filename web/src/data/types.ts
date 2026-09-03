@@ -42,20 +42,23 @@ export type MergeSummary = {
   author: string;
   openedOn: string;
   operations: number;
-  /** 1-based place in the open queue (oldest first); 0 for a closed request. */
+  /** 1-based place in the open queue (oldest first); 0 for a terminal request. */
   position: number;
   /**
    * `clean` — mergeable at the front; `held` — blocked on conflicts;
    * `stale` — `main` moved after this request opened; `queued` — waiting
-   * behind the active request; `closed` — withdrawn without merging, so it is
-   * off the queue entirely and only appears in the closed list (ADR 0012 §3).
+   * behind the active request; `closed` — withdrawn without merging;
+   * `merged` — landed on `main`. `closed` and `merged` are the two terminal
+   * states — off the queue, in the Closed list (ADR 0012 §3, ADR 0013 §6).
    * The list never conveys these by colour.
    */
-  status: "clean" | "held" | "stale" | "queued" | "closed";
+  status: "clean" | "held" | "stale" | "queued" | "closed" | "merged";
   /** unresolved conflicts; 0 unless status is "held" */
   conflicts: number;
   /** ISO-8601 date the request was closed; set iff `status` is `closed`. */
   closedOn?: string;
+  /** ISO-8601 date the request merged; set iff `status` is `merged`. */
+  mergedOn?: string;
 };
 
 /**

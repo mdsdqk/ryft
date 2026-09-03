@@ -244,6 +244,76 @@
   border-top: 1px dashed var(--line);
 }
 
+/* ── workspace reset — the seed / escape hatch at the foot of the sheet ─── */
+
+.si__reset-zone {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.si__reset {
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.si__reset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (hover: hover) {
+  .si__reset:not(:disabled):hover {
+    color: var(--ink);
+  }
+}
+
+/* the destructive confirm — bordered, conflict-toned, distinct from Cancel */
+.si__reset--go {
+  color: var(--conflict);
+  border: 1px solid var(--conflict-edge);
+  padding: 4px 12px;
+}
+@media (hover: hover) {
+  .si__reset--go:not(:disabled):hover {
+    color: var(--sheet);
+    background: var(--conflict);
+  }
+}
+
+.si__reset-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+/* status line — the error row's ruled-in treatment, caution-toned by default */
+.si__reset-warn {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  margin-inline: -30px;
+  padding: 10px 30px 0;
+  border-top: 1px solid var(--theirs);
+  animation: ryft-rule-in 260ms var(--ease-mark) both;
+}
+.si__reset-warn--err {
+  color: var(--conflict);
+  border-top-color: var(--conflict-edge);
+}
+.si__reset-warn--ok {
+  color: var(--ink-soft);
+  border-top-color: var(--line-strong);
+}
+
 /* ── responsive ───────────────────────────────────────────────────────── */
 
 @media (max-width: 480px) {
@@ -253,7 +323,8 @@
   .si__body {
     padding: 0 18px 22px;
   }
-  .si__error {
+  .si__error,
+  .si__reset-warn {
     margin-inline: -18px;
     padding-inline: 18px;
   }

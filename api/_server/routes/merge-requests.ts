@@ -3,7 +3,7 @@
  * All behind the identity gate.
  *
  *  GET    /merge-requests           the queue (non-terminal, oldest first)
- *                                   `?state=closed` — the closed list instead (ADR 0012 §3)
+ *                                   `?state=closed` — terminal list (closed + merged), newest first
  *  POST   /merge-requests           enqueue one: `open` if the front is free, else `queued`
  *  GET    /merge-requests/:id       recompute report + migration + real queue framing
  *  POST   /merge-requests/:id/resolutions           record a conflict choice (front MR only)
@@ -27,12 +27,12 @@ import type { ColumnType } from "../../../engine/schema.js";
 import type { MergeMarker } from "../../../src/domain/operations.js";
 import type { DbOrTx } from "../db/client.js";
 import type { Env } from "../app.js";
-import { branches, mergeRequests, mergeRequestResolutions, operations } from "../db/schema.js";
+import { branches, deletedBranches, mergeRequests, mergeRequestResolutions, operations } from "../db/schema.js";
 import {
   assembleMergeResponse,
   isTerminal,
-  listClosedMergeSummaries,
   listOpenMergeSummaries,
+  listTerminalMergeSummaries,
   resolveMerge,
   revalidationKickback,
 } from "../views.js";
@@ -68,9 +68,10 @@ const promoteNext = async (db: DbOrTx, target: string): Promise<void> => {
 
 mergeRequestRoutes.get("/merge-requests", async (c) => {
   const db = c.get("db");
-  // `?state=closed` is the soft-closed record list (ADR 0012 §3); anything else,
-  // including no query at all, is the live queue this endpoint has always been.
-  if (c.req.query("state") === "closed") return c.json(await listClosedMergeSummaries(db));
+  // `?state=closed` is the terminal-request record list — `closed` and `merged`
+  // both (ADR 0012 §3, ADR 0013 §6). Anything else, including no query at all,
+  // is the live queue this endpoint has always been.
+  if (c.req.query("state") === "closed") return c.json(await listTerminalMergeSummaries(db));
   return c.json(await listOpenMergeSummaries(db));
 });
 
@@ -268,6 +269,24 @@ mergeRequestRoutes.post("/merge-requests/:id/merge", async (c) => {
       })
       .where(eq(mergeRequests.id, mr.id));
     await promoteNext(tx, mr.targetBranch);
+
+    // ADR 0013 §6: a merged branch is finished — its work is in `main`, and
+    // leaving it standing only shows a permanent phantom divergence against its
+    // own frozen cut point (there is no rebase in this model). Archive it to
+    // `deleted_branches` and drop it from `branches`, in this same transaction —
+    // the same archive-then-delete `DELETE /branches/:name` runs. Its op log
+    // cascades; this MR's now-FK-less `source_branch` keeps the name as a record.
+    await tx.insert(deletedBranches).values({
+      name: source.name,
+      organizationId: source.organizationId,
+      authorId: source.authorId,
+      createdAt: source.createdAt,
+      head: source.head,
+      baseSnapshot: source.baseSnapshot,
+      headVersion: source.headVersion,
+      deletedById: actor.id,
+    });
+    await tx.delete(branches).where(eq(branches.name, source.name));
 
     return { kind: "merged" as const, migration: migration ?? emitMigration(main.head, merged) };
   });

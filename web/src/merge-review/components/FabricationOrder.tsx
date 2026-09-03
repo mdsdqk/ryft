@@ -1,107 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { MergeReview } from "../model.ts";
 import { effectiveStatus, isMergeable, openConflicts } from "../model.ts";
 import { statusLabel } from "../format.ts";
-
-/**
- * Irreversible merge into main — hold 2s on a pointer, or Enter then Enter on
- * the keyboard. A slip click must not fire. The fill lives in CSS (clip-path on
- * ::before; background-color under reduced motion).
- */
-function MergeIntoMainButton({
-  releasing,
-  onRelease,
-}: {
-  releasing: boolean;
-  onRelease: () => void;
-}) {
-  const [holding, setHolding] = useState(false);
-  const [keyed, setKeyed] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const firedRef = useRef(false);
-
-  const stopHold = () => {
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    setHolding(false);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (releasing) {
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      setHolding(false);
-      setKeyed(false);
-    } else {
-      firedRef.current = false;
-    }
-  }, [releasing]);
-
-  const fire = () => {
-    if (firedRef.current || releasing) return;
-    firedRef.current = true;
-    stopHold();
-    setKeyed(false);
-    onRelease();
-  };
-
-  return (
-    <button
-      className="mr-btn mr-btn--primary mr-fab__release"
-      type="button"
-      disabled={releasing}
-      data-holding={holding ? "true" : undefined}
-      data-keyed={keyed ? "true" : undefined}
-      aria-label={
-        releasing
-          ? "Merging"
-          : keyed
-            ? "Press Enter again to merge into main"
-            : "Merge into main. Hold for two seconds, or press Enter twice."
-      }
-      onPointerDown={(e) => {
-        if (e.button !== 0 || releasing) return;
-        firedRef.current = false;
-        setHolding(true);
-        timerRef.current = setTimeout(fire, 2000);
-      }}
-      onPointerUp={stopHold}
-      onPointerLeave={stopHold}
-      onPointerCancel={stopHold}
-      onClick={(e) => e.preventDefault()}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          setKeyed(false);
-          return;
-        }
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
-        if (releasing) return;
-        if (!keyed) {
-          setKeyed(true);
-          return;
-        }
-        fire();
-      }}
-      onBlur={() => setKeyed(false)}
-    >
-      <span className="mr-fab__release-label">
-        {releasing ? "Merging…" : keyed ? "Confirm merge" : "Merge into main"}
-      </span>
-    </button>
-  );
-}
 
 /**
  * Zone D — the fabrication order. The ordered, forward-only DDL that comes out of
@@ -149,6 +50,15 @@ export function FabricationOrder({
   // divergence that is not one of the named conflict classes.
   const unclassified = open.length === 0 && review.commutativity === "failed";
   const destructive = fo.statements.filter((s) => s.destructive).length;
+
+  // `Merge into main` → in-place confirm: the status line becomes the warning
+  // and the button pair becomes `Cancel` / `Confirm merge`, same two slots, no
+  // layout shift. `Escape` backs out. Cleared whenever merging is no longer on
+  // offer (merged, closed, kicked back to held).
+  const [arming, setArming] = useState(false);
+  useEffect(() => {
+    if (!canRelease) setArming(false);
+  }, [canRelease]);
 
   return (
     <section className="mr-zone mr-fab" aria-labelledby="mr-fab-h">
@@ -220,9 +130,18 @@ export function FabricationOrder({
           data-released={released}
           data-queued={queued}
           data-closed={closed}
+          data-arming={arming || undefined}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && arming && !releasing) setArming(false);
+          }}
         >
           <span className="mr-fab__dot" aria-hidden="true" />
-          {closed ? (
+          {arming ? (
+            <>
+              <b>Confirm</b> — this writes the schema to <code>{review.target}</code> and archives{" "}
+              <code>{review.source}</code> to Deleted branches. It cannot be undone.
+            </>
+          ) : closed ? (
             <>
               <b>Closed</b> — this request was withdrawn without merging.{" "}
               <code>{review.target}</code> is unchanged, and the branch is still there to
@@ -230,7 +149,8 @@ export function FabricationOrder({
             </>
           ) : released ? (
             <>
-              <b>Merged</b> — <code>main</code> now holds this schema.
+              <b>Merged</b> — <code>main</code> now holds this schema.{" "}
+              <code>{review.source}</code> is archived under Deleted branches.
             </>
           ) : queued ? (
             <>
@@ -268,7 +188,7 @@ export function FabricationOrder({
         </p>
         {(queued || canRelease || canClose) && (
           <div className="mr-fab__actions">
-            {queued && (
+            {queued && !arming && (
               <p className="mr-fab__queued">
                 Queued · position #{review.queue?.position ?? "—"}
                 {ahead > 0 && (
@@ -279,15 +199,48 @@ export function FabricationOrder({
                 )}
               </p>
             )}
-            {/* the way out, offered wherever the request is still live — a
-             * queued request is exactly the one you most want to withdraw */}
-            {canClose && onClose && (
-              <button className="mr-btn mr-fab__close" type="button" disabled={closing} onClick={onClose}>
-                {closing ? "Closing…" : "Close request"}
-              </button>
-            )}
-            {!queued && canRelease && onRelease && (
-              <MergeIntoMainButton releasing={releasing} onRelease={onRelease} />
+            {arming ? (
+              <>
+                {/* same two slots as below — Cancel where Close request was,
+                 * Confirm merge where Merge into main was — so nothing moves */}
+                <button
+                  className="mr-btn mr-fab__close"
+                  type="button"
+                  disabled={releasing}
+                  onClick={() => setArming(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="mr-btn mr-btn--primary mr-fab__release"
+                  type="button"
+                  autoFocus
+                  disabled={releasing}
+                  onClick={onRelease}
+                >
+                  {releasing ? "Merging…" : "Confirm merge"}
+                </button>
+              </>
+            ) : (
+              <>
+                {/* the way out, offered wherever the request is still live — a
+                 * queued request is exactly the one you most want to withdraw */}
+                {canClose && onClose && (
+                  <button className="mr-btn mr-fab__close" type="button" disabled={closing} onClick={onClose}>
+                    {closing ? "Closing…" : "Close request"}
+                  </button>
+                )}
+                {!queued && canRelease && onRelease && (
+                  <button
+                    className="mr-btn mr-btn--primary mr-fab__release"
+                    type="button"
+                    disabled={releasing}
+                    onClick={() => setArming(true)}
+                  >
+                    Merge into main
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}

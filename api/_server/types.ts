@@ -44,12 +44,14 @@ export type MergeSummary = {
   author: string;
   openedOn: string;
   operations: number;
-  /** 1-based place in the open queue (oldest first); 0 for a closed request. */
+  /** 1-based place in the open queue (oldest first); 0 for a terminal request. */
   position: number;
-  status: "clean" | "held" | "stale" | "queued" | "closed";
+  status: "clean" | "held" | "stale" | "queued" | "closed" | "merged";
   conflicts: number;
   /** ISO-8601 date the request was closed; set iff `status` is `closed`. */
   closedOn?: string;
+  /** ISO-8601 date the request merged; set iff `status` is `merged`. */
+  mergedOn?: string;
 };
 
 /**

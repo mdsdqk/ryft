@@ -1184,40 +1184,15 @@ a.mr-chip {
 }
 .mr-fab__release {
   margin: 0 24px 11px 0;
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
 }
-.mr-fab__release::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--ok);
-  clip-path: inset(0 100% 0 0);
-  transition: clip-path 200ms var(--ease-mark);
-  pointer-events: none;
-  z-index: 0;
+
+/* the confirm step reuses the status line and the button pair in place — only
+ * the dot picks up the caution tone so the row does not reflow */
+.mr-fab__status[data-arming="true"] .mr-fab__dot {
+  background: var(--theirs);
 }
-.mr-fab__release[data-holding="true"]::before {
-  clip-path: inset(0 0 0 0);
-  transition: clip-path 2s linear;
-}
-.mr-fab__release-label {
-  position: relative;
-  z-index: 1;
-}
-@media (prefers-reduced-motion: reduce) {
-  .mr-fab__release::before {
-    content: none;
-  }
-  .mr-fab__release[data-holding="true"] {
-    background-color: var(--ok);
-    transition: background-color 2s linear !important;
-    transition-timing-function: linear !important;
-  }
-  .mr-fab__release:not([data-holding="true"]) {
-    transition: background-color 200ms var(--ease-mark) !important;
-  }
+.mr-fab__status[data-arming="true"] {
+  animation: none;
 }
 
 /* queued: neutral, not an error — the request simply isn't at the front yet */

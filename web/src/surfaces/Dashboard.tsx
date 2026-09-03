@@ -45,6 +45,7 @@ import {
   type MergeSummary,
 } from "../data/index.ts";
 import { invalidateData } from "../data/watch.ts";
+import { formatDate } from "../dates.ts";
 import { useOverview } from "../shell/overview.tsx";
 import { Link, useSearchParams } from "react-router";
 import { useSession } from "../session/session.ts";
@@ -112,7 +113,7 @@ function arrowLabel(merge: MergeSummary): string {
 
 function mergeMeta(merge: MergeSummary): string {
   const author = merge.author.trim();
-  const opened = merge.openedOn.trim();
+  const opened = merge.openedOn.trim() ? formatDate(merge.openedOn.trim()) : "";
   if (author && opened) return `${author} · opened ${opened}`;
   if (author) return author;
   if (opened) return `opened ${opened}`;
@@ -121,7 +122,7 @@ function mergeMeta(merge: MergeSummary): string {
 
 function branchMeta(branch: BranchSummary): string {
   const author = branch.author.trim();
-  const cut = branch.cutOn.trim();
+  const cut = branch.cutOn.trim() ? formatDate(branch.cutOn.trim()) : "";
   if (author && cut) return `${author} · branched ${cut}`;
   if (author) return author;
   if (cut) return `branched ${cut}`;
@@ -238,7 +239,8 @@ export function Dashboard() {
             <Link className="mr-linkbtn" to={trunkPath}>
               {db.trunk}
             </Link>{" "}
-            · rev {db.trunkRevision.toLocaleString()} · updated {db.trunkChangedOn}
+            · rev {db.trunkRevision.toLocaleString()} · updated{" "}
+            {formatDate(db.trunkChangedOn)}
           </>
         }
         action={
@@ -271,7 +273,7 @@ export function Dashboard() {
                   label: "Constraints",
                   value: db.constraints.toLocaleString(),
                 },
-                { label: "main last updated", value: db.trunkChangedOn },
+                { label: "main last updated", value: formatDate(db.trunkChangedOn) },
                 {
                   label: "Working branches",
                   value: branches.length.toLocaleString(),
@@ -349,7 +351,7 @@ export function Dashboard() {
                   <Row
                     key={r.n}
                     primary={`revision ${r.n} · ${r.sourceBranch} → ${db.trunk}`}
-                    meta={`${r.at} · ${r.summary}`}
+                    meta={`${formatDate(r.at)} · ${r.summary}`}
                   />
                 ))
               )}

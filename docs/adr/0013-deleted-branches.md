@@ -90,6 +90,37 @@ deleted date`, reusing the surface kit (`SheetList` + `Row`). Empty state is a q
 deleted branches." A load failure hides the section rather than erroring the sheet: the archive
 is reference, not a working surface.
 
+### 6. A merge archives its source branch (added later)
+
+`POST /merge-requests/:id/merge`, on a **clean, structurally-valid** merge, now runs the same
+archive-then-delete as `DELETE /branches/:name` — inside the merge transaction, after the queue
+promotion:
+
+1. `INSERT` the whole source-branch row into `deleted_branches` (`deletedById` = the actor who
+   ran the merge).
+2. `DELETE` it from `branches`; its `operations` rows cascade.
+
+**Why.** After a merge the branch's work is in `main`, but the model has no rebase: a branch is
+measured only against its own frozen `base_snapshot` (the cut point), so `diffSnapshots(base,
+head)` keeps returning the merged delta forever — a permanent phantom "N operations diverged"
+with no way to clear it, and the branch surface re-offers "Open merge request" over a
+now-empty three-way. The alternatives were to advance the branch's `base_snapshot` to the new
+`main.head` on merge (adds a rebase concept and a "behind main" state the model otherwise
+doesn't have) or to fast-forward the branch whole (rewrites its `head` and truncates its op
+log). Removing the branch is the smallest mechanism that leaves a coherent state, and the
+archive from §1 means the merged branch is still listed and its `head` still recoverable.
+
+A kickback (`held`) or structural-failure merge returns before this step — only a landed merge
+removes the branch. The name is freed immediately, as with any archived branch.
+
+**The `source_branch` foreign key is dropped** (`merge_requests` → `branches.name`, migration
+`0003_drop_source_branch_fk.sql`). A `merged` — and likewise a `closed` — request now routinely
+outlives the branch it names, so the column becomes plain `NOT NULL` text: the historical
+record of where the request came from. Nothing dereferences it for a terminal request
+(`refreshTriple` returns early for terminal MRs; the queue and summary lists filter them out),
+and the `merge` marker on `main` already stores `sourceBranch` as text, so the revisions list
+is unaffected.
+
 ## Consequences
 
 - **A migration must be generated for `deleted_branches`.** This ADR's iteration adds the
@@ -101,6 +132,10 @@ is reference, not a working surface.
   `DELETE`, no engine work, negligible cost.
 - The archive grows unbounded. At the scale this tool targets (one team, one database) that is
   a non-issue; a retention sweep is a later concern if ever.
-- A branch that was the source of a *completed* merge still cannot be deleted — the
-  `merge_requests.source_branch` foreign key (`ON DELETE no action`) blocks it, exactly as it
-  did before this change. Not addressed here.
+- Every landed merge adds an archive row (§6). At one-team scale this is the same non-issue as
+  a manual delete; the "Deleted branches" list is now also the record of merged branches, most
+  recent first.
+- `DELETE /branches/:name`'s own guard still refuses a branch a *non-`merged`* merge request
+  references — including a `closed` one. With the foreign key gone that refusal is no longer
+  load-bearing (a dangling `source_branch` on a terminal row is harmless), so loosening it to
+  "only a live queued/open/held request blocks" is a safe follow-up, not done here.

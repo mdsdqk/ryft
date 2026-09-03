@@ -264,18 +264,21 @@ export function TableCard({
       aria-labelledby={`card-${table.id}`}
     >
       <header className="bw-card__strip">
-        {onToggleCard && (
-          <button
-            type="button"
-            className="bw-card__toggle"
-            aria-expanded={!cardCollapsed}
-            aria-label={`${cardCollapsed ? "Expand" : "Collapse"} table ${table.name}`}
-            onClick={onToggleCard}
-          >
-            <Chevron open={!cardCollapsed} />
-          </button>
-        )}
-        <TableName table={table} apply={apply} editable={editable} />
+        <section className="flex flex-row items-center gap-2">
+          {onToggleCard && (
+            <button
+              type="button"
+              className="bw-card__toggle"
+              aria-expanded={!cardCollapsed}
+              aria-label={`${cardCollapsed ? "Expand" : "Collapse"} table ${table.name}`}
+              onClick={onToggleCard}
+            >
+              <Chevron open={!cardCollapsed} />
+            </button>
+          )}
+          <TableName table={table} apply={apply} editable={editable} />
+        </section>
+        
         <span className="bw-card__right">
           {cardCollapsed && <span className="bw-card__counts">{counts}</span>}
           <span className="bw-card__id">{table.id}</span>

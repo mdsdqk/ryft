@@ -15,6 +15,20 @@
       "when": 1788353841074,
       "tag": "0001_deleted_branches_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788409422571,
+      "tag": "0002_sync_closed_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788419542900,
+      "tag": "0003_drop_source_branch_fk",
+      "breakpoints": true
     }
   ]
 }

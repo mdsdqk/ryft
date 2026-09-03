@@ -36,6 +36,7 @@ import {
   Loading,
   SurfaceSheet,
 } from "../kit/index.ts";
+import { formatDate } from "../../dates.ts";
 import { Divergence } from "./Divergence.tsx";
 import { SchemaView } from "./SchemaView.tsx";
 
@@ -107,8 +108,8 @@ export function BranchWorkspace() {
       ? "no changes"
       : `${detail.divergence.toLocaleString()} operation${detail.divergence === 1 ? "" : "s"}`;
   const subtitle = isTrunk
-    ? `the trunk · schema of record · last changed ${detail.cutOn}`
-    : `branched from main · ${detail.author} · ${detail.cutOn} · ${changes}`;
+    ? `the trunk · schema of record · last changed ${formatDate(detail.cutOn)}`
+    : `branched from main · ${detail.author} · ${formatDate(detail.cutOn)} · ${changes}`;
 
   const showAction = !isTrunk && detail.divergence > 0;
 

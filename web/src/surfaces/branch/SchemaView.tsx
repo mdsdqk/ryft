@@ -75,11 +75,25 @@ export function SchemaView({
   const [creating, setCreating] = useState(false);
   const [landedSeq, setLandedSeq] = useState<number | null>(null);
   const prevMaxSeq = useRef<number | null>(null);
+  // Set once an undo's DELETE has returned but before the reloaded operation
+  // list has arrived. In that gap `operations` still ends at the seq we just
+  // undid, so clearing `undoing` now would flash the old "Undo △N" label back
+  // for a frame before the fresh list drops the row. Held until the effect
+  // below sees the new list.
+  const awaitingUndoReload = useRef(false);
 
   useEffect(() => {
     prevMaxSeq.current = null;
     setLandedSeq(null);
+    awaitingUndoReload.current = false;
+    setUndoing(false);
   }, [name]);
+
+  useEffect(() => {
+    if (!awaitingUndoReload.current) return;
+    awaitingUndoReload.current = false;
+    setUndoing(false);
+  }, [operations]);
 
   useEffect(() => {
     const maxSeq = operations.reduce((m, e) => Math.max(m, e.seq), 0);
@@ -144,8 +158,10 @@ export function SchemaView({
     setUndoing(true);
     try {
       await source.undoAfter(name, last.seq - 1);
+      // Keep "Undoing…" until the reloaded list lands — see awaitingUndoReload.
+      awaitingUndoReload.current = true;
       reload();
-    } finally {
+    } catch {
       setUndoing(false);
     }
   };

@@ -75,10 +75,22 @@ let open: MergeSummary[] = [
 ];
 
 /**
- * One request already withdrawn, so the closed list is not empty on first look
- * and the offline path exercises the state the API produces.
+ * One request merged and one withdrawn, so the Closed list is not empty on first
+ * look and the offline path exercises both terminal states the API produces.
  */
 let closed: MergeSummary[] = [
+  {
+    id: "seed-mr",
+    source: "contact-fields",
+    target: "main",
+    author: "grace",
+    openedOn: "2026-02-04",
+    operations: 3,
+    position: 0,
+    status: "merged",
+    conflicts: 0,
+    mergedOn: "2026-02-06",
+  },
   {
     id: "0",
     source: "index-experiment",
@@ -104,10 +116,11 @@ export function listOpen(): MergeSummary[] {
     .sort(byQueue);
 }
 
-/** Most recently closed first — the record, not a queue, so it reads newest-down. */
+/** Most recently finished first — the record, not a queue, so it reads newest-down. */
 export function listClosed(): MergeSummary[] {
+  const finishedOn = (m: MergeSummary) => m.mergedOn ?? m.closedOn ?? "";
   return clone(closed).sort(
-    (a, b) => (b.closedOn ?? "").localeCompare(a.closedOn ?? "") || b.id.localeCompare(a.id),
+    (a, b) => finishedOn(b).localeCompare(finishedOn(a)) || b.id.localeCompare(a.id),
   );
 }
 
@@ -168,6 +181,8 @@ export function mergeStatusTone(
   merge: MergeSummary,
 ): "ok" | "held" | "neutral" {
   if (merge.status === "held") return "held";
+  // a merge that landed reads `ok`, the same as a clean front-of-queue request
+  if (merge.status === "merged") return "ok";
   // closed is an outcome, not a failure — quiet, the same as waiting or stale
   if (merge.status === "stale" || merge.status === "queued" || merge.status === "closed") {
     return "neutral";
@@ -176,6 +191,9 @@ export function mergeStatusTone(
 }
 
 export function mergeStatusLabel(merge: MergeSummary): string {
+  if (merge.status === "merged") {
+    return merge.mergedOn ? `Merged · ${merge.mergedOn}` : "Merged";
+  }
   if (merge.status === "closed") {
     return merge.closedOn ? `Closed · ${merge.closedOn}` : "Closed";
   }

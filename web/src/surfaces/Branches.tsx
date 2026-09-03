@@ -50,6 +50,7 @@ import {
   type Resource,
 } from "../data/index.ts";
 import { Link, useSearchParams } from "react-router";
+import { formatDate } from "../dates.ts";
 import { useSession } from "../session/session.ts";
 import {
   EmptyState,
@@ -314,7 +315,7 @@ function DeletedBranches({
             <Row
               key={`${b.name} ${b.deletedAt}`}
               primary={b.name}
-              meta={`${b.author} · deleted ${b.deletedAt.slice(0, 10)}`}
+              meta={`${b.author} · deleted ${formatDate(b.deletedAt)}`}
             />
           ))}
         </SheetList>
@@ -495,8 +496,8 @@ function BranchRow({
     .join(" ");
 
   const meta = branch.trunk
-    ? `trunk · last changed ${branch.cutOn}`
-    : `${branch.author} · branched ${branch.cutOn}`;
+    ? `trunk · last changed ${formatDate(branch.cutOn)}`
+    : `${branch.author} · branched ${formatDate(branch.cutOn)}`;
 
   const message =
     pending?.kind === "confirm"

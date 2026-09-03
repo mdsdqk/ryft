@@ -122,7 +122,11 @@ export const mergeRequestStatus = pgEnum("merge_request_status", [
 
 export const mergeRequests = pgTable("merge_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
-  sourceBranch: text("source_branch").notNull().references(() => branches.name),
+  // No FK to `branches.name`: a merge archives and drops its source branch in the
+  // same transaction (ADR 0013 §6), so a `merged` — or `closed` — row routinely
+  // outlives the branch it names. The column stays as the historical name; no
+  // code dereferences it for a terminal request.
+  sourceBranch: text("source_branch").notNull(),
   targetBranch: text("target_branch").notNull().references(() => branches.name), // 'main' in V0
   authorId: uuid("author_id").notNull().references(() => users.id),
   status: mergeRequestStatus("status").notNull(),

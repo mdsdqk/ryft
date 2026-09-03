@@ -147,9 +147,10 @@ lock, so two MRs cannot both land on `open`.
      WHERE name = <target>`; append a `merge` marker (`MergeMarker`, `src/domain/operations.ts`)
      to the target's `operations`; `UPDATE merge_requests SET status = 'merged',
      merged_at = now()`; refresh this MR's frozen triple and `previewed_main_version` to what
-     was just used; promote the oldest `queued` MR to `open`. `COMMIT`. Respond
-     `200 { status: "merged", migration }` — `emitMigration(theirs, merged)` computed here,
-     the definitive DDL.
+     was just used; promote the oldest `queued` MR to `open`; archive and delete the source
+     branch (ADR 0013 §6 — `INSERT` its row into `deleted_branches`, `DELETE` from `branches`,
+     `operations` cascade). `COMMIT`. Respond `200 { status: "merged", migration }` —
+     `emitMigration(theirs, merged)` computed here, the definitive DDL.
    - **`conflicts`** or **`unclassified-divergence`** → `UPDATE merge_requests SET
      status = 'held'`; refresh the frozen triple + `previewed_main_version` so the MR view
      now shows the current three-way; `COMMIT` (only the status and triple change; nothing

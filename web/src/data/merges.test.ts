@@ -37,6 +37,13 @@ describe("mergeStatusLabel", () => {
     );
     expect(mergeStatusLabel(row({ status: "closed", position: 0 }))).toBe("Closed");
   });
+
+  it("dates a merged request", () => {
+    expect(mergeStatusLabel(row({ status: "merged", position: 0, mergedOn: "2026-02-06" }))).toBe(
+      "Merged · 2026-02-06",
+    );
+    expect(mergeStatusLabel(row({ status: "merged", position: 0 }))).toBe("Merged");
+  });
 });
 
 describe("mergeStatusTone", () => {
@@ -48,5 +55,9 @@ describe("mergeStatusTone", () => {
 
   it("reads a closed request as an outcome, not a failure", () => {
     expect(mergeStatusTone(row({ status: "closed", position: 0 }))).toBe("neutral");
+  });
+
+  it("reads a merged request as ok, like a clean front-of-queue row", () => {
+    expect(mergeStatusTone(row({ status: "merged", position: 0 }))).toBe("ok");
   });
 });
