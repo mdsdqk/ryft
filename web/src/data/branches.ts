@@ -53,8 +53,8 @@ const clone = <T>(v: T): T => structuredClone(v);
 function mergeIdFor(
   name: string,
   merges: readonly MergeSummary[],
-): string | undefined {
-  return merges.find((m) => m.source === name)?.id;
+): number | undefined {
+  return merges.find((m) => m.source === name)?.number;
 }
 
 function withOpenMerge(
@@ -62,7 +62,7 @@ function withOpenMerge(
   merges: readonly MergeSummary[],
 ): BranchSummary {
   const openMergeId = mergeIdFor(branch.name, merges);
-  return openMergeId ? { ...branch, openMergeId } : { ...branch };
+  return openMergeId != null ? { ...branch, openMergeId } : { ...branch };
 }
 
 /** Working branches only — what the rail count and the dashboard preview show. */

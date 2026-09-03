@@ -33,7 +33,7 @@ const theirsUnchanged = base;
 
 function response(over: Partial<MergeRequestResponseBody>): MergeRequestResponseBody {
   return {
-    id: "mr-1",
+    number: 1,
     source: "wide-email",
     target: "main",
     author: "grace",
@@ -41,7 +41,9 @@ function response(over: Partial<MergeRequestResponseBody>): MergeRequestResponse
     base,
     ours: oursWide,
     theirs: theirsUnchanged,
-    report: { verdict: "clean", conflicts: [], rebased: [], overlaps: [], remaps: [] },
+    // real report for the default base/ours/theirs — carries the per-side deltas
+    // the projection now reads instead of re-diffing
+    report: threeWayMerge(base, oursWide, theirsUnchanged, []).report,
     migration: null,
     queue: { status: "open", position: 1, ahead: 0, behind: 0 },
     stale: false,
@@ -66,7 +68,8 @@ describe("mergeReviewFromResponse — clean", () => {
     expect(row?.resolution.state).toBe("clean");
     expect(row?.ours?.detail).toBe("varchar(255) → varchar(500)");
     expect(row?.theirs).toBeNull();
-    expect(review.table).toBe("users");
+    expect(review.tables).toEqual(["users"]);
+    expect(row?.table).toBe("users");
     expect(review.fabricationOrder.statements.length).toBeGreaterThan(0);
   });
 });
@@ -216,5 +219,97 @@ describe("mergeReviewFromResponse — queue status", () => {
   it("maps a closed request to Closed (ADR 0012 §3)", () => {
     const review = mergeReviewFromResponse(response({ queue: { status: "closed", position: 0, ahead: 0, behind: 0 } }));
     expect(review.status).toBe("closed");
+  });
+});
+
+describe("mergeReviewFromResponse — multi-table", () => {
+  type Tbl = SchemaDocument["tables"][number];
+  const users: Tbl = {
+    id: "tbl_users",
+    name: "users",
+    columns: [{ id: "u_email", name: "email", type: { kind: "text" }, nullable: false, default: null }],
+    primaryKey: null,
+    foreignKeys: [],
+    uniques: [],
+    indexes: [],
+  };
+  const orders: Tbl = {
+    id: "tbl_orders",
+    name: "orders",
+    columns: [
+      { id: "o_total", name: "total", type: { kind: "int" }, nullable: false, default: null },
+      { id: "o_note", name: "note", type: { kind: "text" }, nullable: true, default: null },
+    ],
+    primaryKey: null,
+    foreignKeys: [],
+    uniques: [],
+    indexes: [],
+  };
+
+  const twoTableBase: SchemaDocument = { database: "app", tables: [users, orders] };
+
+  // ours: rename orders.total, create table `audit`
+  const ours2: SchemaDocument = {
+    database: "app",
+    tables: [
+      users,
+      { ...orders, columns: [{ ...orders.columns[0], name: "total_minor" }, orders.columns[1]] },
+      {
+        id: "tbl_audit",
+        name: "audit",
+        columns: [{ id: "a_at", name: "at", type: { kind: "timestamptz" }, nullable: false, default: null }],
+        primaryKey: null,
+        foreignKeys: [],
+        uniques: [],
+        indexes: [],
+      },
+    ],
+  };
+  // theirs: add users.name
+  const theirs2: SchemaDocument = {
+    database: "app",
+    tables: [
+      { ...users, columns: [users.columns[0], { id: "u_name", name: "name", type: { kind: "text" }, nullable: true, default: null }] },
+      orders,
+    ],
+  };
+
+  function multi(): MergeRequestResponseBody {
+    const { merged, report } = threeWayMerge(twoTableBase, ours2, theirs2, []);
+    return {
+      number: 7,
+      source: "wide",
+      target: "main",
+      author: "grace",
+      openedAt: "2026-02-11T10:00:00.000Z",
+      base: twoTableBase,
+      ours: ours2,
+      theirs: theirs2,
+      report,
+      migration: merged ? emitMigration(theirs2, merged) : null,
+      queue: { status: "open", position: 1, ahead: 0, behind: 0 },
+      stale: false,
+      appliedResolutions: [],
+      droppedResolutions: [],
+    };
+  }
+
+  it("keeps every touched table, busiest first, and tags each row / revision with its table", () => {
+    const review = mergeReviewFromResponse(multi());
+
+    expect(review.tables).toContain("orders");
+    expect(review.tables).toContain("users");
+    expect(review.tables).toContain("audit");
+    for (const r of review.rows) expect(review.tables).toContain(r.table);
+    for (const rev of review.revisions) expect(review.tables).toContain(rev.table);
+  });
+
+  it("renders a createTable as a tableChanges banner, not an object row", () => {
+    const review = mergeReviewFromResponse(multi());
+
+    expect(review.tableChanges).toEqual([
+      expect.objectContaining({ table: "audit", kind: "create-table", side: "ours" }),
+    ]);
+    expect(review.rows.some((r) => r.table === "audit")).toBe(false);
   });
 });

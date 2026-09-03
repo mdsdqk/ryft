@@ -123,6 +123,8 @@ export const seedOperations: SeedOperationRow[] = branchedLog.map((entry) => ({
 
 export interface SeedMergeRequest {
   id: string;
+  /** the GitHub-style public number (ADR 0004) — the first request is #1 */
+  number: number;
   sourceBranch: string;
   targetBranch: string;
   authorId: string;
@@ -144,6 +146,7 @@ export interface SeedMergeRequest {
  */
 export const seedMergeRequest: SeedMergeRequest = {
   id: "11111111-1111-4111-8111-111111111111",
+  number: 1,
   sourceBranch: "contact-fields",
   targetBranch: "main",
   authorId: GRACE,

@@ -64,37 +64,37 @@ export interface DataSource {
   ): Promise<{ head: SchemaDocument; headVersion: number }>;
   /**
    * Open `source → main` (WU-E · E4). Idempotent — if one is already open for
-   * `source` its id comes back, so the caller never has to handle a `409`.
+   * `source` its number comes back, so the caller never has to handle a `409`.
    */
   createMergeRequest(
     source: string,
-  ): Promise<{ id: string; status: "open" | "queued" | "held" | "merged" }>;
+  ): Promise<{ number: number; status: "open" | "queued" | "held" | "merged" }>;
 
   /** One merge request's review model; throws `MergeRequestNotFoundError` on a miss. */
-  getMergeReview(id: string): Promise<MergeReview>;
+  getMergeReview(number: number): Promise<MergeReview>;
   /**
    * Record a conflict choice (`docs/backend-contract.md` §3). `type` is
    * required iff `choice === "type"`. Returns the review recomputed with the
    * resolution applied.
    */
   postResolution(
-    id: string,
+    number: number,
     conflictId: string,
     choice: "ours" | "theirs" | "type",
     type?: ColumnType,
   ): Promise<MergeReview>;
   /** Drop a recorded choice, reopening the conflict. */
-  deleteResolution(id: string, conflictId: string): Promise<MergeReview>;
+  deleteResolution(number: number, conflictId: string): Promise<MergeReview>;
   /**
    * Sign off a cleared merge request (`POST /merge-requests/:id/merge`).
    * Throws `MergeRevalidationError` if live `main` no longer merges clean.
    */
-  mergeMergeRequest(id: string): Promise<{ status: "merged" }>;
+  mergeMergeRequest(number: number): Promise<{ status: "merged" }>;
   /**
    * Close a merge request without merging it (`POST /merge-requests/:id/close`).
    * The request keeps its row and moves to the closed list; the next queued
    * request is promoted if this one held the front. Throws if it already
    * merged — a merged request is a record of something that happened.
    */
-  closeMergeRequest(id: string): Promise<void>;
+  closeMergeRequest(number: number): Promise<void>;
 }

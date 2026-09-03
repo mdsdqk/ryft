@@ -263,6 +263,10 @@ kbd {
   margin-top: 8px;
   color: var(--ink-soft);
 }
+.mr-titlestrip__no {
+  font-weight: 700;
+  color: var(--ink);
+}
 .mr-titlestrip__demo {
   font-family: var(--ff-mono);
   font-size: 10px;
@@ -1047,6 +1051,15 @@ a.mr-chip {
   display: block;
   margin-top: 2px;
   color: var(--ink);
+}
+/* table qualifier prefix — only rendered when a merge spans several tables */
+.mr-log__tbl {
+  margin-right: 5px;
+  padding: 0 3px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  color: var(--ink-soft);
+  font-size: 9px;
 }
 
 /* ── title block ──────────────────────────────────────────────────────── */

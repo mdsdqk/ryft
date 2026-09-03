@@ -12,7 +12,10 @@ export function TitleBlock({
   rebased: number;
 }) {
   const rows: Array<[string, string]> = [
-    ["Table", `${review.table} schema`],
+    [
+      review.tables.length === 1 ? "Table" : "Tables",
+      review.tables.join(", ") || review.source,
+    ],
     ["Merging", `${review.source} → ${review.target}`],
     ["Base", review.base],
     ["Opened", `${review.openedBy.name} · ${shortDate(review.openedAt)}`],

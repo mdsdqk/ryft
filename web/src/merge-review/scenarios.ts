@@ -24,6 +24,8 @@ const cleanReview: MergeReview = {
   autoMergedCount: 0,
   destructiveCount: 1,
   conflicts: [],
+  tableChanges: [],
+  tables: ["orders", "payments"],
   rows: ordersReview.rows
     .filter((r) => r.ours !== null && r.theirs === null && r.resolution.state !== "gated")
     .map((r) => ({ ...r, resolution: { state: "clean" as const } })),
@@ -52,6 +54,8 @@ const unchangedReview: MergeReview = {
   autoMergedCount: 0,
   destructiveCount: 0,
   conflicts: [],
+  tableChanges: [],
+  tables: [],
   revisions: [],
   rows: ordersReview.rows.map((r) => ({
     ...r,

@@ -27,7 +27,7 @@ export function Rail() {
   const branchSheet = new URLSearchParams(search).get("sheet") ?? "schema";
 
   const branchMatch = useMatch("/branch/:name");
-  const mergeMatch = useMatch("/merge/:id");
+  const mergeMatch = useMatch("/merge/:number");
   const onDatabase = pathname === "/db" || pathname === "/";
   const onBranches = useMatch({ path: "/branches", end: true });
   const onMerges = useMatch({ path: "/merges", end: true });
@@ -35,17 +35,17 @@ export function Rail() {
   const openBranch = branchMatch?.params.name
     ? decodeURIComponent(branchMatch.params.name)
     : null;
-  const openMergeId = mergeMatch?.params.id
-    ? decodeURIComponent(mergeMatch.params.id)
+  const openMergeNumber = mergeMatch?.params.number
+    ? Number(mergeMatch.params.number)
     : null;
   const openMerge =
-    openMergeId != null
-      ? data?.merges.find((m) => m.id === openMergeId) ?? null
+    openMergeNumber != null
+      ? data?.merges.find((m) => m.number === openMergeNumber) ?? null
       : null;
 
   return (
     <nav className="shl-rail" aria-label="Main navigation">
-      <div className="shl-rail__set">ryft · schema under version control</div>
+      <div className="shl-rail__set">schema under version control</div>
       <div className="shl-rail__db">{db?.name ?? "—"}</div>
       <div className="shl-rail__conn">
         {db
@@ -99,26 +99,22 @@ export function Rail() {
           <Link to="/merges" aria-current={onMerges ? "page" : undefined}>
             Merge requests {data && <span className="shl-ct">{mergeCount}</span>}
           </Link>
-          {openMergeId && (
+          {openMergeNumber != null && (
             <ul
               className="shl-rail__sub"
-              aria-label={`${
-                openMerge ? `${openMerge.source} → ${openMerge.target}` : openMergeId
+              aria-label={`#${openMergeNumber}${
+                openMerge ? ` — ${openMerge.source} → ${openMerge.target}` : ""
               } — open merge request`}
             >
               <li className="shl-rail__open">
                 <span className="shl-rail__open-k">Merge request</span>
                 <span className="shl-rail__open-nm">
-                  {openMerge
-                    ? `${openMerge.source} → ${openMerge.target}`
-                    : openMergeId}
+                  <span className="shl-rail__open-no">#{openMergeNumber}</span>
+                  {openMerge && ` ${openMerge.source} → ${openMerge.target}`}
                 </span>
               </li>
               <li>
-                <Link
-                  to={`/merge/${encodeURIComponent(openMergeId)}`}
-                  aria-current="page"
-                >
+                <Link to={`/merge/${openMergeNumber}`} aria-current="page">
                   Review
                 </Link>
               </li>

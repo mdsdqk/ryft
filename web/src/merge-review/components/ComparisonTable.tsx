@@ -3,10 +3,17 @@ import { useMemo, useState } from "react";
 import {
   ComparisonGrid,
   type GridCell,
+  type GridGroup,
   type GridRow,
   type GridSection,
 } from "../../surfaces/kit/index.ts";
-import type { ComparisonRow, ObjectGroup, MergeReview, SideChange } from "../model.ts";
+import type {
+  ComparisonRow,
+  ObjectGroup,
+  MergeReview,
+  SideChange,
+  TableChange,
+} from "../model.ts";
 import { changeLabel } from "../format.ts";
 import { RevisionTriangle } from "./RevisionTriangle.tsx";
 
@@ -18,6 +25,26 @@ const GROUP_TITLE: Record<ObjectGroup, string> = {
   constraints: "Constraints / FK",
 };
 const GROUP_ORDER: ObjectGroup[] = ["columns", "indexes", "constraints"];
+
+const TABLE_CHANGE_LABEL: Record<TableChange["kind"], string> = {
+  "create-table": "create table",
+  "drop-table": "drop table",
+  "rename-table": "rename table",
+};
+
+/** A `TableChange` as the ours- or theirs-side cell of its banner row. */
+function tableChangeCell(tc: TableChange): GridCell {
+  return {
+    labelTone: tc.side,
+    label: (
+      <>
+        <RevisionTriangle n={tc.revision} side={tc.side} />
+        {TABLE_CHANGE_LABEL[tc.kind]}
+      </>
+    ),
+    detail: tc.detail || undefined,
+  };
+}
 
 function isChanged(r: ComparisonRow): boolean {
   return r.ours !== null || r.theirs !== null;
@@ -118,49 +145,100 @@ export function ComparisonTable({
     [review.rows, filter],
   );
 
+  const multiTable = review.tables.length > 1;
+
   const sections: GridSection[] = useMemo(() => {
-    const groups = GROUP_ORDER.map((g) => {
-      const rows = shown.filter((r) => r.group === g);
-      const nConflict = rows.filter((r) => r.resolution.state === "conflict").length;
-      return {
-        key: g,
-        title: (
-          <>
-            {GROUP_TITLE[g]} — {rows.length} shown
-            {nConflict > 0 ? ` · ${nConflict} in conflict` : ""}
-          </>
-        ),
-        rows: rows.map<GridRow>((r) => ({
-          key: r.objectId,
-          objectLabel: r.objectLabel,
-          objectId: r.objectId,
-          rowClass: ROW_CLASS[r.resolution.state],
-          left: cellFrom(r.ours, "ours"),
-          right: cellFrom(r.theirs, "theirs"),
-          leader: r.leader ? { text: r.leader.text, tone: r.leader.tone } : undefined,
-          warnings: r.warnings?.map((w) => (
+    // one section per table; `null` is the single-table / no-divergence case,
+    // which renders sectionless exactly as before
+    const scopes: Array<string | null> = review.tables.length > 0 ? review.tables : [null];
+
+    const buildSection = (table: string | null): GridSection => {
+      const inScope = table == null ? shown : shown.filter((r) => r.table === table);
+
+      const objectGroups: GridGroup[] = GROUP_ORDER.map((g) => {
+        const rows = inScope.filter((r) => r.group === g);
+        const nConflict = rows.filter((r) => r.resolution.state === "conflict").length;
+        return {
+          key: g,
+          title: (
             <>
-              <b>{w.kind}</b> — {w.message}
+              {GROUP_TITLE[g]} — {rows.length} shown
+              {nConflict > 0 ? ` · ${nConflict} in conflict` : ""}
             </>
-          )),
-          extra: rowExtra(r, onOpenConflict),
-        })),
+          ),
+          rows: rows.map<GridRow>((r) => ({
+            key: r.objectId,
+            objectLabel: r.objectLabel,
+            objectId: r.objectId,
+            rowClass: ROW_CLASS[r.resolution.state],
+            left: cellFrom(r.ours, "ours"),
+            right: cellFrom(r.theirs, "theirs"),
+            leader: r.leader ? { text: r.leader.text, tone: r.leader.tone } : undefined,
+            warnings: r.warnings?.map((w) => (
+              <>
+                <b>{w.kind}</b> — {w.message}
+              </>
+            )),
+            extra: rowExtra(r, onOpenConflict),
+          })),
+        };
+      }).filter((g) => g.rows.length > 0);
+
+      // create / drop / rename of the table itself — a banner group above its
+      // object rows, never an object row (ADR: `TableChange`)
+      const changes = table == null ? [] : review.tableChanges.filter((tc) => tc.table === table);
+      const changeGroup: GridGroup[] =
+        changes.length === 0
+          ? []
+          : [
+              {
+                key: "table",
+                title: (
+                  <>
+                    Table — {changes.length} change{changes.length === 1 ? "" : "s"}
+                  </>
+                ),
+                rows: changes.map<GridRow>((tc) => ({
+                  key: `tc-${tc.revision}`,
+                  objectLabel: tc.table,
+                  objectId: "table",
+                  left: tc.side === "ours" ? tableChangeCell(tc) : null,
+                  right: tc.side === "theirs" ? tableChangeCell(tc) : null,
+                })),
+              },
+            ];
+
+      return {
+        key: table ?? "all",
+        title: multiTable ? <code>{table}</code> : undefined,
+        groups: [...changeGroup, ...objectGroups],
       };
-    }).filter((g) => g.rows.length > 0);
-    return [{ key: review.table, groups }];
-  }, [shown, onOpenConflict, review.table]);
+    };
+
+    return scopes.map(buildSection);
+  }, [shown, onOpenConflict, review.tables, review.tableChanges, multiTable]);
 
   const emptyText =
     filter === "changes"
       ? `${review.source} has not diverged from ${review.target} — every object matches the common ancestor.`
       : filter === "conflicts"
         ? "No conflicts on this merge."
-        : "This table has no objects.";
+        : "No objects to compare.";
+
+  const scopeLabel =
+    review.tables.length === 1 ? (
+      <>
+        {" "}
+        — table <code>{review.tables[0]}</code>
+      </>
+    ) : multiTable ? (
+      <> — {review.tables.length} tables</>
+    ) : null;
 
   return (
     <section className="mr-zone" aria-labelledby="mr-cmp-h">
       <h2 className="mr-zone__k" id="mr-cmp-h">
-        <span className="mr-zone__n">A</span> Three-way comparison — table <code>{review.table}</code>
+        <span className="mr-zone__n">A</span> Three-way comparison{scopeLabel}
       </h2>
 
       {review.destructiveCount > 0 && (

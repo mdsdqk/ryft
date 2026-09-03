@@ -1,10 +1,12 @@
 /**
  * A worked merge review: `orders-v2-rework → main`.
  *
- * A significant table rewrite that exercises every path the screen has to show —
- * a rename followed across branches, a rename+retype auto-merged on one id, two
- * indexes rebased across a rename, and all four clear/subtle conflict classes,
- * one of which gates a downstream object.
+ * A significant multi-table rework that exercises every path the screen has to
+ * show — one comparison section per table (`orders`, `payments`, `refunds`), a
+ * rename followed across branches, a rename+retype auto-merged on one id, two
+ * indexes rebased across a rename, all four clear/subtle conflict classes on
+ * `orders` (one of which gates a downstream object), a divergent-retype on
+ * `payments`, and a `createTable` on `refunds` rendered as a banner, not rows.
  *
  * When the semantic merge engine (ticket 0002) lands, an adapter produces this
  * same `MergeReview` shape from real snapshots. Until then this fixture is the
@@ -15,13 +17,22 @@
 import type { Column, ColumnType } from "@engine/schema.js";
 import type { Operation } from "@engine/operations.js";
 
-import type { MergeReview, Party, RevisionRef } from "./model.ts";
+import type {
+  ComparisonRow,
+  Conflict,
+  MergeReview,
+  Party,
+  RevisionRef,
+  TableChange,
+} from "./model.ts";
 import { retypeDetail, sqlType } from "./format.ts";
 
 const SADIQ: Party = { userId: "u-sadiq", name: "m.sadiq" };
 const OKAFOR: Party = { userId: "u-okafor", name: "a.okafor" };
 
 const T = "tbl_orders";
+const T_PAY = "tbl_payments";
+const T_REF = "tbl_refunds";
 
 const col = (id: string, name: string, type: ColumnType, nullable = false, def: string | null = null): Column => ({
   id,
@@ -32,6 +43,15 @@ const col = (id: string, name: string, type: ColumnType, nullable = false, def: 
 });
 
 const varchar = (n: number): ColumnType => ({ kind: "varchar", n });
+const numeric = (precision: number, scale: number): ColumnType => ({ kind: "numeric", precision, scale });
+
+/** `table` is attached per-block below, so the per-△ literals stay terse. */
+type Rev = Omit<RevisionRef, "table">;
+type Row = Omit<ComparisonRow, "table">;
+type Card = Omit<Conflict, "table">;
+
+const withTable = <T,>(table: string, xs: readonly T[]): Array<T & { table: string }> =>
+  xs.map((x) => ({ ...x, table }));
 
 // ── the derived edits, one per △ ────────────────────────────────────────────
 
@@ -42,9 +62,9 @@ const rev = (
   at: string,
   op: Operation,
   summary: string,
-): RevisionRef => ({ n, side, author, at, op, summary });
+): Rev => ({ n, side, author, at, op, summary });
 
-const revisions: RevisionRef[] = [
+const ordersRevs: Rev[] = [
   rev(1, "ours", SADIQ, "2026-08-29T09:12:00+05:30",
     { type: "renameColumn", tableId: T, columnId: "col_total", from: "total_cents", to: "amount_minor" },
     "rename col_total → amount_minor"),
@@ -121,264 +141,399 @@ const revisions: RevisionRef[] = [
     "add col_channel_t channel"),
 ];
 
+const paymentsRevs: Rev[] = [
+  rev(22, "ours", SADIQ, "2026-08-29T09:46:00+05:30",
+    { type: "renameColumn", tableId: T_PAY, columnId: "pay_ref", from: "ref_code", to: "reference" },
+    "rename pay_ref → reference"),
+  rev(23, "ours", SADIQ, "2026-08-29T09:48:00+05:30",
+    { type: "retypeColumn", tableId: T_PAY, columnId: "pay_amount", from: { kind: "int" }, to: { kind: "bigint" } },
+    "retype pay_amount → bigint"),
+  rev(24, "ours", SADIQ, "2026-08-29T09:50:00+05:30",
+    { type: "addColumn", tableId: T_PAY, column: col("pay_captured", "captured_at", { kind: "timestamptz" }, true) },
+    "add pay_captured captured_at"),
+
+  rev(25, "theirs", OKAFOR, "2026-08-28T22:47:00+05:30",
+    { type: "retypeColumn", tableId: T_PAY, columnId: "pay_amount", from: { kind: "int" }, to: numeric(12, 2) },
+    "retype pay_amount → numeric(12, 2)"),
+  rev(26, "theirs", OKAFOR, "2026-08-28T22:52:00+05:30",
+    { type: "dropColumn", tableId: T_PAY, column: col("pay_note", "note", { kind: "text" }, true) },
+    "drop pay_note note"),
+  rev(27, "theirs", OKAFOR, "2026-08-28T22:58:00+05:30",
+    { type: "addIndex", tableId: T_PAY, index: { id: "idx_pay_created", name: "idx_payments_created_at", columnIds: ["pay_created"], unique: false } },
+    "add index idx_pay_created on pay_created"),
+];
+
+const refundsRevs: Rev[] = [
+  rev(28, "ours", SADIQ, "2026-08-29T09:55:00+05:30",
+    {
+      type: "createTable",
+      table: {
+        id: T_REF,
+        name: "refunds",
+        columns: [
+          col("ref_id", "id", { kind: "uuid" }),
+          col("ref_payment", "payment_id", { kind: "uuid" }),
+          col("ref_minor", "amount_minor", { kind: "bigint" }),
+        ],
+        primaryKey: null,
+        foreignKeys: [],
+        uniques: [],
+        indexes: [],
+      },
+    },
+    "create table refunds"),
+];
+
+const revisions: RevisionRef[] = [
+  ...withTable("orders", ordersRevs),
+  ...withTable("payments", paymentsRevs),
+  ...withTable("refunds", refundsRevs),
+];
+
+// ── conflicts ──────────────────────────────────────────────────────────────
+
+const ordersConflicts: Card[] = [
+  {
+    id: "c-status",
+    cls: "divergent-retype",
+    severity: "clear",
+    objectLabel: "orders.status",
+    objectId: "col_status",
+    title: "Both sides retype status to a different width.",
+    ours: { author: SADIQ, detail: retypeDetail(varchar(20), varchar(32)) },
+    theirs: { author: OKAFOR, detail: retypeDetail(varchar(20), varchar(24)) },
+    options: [
+      { id: "ours", kind: "ours", hint: "1", label: `Take ours — ${sqlType(varchar(32))}` },
+      { id: "theirs", kind: "theirs", hint: "2", label: `Take theirs — ${sqlType(varchar(24))}` },
+      { id: "custom", kind: "custom", hint: "3", label: "Specify target type…" },
+    ],
+    resolvedWith: null,
+    gates: [],
+  },
+  {
+    id: "c-tracking",
+    cls: "rename-vs-rename",
+    severity: "clear",
+    objectLabel: "orders.tracking_no",
+    objectId: "col_tracking",
+    title: "The same column (col_tracking) is renamed on both sides.",
+    ours: { author: SADIQ, detail: "→ tracking_code" },
+    theirs: { author: OKAFOR, detail: "→ carrier_ref" },
+    options: [
+      { id: "ours", kind: "ours", hint: "1", label: "Take ours — tracking_code" },
+      { id: "theirs", kind: "theirs", hint: "2", label: "Take theirs — carrier_ref" },
+      { id: "custom", kind: "custom", hint: "3", label: "Specify name…" },
+    ],
+    resolvedWith: null,
+    gates: ["uq_orders_tracking"],
+  },
+  {
+    id: "c-coupon",
+    cls: "drop-vs-modify",
+    severity: "subtle",
+    objectLabel: "orders.coupon_code",
+    objectId: "col_coupon",
+    title: "Ours adds a foreign key on coupon_code; theirs drops the column.",
+    ours: { author: SADIQ, detail: "add fk_orders_coupon → coupons(code)" },
+    theirs: { author: OKAFOR, detail: "drop column coupon_code" },
+    options: [
+      { id: "ours", kind: "ours", hint: "1", label: "Keep column + foreign key (ours)" },
+      { id: "theirs", kind: "theirs", hint: "2", label: "Drop column + drop foreign key (theirs)" },
+    ],
+    resolvedWith: null,
+    gates: ["fk_orders_coupon"],
+  },
+  {
+    id: "c-channel",
+    cls: "add-vs-add",
+    severity: "clear",
+    objectLabel: "orders.channel",
+    objectId: "col_channel / col_channel_t",
+    title: "Both sides add a column named channel with a different type.",
+    ours: { author: SADIQ, detail: "varchar(24) NOT NULL DEFAULT 'web'" },
+    theirs: { author: OKAFOR, detail: "varchar(16) NULL" },
+    options: [
+      { id: "ours", kind: "ours", hint: "1", label: "Take ours — varchar(24) NOT NULL" },
+      { id: "theirs", kind: "theirs", hint: "2", label: "Take theirs — varchar(16) NULL" },
+      { id: "custom", kind: "custom", hint: "3", label: "Specify column…" },
+    ],
+    resolvedWith: null,
+    gates: [],
+  },
+];
+
+const paymentsConflicts: Card[] = [
+  {
+    id: "c-pay-amount",
+    cls: "divergent-retype",
+    severity: "clear",
+    objectLabel: "payments.amount",
+    objectId: "pay_amount",
+    title: "Both sides retype amount to a different numeric type.",
+    ours: { author: SADIQ, detail: retypeDetail({ kind: "int" }, { kind: "bigint" }) },
+    theirs: { author: OKAFOR, detail: retypeDetail({ kind: "int" }, numeric(12, 2)) },
+    options: [
+      { id: "ours", kind: "ours", hint: "1", label: `Take ours — ${sqlType({ kind: "bigint" })}` },
+      { id: "theirs", kind: "theirs", hint: "2", label: `Take theirs — ${sqlType(numeric(12, 2))}` },
+      { id: "custom", kind: "custom", hint: "3", label: "Specify target type…" },
+    ],
+    resolvedWith: null,
+    gates: [],
+  },
+];
+
+const conflicts: Conflict[] = [
+  ...withTable("orders", ordersConflicts),
+  ...withTable("payments", paymentsConflicts),
+];
+
+// ── comparison rows ────────────────────────────────────────────────────────
+
+const ordersRows: Row[] = [
+  // ── columns ──
+  {
+    objectId: "col_total",
+    objectLabel: "orders.total_cents",
+    group: "columns",
+    ours: { kind: "rename", revision: 1, detail: "", wasName: "total_cents", newName: "amount_minor" },
+    theirs: { kind: "retype", revision: 14, detail: retypeDetail({ kind: "int" }, { kind: "bigint" }) },
+    resolution: { state: "auto-merged", note: "same id, different facets — merged to amount_minor bigint" },
+    leader: { text: "rename (ours) and retype (theirs) commute on one id", tone: "ok" },
+  },
+  {
+    objectId: "col_status",
+    objectLabel: "orders.status",
+    group: "columns",
+    ours: { kind: "retype", revision: 2, detail: retypeDetail(varchar(20), varchar(32)) },
+    theirs: { kind: "retype", revision: 13, detail: retypeDetail(varchar(20), varchar(24)) },
+    resolution: { state: "conflict", conflictId: "c-status" },
+  },
+  {
+    objectId: "col_placed",
+    objectLabel: "orders.placed_at",
+    group: "columns",
+    ours: { kind: "rename", revision: 3, detail: "", wasName: "placed_at", newName: "ordered_at" },
+    theirs: null,
+    resolution: { state: "clean" },
+  },
+  {
+    objectId: "col_shipped",
+    objectLabel: "orders.shipped_at",
+    group: "columns",
+    ours: null,
+    theirs: { kind: "rename", revision: 18, detail: "", wasName: "shipped_at", newName: "dispatched_at" },
+    resolution: { state: "clean" },
+  },
+  {
+    objectId: "col_tracking",
+    objectLabel: "orders.tracking_no",
+    group: "columns",
+    ours: { kind: "rename", revision: 11, detail: "", wasName: "tracking_no", newName: "tracking_code" },
+    theirs: { kind: "rename", revision: 19, detail: "", wasName: "tracking_no", newName: "carrier_ref" },
+    resolution: { state: "conflict", conflictId: "c-tracking" },
+  },
+  {
+    objectId: "col_coupon",
+    objectLabel: "orders.coupon_code",
+    group: "columns",
+    ours: { kind: "add-fk", revision: 10, detail: "fk_orders_coupon → coupons(code)" },
+    theirs: { kind: "drop-column", revision: 16, detail: "column removed" },
+    resolution: { state: "conflict", conflictId: "c-coupon" },
+    warnings: [{ kind: "destructive", message: 'dropping column "coupon_code" is irreversible' }],
+  },
+  {
+    objectId: "col_notes",
+    objectLabel: "orders.notes",
+    group: "columns",
+    ours: { kind: "drop-column", revision: 6, detail: "column removed · no dependents" },
+    theirs: null,
+    resolution: { state: "clean" },
+    warnings: [{ kind: "destructive", message: 'dropping column "notes" is irreversible' }],
+  },
+  {
+    objectId: "col_currency",
+    objectLabel: "orders.currency",
+    group: "columns",
+    ours: { kind: "retype", revision: 8, detail: retypeDetail(varchar(3), { kind: "text" }) },
+    theirs: null,
+    resolution: { state: "clean" },
+  },
+  {
+    objectId: "col_updated",
+    objectLabel: "orders.updated_at",
+    group: "columns",
+    ours: null,
+    theirs: { kind: "drop-column", revision: 20, detail: "column removed" },
+    resolution: { state: "clean" },
+    warnings: [{ kind: "destructive", message: 'dropping column "updated_at" is irreversible' }],
+  },
+  {
+    objectId: "col_channel / col_channel_t",
+    objectLabel: "orders.channel",
+    group: "columns",
+    ours: { kind: "add-column", revision: 12, detail: "varchar(24) NOT NULL DEFAULT 'web'" },
+    theirs: { kind: "add-column", revision: 21, detail: "varchar(16) NULL" },
+    resolution: { state: "conflict", conflictId: "c-channel" },
+  },
+  {
+    objectId: "col_fulfilled",
+    objectLabel: "orders.fulfilled_at",
+    group: "columns",
+    ours: { kind: "add-column", revision: 4, detail: "timestamptz NULL" },
+    theirs: null,
+    resolution: { state: "clean" },
+  },
+  {
+    objectId: "col_refunded",
+    objectLabel: "orders.refunded_minor",
+    group: "columns",
+    ours: { kind: "add-column", revision: 5, detail: "int NULL" },
+    theirs: null,
+    resolution: { state: "clean" },
+  },
+  {
+    objectId: "col_tax",
+    objectLabel: "orders.tax_minor",
+    group: "columns",
+    ours: null,
+    theirs: { kind: "add-column", revision: 15, detail: "int NULL" },
+    resolution: { state: "clean" },
+  },
+  {
+    objectId: "col_id",
+    objectLabel: "orders.id",
+    group: "columns",
+    ours: null,
+    theirs: null,
+    resolution: { state: "clean" },
+  },
+  {
+    objectId: "col_user",
+    objectLabel: "orders.user_id",
+    group: "columns",
+    ours: null,
+    theirs: null,
+    resolution: { state: "clean" },
+  },
+
+  // ── indexes ──
+  {
+    objectId: "idx_status",
+    objectLabel: "idx_orders_status",
+    group: "indexes",
+    ours: null,
+    theirs: { kind: "change-index", revision: 17, detail: "(status) → (status, placed_at)" },
+    resolution: { state: "auto-merged", note: "rebased per △3 → (status, ordered_at)" },
+    leader: { text: "index columns held by id — the △3 rename re-points the definition", tone: "ok" },
+  },
+  {
+    objectId: "idx_ordered",
+    objectLabel: "idx_orders_ordered_at",
+    group: "indexes",
+    ours: { kind: "add-index", revision: 7, detail: "(placed_at)" },
+    theirs: null,
+    resolution: { state: "clean" },
+    leader: { text: "reference held by col_placed id → renders as (ordered_at)", tone: "ok" },
+  },
+  {
+    objectId: "uq_tracking",
+    objectLabel: "uq_orders_tracking",
+    group: "indexes",
+    ours: { kind: "add-unique", revision: 9, detail: "UNIQUE (tracking_no)" },
+    theirs: null,
+    resolution: { state: "gated", byConflictId: "c-tracking", note: "column name resolves after conflict 2" },
+  },
+
+  // ── constraints ──
+  {
+    objectId: "fk_coupon",
+    objectLabel: "fk_orders_coupon",
+    group: "constraints",
+    ours: { kind: "add-fk", revision: 10, detail: "(coupon_code) → coupons(code)" },
+    theirs: { kind: "drop-column", revision: 16, detail: "target column dropped" },
+    resolution: { state: "gated", byConflictId: "c-coupon", note: "settled by conflict 3" },
+  },
+  {
+    objectId: "fk_user",
+    objectLabel: "fk_orders_user",
+    group: "constraints",
+    ours: null,
+    theirs: null,
+    resolution: { state: "clean" },
+  },
+];
+
+const paymentsRows: Row[] = [
+  {
+    objectId: "pay_ref",
+    objectLabel: "payments.ref_code",
+    group: "columns",
+    ours: { kind: "rename", revision: 22, detail: "", wasName: "ref_code", newName: "reference" },
+    theirs: null,
+    resolution: { state: "clean" },
+  },
+  {
+    objectId: "pay_amount",
+    objectLabel: "payments.amount",
+    group: "columns",
+    ours: { kind: "retype", revision: 23, detail: retypeDetail({ kind: "int" }, { kind: "bigint" }) },
+    theirs: { kind: "retype", revision: 25, detail: retypeDetail({ kind: "int" }, numeric(12, 2)) },
+    resolution: { state: "conflict", conflictId: "c-pay-amount" },
+  },
+  {
+    objectId: "pay_captured",
+    objectLabel: "payments.captured_at",
+    group: "columns",
+    ours: { kind: "add-column", revision: 24, detail: "timestamptz NULL" },
+    theirs: null,
+    resolution: { state: "clean" },
+  },
+  {
+    objectId: "pay_note",
+    objectLabel: "payments.note",
+    group: "columns",
+    ours: null,
+    theirs: { kind: "drop-column", revision: 26, detail: "column removed" },
+    resolution: { state: "clean" },
+    warnings: [{ kind: "destructive", message: 'dropping column "note" is irreversible' }],
+  },
+  {
+    objectId: "idx_pay_created",
+    objectLabel: "idx_payments_created_at",
+    group: "indexes",
+    ours: null,
+    theirs: { kind: "add-index", revision: 27, detail: "(created_at)" },
+    resolution: { state: "clean" },
+  },
+];
+
+const rows: ComparisonRow[] = [
+  ...withTable("orders", ordersRows),
+  ...withTable("payments", paymentsRows),
+];
+
+const tableChanges: TableChange[] = [
+  { table: "refunds", revision: 28, side: "ours", kind: "create-table", detail: "" },
+];
+
 // ── the review ─────────────────────────────────────────────────────────────
 
 export const ordersReview: MergeReview = {
+  number: 1,
   source: "orders-v2-rework",
   target: "main",
   base: "main@3a91f4",
-  table: "orders",
+  tables: ["orders", "payments", "refunds"],
   openedBy: SADIQ,
   openedAt: "2026-08-29T09:44:00+05:30",
   status: "in-check",
   autoMergedCount: 2,
-  destructiveCount: 3,
+  destructiveCount: 4,
   commutativity: "pending",
   revisions,
-
-  conflicts: [
-    {
-      id: "c-status",
-      cls: "divergent-retype",
-      severity: "clear",
-      objectLabel: "orders.status",
-      objectId: "col_status",
-      title: "Both sides retype status to a different width.",
-      ours: { author: SADIQ, detail: retypeDetail(varchar(20), varchar(32)) },
-      theirs: { author: OKAFOR, detail: retypeDetail(varchar(20), varchar(24)) },
-      options: [
-        { id: "ours", kind: "ours", hint: "1", label: `Take ours — ${sqlType(varchar(32))}` },
-        { id: "theirs", kind: "theirs", hint: "2", label: `Take theirs — ${sqlType(varchar(24))}` },
-        { id: "custom", kind: "custom", hint: "3", label: "Specify target type…" },
-      ],
-      resolvedWith: null,
-      gates: [],
-    },
-    {
-      id: "c-tracking",
-      cls: "rename-vs-rename",
-      severity: "clear",
-      objectLabel: "orders.tracking_no",
-      objectId: "col_tracking",
-      title: "The same column (col_tracking) is renamed on both sides.",
-      ours: { author: SADIQ, detail: "→ tracking_code" },
-      theirs: { author: OKAFOR, detail: "→ carrier_ref" },
-      options: [
-        { id: "ours", kind: "ours", hint: "1", label: "Take ours — tracking_code" },
-        { id: "theirs", kind: "theirs", hint: "2", label: "Take theirs — carrier_ref" },
-        { id: "custom", kind: "custom", hint: "3", label: "Specify name…" },
-      ],
-      resolvedWith: null,
-      gates: ["uq_orders_tracking"],
-    },
-    {
-      id: "c-coupon",
-      cls: "drop-vs-modify",
-      severity: "subtle",
-      objectLabel: "orders.coupon_code",
-      objectId: "col_coupon",
-      title: "Ours adds a foreign key on coupon_code; theirs drops the column.",
-      ours: { author: SADIQ, detail: "add fk_orders_coupon → coupons(code)" },
-      theirs: { author: OKAFOR, detail: "drop column coupon_code" },
-      options: [
-        { id: "ours", kind: "ours", hint: "1", label: "Keep column + foreign key (ours)" },
-        { id: "theirs", kind: "theirs", hint: "2", label: "Drop column + drop foreign key (theirs)" },
-      ],
-      resolvedWith: null,
-      gates: ["fk_orders_coupon"],
-    },
-    {
-      id: "c-channel",
-      cls: "add-vs-add",
-      severity: "clear",
-      objectLabel: "orders.channel",
-      objectId: "col_channel / col_channel_t",
-      title: "Both sides add a column named channel with a different type.",
-      ours: { author: SADIQ, detail: "varchar(24) NOT NULL DEFAULT 'web'" },
-      theirs: { author: OKAFOR, detail: "varchar(16) NULL" },
-      options: [
-        { id: "ours", kind: "ours", hint: "1", label: "Take ours — varchar(24) NOT NULL" },
-        { id: "theirs", kind: "theirs", hint: "2", label: "Take theirs — varchar(16) NULL" },
-        { id: "custom", kind: "custom", hint: "3", label: "Specify column…" },
-      ],
-      resolvedWith: null,
-      gates: [],
-    },
-  ],
-
-  rows: [
-    // ── columns ──
-    {
-      objectId: "col_total",
-      objectLabel: "orders.total_cents",
-      group: "columns",
-      ours: { kind: "rename", revision: 1, detail: "", wasName: "total_cents", newName: "amount_minor" },
-      theirs: { kind: "retype", revision: 14, detail: retypeDetail({ kind: "int" }, { kind: "bigint" }) },
-      resolution: { state: "auto-merged", note: "same id, different facets — merged to amount_minor bigint" },
-      leader: { text: "rename (ours) and retype (theirs) commute on one id", tone: "ok" },
-    },
-    {
-      objectId: "col_status",
-      objectLabel: "orders.status",
-      group: "columns",
-      ours: { kind: "retype", revision: 2, detail: retypeDetail(varchar(20), varchar(32)) },
-      theirs: { kind: "retype", revision: 13, detail: retypeDetail(varchar(20), varchar(24)) },
-      resolution: { state: "conflict", conflictId: "c-status" },
-    },
-    {
-      objectId: "col_placed",
-      objectLabel: "orders.placed_at",
-      group: "columns",
-      ours: { kind: "rename", revision: 3, detail: "", wasName: "placed_at", newName: "ordered_at" },
-      theirs: null,
-      resolution: { state: "clean" },
-    },
-    {
-      objectId: "col_shipped",
-      objectLabel: "orders.shipped_at",
-      group: "columns",
-      ours: null,
-      theirs: { kind: "rename", revision: 18, detail: "", wasName: "shipped_at", newName: "dispatched_at" },
-      resolution: { state: "clean" },
-    },
-    {
-      objectId: "col_tracking",
-      objectLabel: "orders.tracking_no",
-      group: "columns",
-      ours: { kind: "rename", revision: 11, detail: "", wasName: "tracking_no", newName: "tracking_code" },
-      theirs: { kind: "rename", revision: 19, detail: "", wasName: "tracking_no", newName: "carrier_ref" },
-      resolution: { state: "conflict", conflictId: "c-tracking" },
-    },
-    {
-      objectId: "col_coupon",
-      objectLabel: "orders.coupon_code",
-      group: "columns",
-      ours: { kind: "add-fk", revision: 10, detail: "fk_orders_coupon → coupons(code)" },
-      theirs: { kind: "drop-column", revision: 16, detail: "column removed" },
-      resolution: { state: "conflict", conflictId: "c-coupon" },
-      warnings: [{ kind: "destructive", message: 'dropping column "coupon_code" is irreversible' }],
-    },
-    {
-      objectId: "col_notes",
-      objectLabel: "orders.notes",
-      group: "columns",
-      ours: { kind: "drop-column", revision: 6, detail: "column removed · no dependents" },
-      theirs: null,
-      resolution: { state: "clean" },
-      warnings: [{ kind: "destructive", message: 'dropping column "notes" is irreversible' }],
-    },
-    {
-      objectId: "col_currency",
-      objectLabel: "orders.currency",
-      group: "columns",
-      ours: { kind: "retype", revision: 8, detail: retypeDetail(varchar(3), { kind: "text" }) },
-      theirs: null,
-      resolution: { state: "clean" },
-    },
-    {
-      objectId: "col_updated",
-      objectLabel: "orders.updated_at",
-      group: "columns",
-      ours: null,
-      theirs: { kind: "drop-column", revision: 20, detail: "column removed" },
-      resolution: { state: "clean" },
-      warnings: [{ kind: "destructive", message: 'dropping column "updated_at" is irreversible' }],
-    },
-    {
-      objectId: "col_channel / col_channel_t",
-      objectLabel: "orders.channel",
-      group: "columns",
-      ours: { kind: "add-column", revision: 12, detail: "varchar(24) NOT NULL DEFAULT 'web'" },
-      theirs: { kind: "add-column", revision: 21, detail: "varchar(16) NULL" },
-      resolution: { state: "conflict", conflictId: "c-channel" },
-    },
-    {
-      objectId: "col_fulfilled",
-      objectLabel: "orders.fulfilled_at",
-      group: "columns",
-      ours: { kind: "add-column", revision: 4, detail: "timestamptz NULL" },
-      theirs: null,
-      resolution: { state: "clean" },
-    },
-    {
-      objectId: "col_refunded",
-      objectLabel: "orders.refunded_minor",
-      group: "columns",
-      ours: { kind: "add-column", revision: 5, detail: "int NULL" },
-      theirs: null,
-      resolution: { state: "clean" },
-    },
-    {
-      objectId: "col_tax",
-      objectLabel: "orders.tax_minor",
-      group: "columns",
-      ours: null,
-      theirs: { kind: "add-column", revision: 15, detail: "int NULL" },
-      resolution: { state: "clean" },
-    },
-    {
-      objectId: "col_id",
-      objectLabel: "orders.id",
-      group: "columns",
-      ours: null,
-      theirs: null,
-      resolution: { state: "clean" },
-    },
-    {
-      objectId: "col_user",
-      objectLabel: "orders.user_id",
-      group: "columns",
-      ours: null,
-      theirs: null,
-      resolution: { state: "clean" },
-    },
-
-    // ── indexes ──
-    {
-      objectId: "idx_status",
-      objectLabel: "idx_orders_status",
-      group: "indexes",
-      ours: null,
-      theirs: { kind: "change-index", revision: 17, detail: "(status) → (status, placed_at)" },
-      resolution: { state: "auto-merged", note: "rebased per △3 → (status, ordered_at)" },
-      leader: { text: "index columns held by id — the △3 rename re-points the definition", tone: "ok" },
-    },
-    {
-      objectId: "idx_ordered",
-      objectLabel: "idx_orders_ordered_at",
-      group: "indexes",
-      ours: { kind: "add-index", revision: 7, detail: "(placed_at)" },
-      theirs: null,
-      resolution: { state: "clean" },
-      leader: { text: "reference held by col_placed id → renders as (ordered_at)", tone: "ok" },
-    },
-    {
-      objectId: "uq_tracking",
-      objectLabel: "uq_orders_tracking",
-      group: "indexes",
-      ours: { kind: "add-unique", revision: 9, detail: "UNIQUE (tracking_no)" },
-      theirs: null,
-      resolution: { state: "gated", byConflictId: "c-tracking", note: "column name resolves after conflict 2" },
-    },
-
-    // ── constraints ──
-    {
-      objectId: "fk_coupon",
-      objectLabel: "fk_orders_coupon",
-      group: "constraints",
-      ours: { kind: "add-fk", revision: 10, detail: "(coupon_code) → coupons(code)" },
-      theirs: { kind: "drop-column", revision: 16, detail: "target column dropped" },
-      resolution: { state: "gated", byConflictId: "c-coupon", note: "settled by conflict 3" },
-    },
-    {
-      objectId: "fk_user",
-      objectLabel: "fk_orders_user",
-      group: "constraints",
-      ours: null,
-      theirs: null,
-      resolution: { state: "clean" },
-    },
-  ],
+  conflicts,
+  rows,
+  tableChanges,
 
   fabricationOrder: {
     transactional: true,
@@ -401,6 +556,15 @@ export const ordersReview: MergeReview = {
         side: "theirs",
         rebased: true,
       },
+      { sql: `ALTER TABLE "payments" RENAME COLUMN "ref_code" TO "reference";`, revision: 22, side: "ours" },
+      { sql: `ALTER TABLE "payments" ADD COLUMN "captured_at" timestamptz NULL;`, revision: 24, side: "ours" },
+      { sql: `ALTER TABLE "payments" DROP COLUMN "note";`, revision: 26, side: "theirs", destructive: true },
+      { sql: `CREATE INDEX "idx_payments_created_at" ON "payments" ("created_at");`, revision: 27, side: "theirs" },
+      {
+        sql: `CREATE TABLE "refunds" (\n  "id" uuid NOT NULL,\n  "payment_id" uuid NOT NULL,\n  "amount_minor" bigint NOT NULL\n);`,
+        revision: 28,
+        side: "ours",
+      },
     ],
     blocked: [
       { conflictId: "c-status", reason: `ALTER COLUMN "status" TYPE … — conflict 1, divergent retype` },
@@ -410,6 +574,7 @@ export const ordersReview: MergeReview = {
       },
       { conflictId: "c-coupon", reason: `coupon_code + fk_orders_coupon — conflict 3, drop vs modify` },
       { conflictId: "c-channel", reason: `ADD COLUMN "channel" … — conflict 4, add vs add` },
+      { conflictId: "c-pay-amount", reason: `ALTER COLUMN "amount" TYPE … — divergent retype on payments.amount` },
     ],
   },
 };

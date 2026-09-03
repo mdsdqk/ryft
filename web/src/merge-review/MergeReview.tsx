@@ -33,7 +33,7 @@ function choiceFor(optionId: string, type?: ColumnType): "ours" | "theirs" | "ty
   return null;
 }
 
-export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId?: string }) {
+export function MergeReview({ base, mergeNumber }: { base: MergeReviewModel; mergeNumber?: number }) {
   // the last server-backed review; `base` is the route's fetch, mutations
   // replace this immediately so Zone D's DDL updates without a full remount
   const [live, setLive] = useState(base);
@@ -90,12 +90,12 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
   const released = isTerminal(review.status);
   // "Close request" is offered on every live request — queued, under review, or
   // held — and never on one that already merged or closed.
-  const canClose = Boolean(mergeId) && !isTerminal(live.status);
+  const canClose = Boolean(mergeNumber) && !isTerminal(live.status);
   // Release is gated on the *server* review, not the optimistic overlay — a
   // local pick that hasn't landed yet would 409 the merge transaction. Only the
   // MR at the front of the queue is mergeable: `fromResponse` maps `open`/`held`
   // → "in-check", `queued` → "received", `merged` → "released".
-  const canRelease = Boolean(mergeId) && live.status === "in-check" && isMergeable(live);
+  const canRelease = Boolean(mergeNumber) && live.status === "in-check" && isMergeable(live);
 
   const activeConflictId = useMemo(() => {
     const picked = review.conflicts.find((c) => c.id === selectedConflictId);
@@ -124,9 +124,9 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
         document.querySelector<HTMLElement>(".mr-queue__list")?.focus(),
       );
 
-      const choice = mergeId ? choiceFor(optionId, type) : null;
-      if (!choice || !mergeId) return;
-      source.postResolution(mergeId, conflictId, choice, type).then(adopt, () => {
+      const choice = mergeNumber ? choiceFor(optionId, type) : null;
+      if (!choice || !mergeNumber) return;
+      source.postResolution(mergeNumber, conflictId, choice, type).then(adopt, () => {
         setResolutions((prev) => {
           const next = { ...prev };
           delete next[conflictId];
@@ -134,7 +134,7 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
         });
       });
     },
-    [adopt, mergeId, released],
+    [adopt, mergeNumber, released],
   );
 
   const reopen = useCallback(
@@ -148,26 +148,26 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
       setSelectedConflictId(conflictId);
       setPickingTypeFor(null);
 
-      if (!mergeId) return;
-      source.deleteResolution(mergeId, conflictId).then(adopt, () => {
+      if (!mergeNumber) return;
+      source.deleteResolution(mergeNumber, conflictId).then(adopt, () => {
         /* best-effort — the next full reload reconciles either way */
       });
     },
-    [adopt, mergeId, released],
+    [adopt, mergeNumber, released],
   );
 
   const release = useCallback(async () => {
-    if (!mergeId || releasing) return;
+    if (!mergeNumber || releasing) return;
     setReleasing(true);
     setReleaseError(null);
     try {
-      await source.mergeMergeRequest(mergeId);
-      adopt(await source.getMergeReview(mergeId));
+      await source.mergeMergeRequest(mergeNumber);
+      adopt(await source.getMergeReview(mergeNumber));
     } catch (err) {
       if (err instanceof MergeRevalidationError) {
         setReleaseError(err.message);
         try {
-          adopt(await source.getMergeReview(mergeId));
+          adopt(await source.getMergeReview(mergeNumber));
         } catch {
           /* the error line is enough */
         }
@@ -177,21 +177,21 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
     } finally {
       setReleasing(false);
     }
-  }, [adopt, mergeId, releasing]);
+  }, [adopt, mergeNumber, releasing]);
 
   const close = useCallback(async () => {
-    if (!mergeId || closing) return;
+    if (!mergeNumber || closing) return;
     setClosing(true);
     setReleaseError(null);
     try {
-      await source.closeMergeRequest(mergeId);
-      adopt(await source.getMergeReview(mergeId));
+      await source.closeMergeRequest(mergeNumber);
+      adopt(await source.getMergeReview(mergeNumber));
     } catch (err) {
       setReleaseError(err instanceof Error ? err.message : "The merge request could not be closed.");
     } finally {
       setClosing(false);
     }
-  }, [adopt, closing, mergeId]);
+  }, [adopt, closing, mergeNumber]);
 
   const move = useCallback(
     (delta: number) => {
@@ -265,12 +265,19 @@ export function MergeReview({ base, mergeId }: { base: MergeReviewModel; mergeId
     <article className="mr-sheet">
       <header className="mr-titlestrip">
         <div className="mr-titlestrip__id">
-          <h1 className="mr-titlestrip__h1">{review.table} — schema merge</h1>
+          <h1 className="mr-titlestrip__h1">
+            schema merge
+          </h1>
           <p className="mr-titlestrip__path">
+            <span className="mr-titlestrip__no">#{review.number}</span>{" "}
             <b className="mr-o">{review.source}</b> → <b className="mr-t">{review.target}</b> · common
-            base <code>{review.base}</code>
+            base <code>{review.base}</code> · {review.tables.length === 1
+              ? review.tables[0]
+              : review.tables.length > 1
+                ? `${review.tables.length} tables`
+                : review.source}{" "} modified
           </p>
-          {!mergeId && (
+          {!mergeNumber && (
             <p className="mr-titlestrip__demo">
               Demonstration review — a worked sample, not this merge request's own data
             </p>

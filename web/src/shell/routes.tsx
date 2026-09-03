@@ -45,7 +45,7 @@ export function AppRoutes() {
       <Route path="/merges" element={<Merges />} />
       <Route path="/branch/:name" element={<BranchWorkspace />} />
       <Route path="/merge" element={<MergeReviewRoute />} />
-      <Route path="/merge/:id" element={<MergeReviewRoute />} />
+      <Route path="/merge/:number" element={<MergeReviewRoute />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -16,8 +16,8 @@ const clone = <T>(v: T): T => structuredClone(v);
 
 export class MergeRequestNotFoundError extends Error {
   override name = "MergeRequestNotFoundError";
-  constructor(id: string) {
-    super(`No merge request "${id}".`);
+  constructor(number: number) {
+    super(`No merge request #${number}.`);
   }
 }
 
@@ -40,7 +40,7 @@ export class MergeRevalidationError extends Error {
  */
 let open: MergeSummary[] = [
   {
-    id: "2",
+    number: 2,
     source: "drop-legacy-tags",
     target: "main",
     author: "mara",
@@ -51,7 +51,7 @@ let open: MergeSummary[] = [
     conflicts: 0,
   },
   {
-    id: "1",
+    number: 1,
     source: "contact-fields",
     target: "main",
     author: "grace",
@@ -62,7 +62,7 @@ let open: MergeSummary[] = [
     conflicts: 1,
   },
   {
-    id: "3",
+    number: 3,
     source: "post-metrics",
     target: "main",
     author: "ravi",
@@ -80,7 +80,7 @@ let open: MergeSummary[] = [
  */
 let closed: MergeSummary[] = [
   {
-    id: "seed-mr",
+    number: 5,
     source: "contact-fields",
     target: "main",
     author: "grace",
@@ -92,7 +92,7 @@ let closed: MergeSummary[] = [
     mergedOn: "2026-02-06",
   },
   {
-    id: "0",
+    number: 4,
     source: "index-experiment",
     target: "main",
     author: "ravi",
@@ -106,13 +106,13 @@ let closed: MergeSummary[] = [
 ];
 
 function byQueue(a: MergeSummary, b: MergeSummary): number {
-  return a.openedOn.localeCompare(b.openedOn) || a.id.localeCompare(b.id);
+  return a.openedOn.localeCompare(b.openedOn) || a.number - b.number;
 }
 
 /** Oldest-first. The `/merges` list and the dashboard preview share this order. */
 export function listOpen(): MergeSummary[] {
   return clone(open)
-    .filter((m) => m.id.trim() !== "" && m.source.trim() !== "")
+    .filter((m) => m.source.trim() !== "")
     .sort(byQueue);
 }
 
@@ -120,7 +120,7 @@ export function listOpen(): MergeSummary[] {
 export function listClosed(): MergeSummary[] {
   const finishedOn = (m: MergeSummary) => m.mergedOn ?? m.closedOn ?? "";
   return clone(closed).sort(
-    (a, b) => finishedOn(b).localeCompare(finishedOn(a)) || b.id.localeCompare(a.id),
+    (a, b) => finishedOn(b).localeCompare(finishedOn(a)) || b.number - a.number,
   );
 }
 
@@ -129,13 +129,13 @@ export function listClosed(): MergeSummary[] {
  * and every row behind it moves up one place — the fixture's stand-in for the
  * API promoting the next queued request.
  */
-export function closeById(id: string): void {
-  const found = open.find((m) => m.id === id);
+export function closeById(number: number): void {
+  const found = open.find((m) => m.number === number);
   if (!found) {
-    if (closed.some((m) => m.id === id)) return; // closing twice is a no-op
-    throw new MergeRequestNotFoundError(id);
+    if (closed.some((m) => m.number === number)) return; // closing twice is a no-op
+    throw new MergeRequestNotFoundError(number);
   }
-  open = open.filter((m) => m.id !== id).map((m, i) => ({ ...m, position: i + 1 }));
+  open = open.filter((m) => m.number !== number).map((m, i) => ({ ...m, position: i + 1 }));
   closed = [
     ...closed,
     { ...found, position: 0, status: "closed", conflicts: 0, closedOn: todayIso() },
@@ -144,11 +144,11 @@ export function closeById(id: string): void {
 }
 
 /** Has this request been withdrawn? The merge-review fixture reads the same store. */
-export function isClosed(id: string): boolean {
-  return closed.some((m) => m.id === id);
+export function isClosed(number: number): boolean {
+  return closed.some((m) => m.number === number);
 }
 
-let nextId = 4;
+let nextNumber = 6;
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
 /**
@@ -157,11 +157,11 @@ const todayIso = (): string => new Date().toISOString().slice(0, 10);
  * trip the API's `409`. `status` is `clean` when the queue is empty of active
  * requests, else `queued` (ADR 0004 §3).
  */
-export function createFor(source: string, operations: number): { id: string } {
+export function createFor(source: string, operations: number): { number: number } {
   const existing = open.find((m) => m.source === source);
-  if (existing) return { id: existing.id };
+  if (existing) return { number: existing.number };
   const created: MergeSummary = {
-    id: String(nextId++),
+    number: nextNumber++,
     source,
     target: "main",
     author: "grace",
@@ -173,7 +173,7 @@ export function createFor(source: string, operations: number): { id: string } {
   };
   open = [...open, created];
   invalidateData();
-  return { id: created.id };
+  return { number: created.number };
 }
 
 /** StatusPill tone: colour never carries the state alone — the label does. */

@@ -136,6 +136,10 @@
   color: var(--ink);
   overflow-wrap: anywhere;
 }
+.shl-rail__open-no {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
 
 @media (hover: hover) {
   .shl-rail__nav a:not([aria-current="page"]):hover,

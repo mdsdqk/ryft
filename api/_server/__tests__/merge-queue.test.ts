@@ -27,8 +27,8 @@ const retype = (n: number): Operation => ({
 beforeEach(async () => {
   app = createApp(await freshDb());
   await app.request("/api/workspace/reset", { method: "POST" });
-  const list = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ id: string }>;
-  if (list[0]) await app.request(`/api/merge-requests/${list[0].id}`, { method: "DELETE", headers: grace });
+  const list = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ number: number }>;
+  if (list[0]) await app.request(`/api/merge-requests/${list[0].number}`, { method: "DELETE", headers: grace });
 });
 
 const branch = (name: string) =>
@@ -37,9 +37,9 @@ const apply = (name: string, ops: Operation[]) =>
   app.request(`/api/branches/${name}/operations`, { method: "POST", headers: grace, body: JSON.stringify({ ops }) });
 const openMr = async (source: string) =>
   j(await app.request("/api/merge-requests", { method: "POST", headers: grace, body: JSON.stringify({ source }) }));
-const getMr = async (id: string) => j(await app.request(`/api/merge-requests/${id}`, { headers: grace }));
-const mergeMr = (id: string) => app.request(`/api/merge-requests/${id}/merge`, { method: "POST", headers: grace });
-const abandon = (id: string) => app.request(`/api/merge-requests/${id}`, { method: "DELETE", headers: grace });
+const getMr = async (id: number) => j(await app.request(`/api/merge-requests/${id}`, { headers: grace }));
+const mergeMr = (id: number) => app.request(`/api/merge-requests/${id}/merge`, { method: "POST", headers: grace });
+const abandon = (id: number) => app.request(`/api/merge-requests/${id}`, { method: "DELETE", headers: grace });
 
 describe("the queue", () => {
   it("the second MR queues behind the first; queue framing is real", async () => {
@@ -48,8 +48,8 @@ describe("the queue", () => {
     const a = await openMr("a");
     const b = await openMr("b");
 
-    expect((await getMr(a.id as string)).queue).toMatchObject({ status: "open", position: 1, ahead: 0 });
-    expect((await getMr(b.id as string)).queue).toMatchObject({ status: "queued", position: 2, ahead: 1, behind: 0 });
+    expect((await getMr(a.number as number)).queue).toMatchObject({ status: "open", position: 1, ahead: 0 });
+    expect((await getMr(b.number as number)).queue).toMatchObject({ status: "queued", position: 2, ahead: 1, behind: 0 });
 
     const list = (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{
       source: string;
@@ -68,9 +68,9 @@ describe("the queue", () => {
     const a = await openMr("a");
     const b = await openMr("b");
 
-    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+    expect((await j(await mergeMr(a.number as number))).status).toBe("merged");
 
-    const bv = await getMr(b.id as string);
+    const bv = await getMr(b.number as number);
     expect(bv.queue).toMatchObject({ status: "open", position: 1 });
     expect(bv.stale).toBe(false); // its GET refreshed the triple to live main
   });
@@ -81,8 +81,8 @@ describe("the queue", () => {
     const a = await openMr("a");
     const b = await openMr("b");
 
-    await abandon(a.id as string);
-    expect((await getMr(b.id as string)).queue).toMatchObject({ status: "open", position: 1 });
+    await abandon(a.number as number);
+    expect((await getMr(b.number as number)).queue).toMatchObject({ status: "open", position: 1 });
   });
 
   it("a queued MR cannot be merged or resolved", async () => {
@@ -91,11 +91,11 @@ describe("the queue", () => {
     await openMr("a");
     const b = await openMr("b");
 
-    const m = await mergeMr(b.id as string);
+    const m = await mergeMr(b.number as number);
     expect(m.status).toBe(409);
     expect((await j(m)).error).toBe("not-front");
 
-    const res = await app.request(`/api/merge-requests/${b.id as string}/resolutions`, {
+    const res = await app.request(`/api/merge-requests/${b.number as number}/resolutions`, {
       method: "POST",
       headers: grace,
       body: JSON.stringify({ conflictId: "x", choice: "ours" }),
@@ -118,32 +118,32 @@ describe("the queue", () => {
 });
 
 describe("soft-close (ADR 0012 §3)", () => {
-  const close = (id: string) => app.request(`/api/merge-requests/${id}/close`, { method: "POST", headers: grace });
+  const close = (id: number) => app.request(`/api/merge-requests/${id}/close`, { method: "POST", headers: grace });
   const closedList = async () =>
     (await j(await app.request("/api/merge-requests?state=closed", { headers: grace }))) as unknown as Array<{
-      id: string;
+      number: number;
       source: string;
       status: string;
       closedOn?: string;
     }>;
   const openList = async () =>
-    (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ id: string; source: string }>;
+    (await j(await app.request("/api/merge-requests", { headers: grace }))) as unknown as Array<{ number: number; source: string }>;
 
   it("keeps the row, drops it out of the queue, and lists it under ?state=closed", async () => {
     await branch("a");
     const a = await openMr("a");
 
-    const body = await j(await close(a.id as string));
+    const body = await j(await close(a.number as number));
     expect((body.queue as { status: string; position: number }).status).toBe("closed");
 
     expect(await openList()).toEqual([]);
     const closed = await closedList();
     expect(closed).toEqual([
-      expect.objectContaining({ id: a.id, source: "a", status: "closed", closedOn: expect.any(String) }),
+      expect.objectContaining({ number: a.number, source: "a", status: "closed", closedOn: expect.any(String) }),
     ]);
 
     // the row is still readable in full — a closed request is a record, not a hole
-    const reGet = await getMr(a.id as string);
+    const reGet = await getMr(a.number as number);
     expect((reGet.queue as { status: string }).status).toBe("closed");
   });
 
@@ -153,8 +153,8 @@ describe("soft-close (ADR 0012 §3)", () => {
     const a = await openMr("a");
     const b = await openMr("b");
 
-    await close(a.id as string);
-    expect((await getMr(b.id as string)).queue).toMatchObject({ status: "open", position: 1 });
+    await close(a.number as number);
+    expect((await getMr(b.number as number)).queue).toMatchObject({ status: "open", position: 1 });
     expect((await openList()).map((m) => m.source)).toEqual(["b"]);
   });
 
@@ -164,14 +164,14 @@ describe("soft-close (ADR 0012 §3)", () => {
     const a = await openMr("a");
     const b = await openMr("b");
 
-    await close(b.id as string);
-    expect((await getMr(a.id as string)).queue).toMatchObject({ status: "open", position: 1, behind: 0 });
+    await close(b.number as number);
+    expect((await getMr(a.number as number)).queue).toMatchObject({ status: "open", position: 1, behind: 0 });
   });
 
   it("frees the source branch to open a new request", async () => {
     await branch("a");
     const first = await openMr("a");
-    await close(first.id as string);
+    await close(first.number as number);
 
     const second = await app.request("/api/merge-requests", {
       method: "POST",
@@ -179,19 +179,19 @@ describe("soft-close (ADR 0012 §3)", () => {
       body: JSON.stringify({ source: "a" }),
     });
     expect(second.status).toBe(201);
-    expect((await j(second)).id).not.toBe(first.id);
+    expect((await j(second)).number).not.toBe(first.number);
   });
 
   it("a closed request cannot be merged or resolved", async () => {
     await branch("a");
     const a = await openMr("a");
-    await close(a.id as string);
+    await close(a.number as number);
 
-    const m = await mergeMr(a.id as string);
+    const m = await mergeMr(a.number as number);
     expect(m.status).toBe(409);
     expect((await j(m)).error).toBe("not-front");
 
-    const res = await app.request(`/api/merge-requests/${a.id as string}/resolutions`, {
+    const res = await app.request(`/api/merge-requests/${a.number as number}/resolutions`, {
       method: "POST",
       headers: grace,
       body: JSON.stringify({ conflictId: "x", choice: "ours" }),
@@ -203,26 +203,26 @@ describe("soft-close (ADR 0012 §3)", () => {
     await branch("a");
     await branch("b");
     const a = await openMr("a");
-    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+    expect((await j(await mergeMr(a.number as number))).status).toBe("merged");
 
-    const refused = await close(a.id as string);
+    const refused = await close(a.number as number);
     expect(refused.status).toBe(409);
     expect((await j(refused)).error).toBe("already-merged");
 
     const b = await openMr("b");
-    expect((await close(b.id as string)).status).toBe(200);
-    expect((await close(b.id as string)).status).toBe(200); // closing twice is a no-op
+    expect((await close(b.number as number)).status).toBe(200);
+    expect((await close(b.number as number)).status).toBe(200); // closing twice is a no-op
     // the Closed list now carries both terminal states; `b` appears once
     const terminal = await closedList();
-    expect(terminal.filter((m) => m.id === b.id)).toHaveLength(1);
+    expect(terminal.filter((m) => m.number === b.number)).toHaveLength(1);
     expect(terminal.map((m) => [m.source, m.status]).sort()).toEqual([
       ["a", "merged"],
       ["b", "closed"],
     ]);
   });
 
-  it("404s on an unknown id", async () => {
-    const r = await close("00000000-0000-0000-0000-000000000000");
+  it("404s on an unknown number", async () => {
+    const r = await close(99999);
     expect(r.status).toBe(404);
   });
 });
@@ -237,28 +237,28 @@ describe("staleness", () => {
     const b = await openMr("b");
     const c = await openMr("c");
 
-    expect((await getMr(c.id as string)).stale).toBe(false);
+    expect((await getMr(c.number as number)).stale).toBe(false);
 
-    expect((await j(await mergeMr(a.id as string))).status).toBe("merged"); // main.head_version 0 → 1, b promoted
+    expect((await j(await mergeMr(a.number as number))).status).toBe("merged"); // main.head_version 0 → 1, b promoted
 
-    const cv = await getMr(c.id as string);
+    const cv = await getMr(c.number as number);
     expect(cv.queue).toMatchObject({ status: "queued", position: 2 });
     expect(cv.stale).toBe(true);
-    expect((await getMr(b.id as string)).stale).toBe(false);
+    expect((await getMr(b.number as number)).stale).toBe(false);
   });
 });
 
 describe("the kick-back", () => {
   /** a → main lands a retype of users.email; b (behind it) retyped the same column. */
-  async function landAheadOf(): Promise<{ bId: string }> {
+  async function landAheadOf(): Promise<{ bId: number }> {
     await branch("a");
     await branch("b");
     await apply("a", [retype(500)]);
     await apply("b", [retype(1000)]);
     const a = await openMr("a");
     const b = await openMr("b");
-    expect((await j(await mergeMr(a.id as string))).status).toBe("merged"); // b promoted, triple refreshes on next GET
-    return { bId: b.id as string };
+    expect((await j(await mergeMr(a.number as number))).status).toBe("merged"); // b promoted, triple refreshes on next GET
+    return { bId: b.number as number };
   }
 
   it("a non-clean re-run at the front returns the kick-back body and holds", async () => {
@@ -337,10 +337,10 @@ describe("structural validation on the merge path (ADR 0008 §5)", () => {
     const a = await openMr("a");
     const b = await openMr("b");
 
-    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
-    await getMr(b.id as string); // promote + refresh b's triple to live main
+    expect((await j(await mergeMr(a.number as number))).status).toBe("merged");
+    await getMr(b.number as number); // promote + refresh b's triple to live main
 
-    const m = await mergeMr(b.id as string);
+    const m = await mergeMr(b.number as number);
     expect(m.status).toBe(409);
     const err = await j(m);
     expect(err.error).toBe("structural-validation-failed");
@@ -365,7 +365,7 @@ describe("a merge deletes its source branch (ADR 0013 §6)", () => {
     await branch("a");
     await apply("a", [retype(64)]);
     const a = await openMr("a");
-    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+    expect((await j(await mergeMr(a.number as number))).status).toBe("merged");
 
     // the branch is gone from `branches` — every read and edit path 404s
     expect((await app.request("/api/branches/a", { headers: grace })).status).toBe(404);
@@ -381,23 +381,23 @@ describe("a merge deletes its source branch (ADR 0013 §6)", () => {
     expect(deleted.some((d) => d.name === "a" && d.author === "Grace Okoro")).toBe(true);
 
     // the merged MR still resolves though its source branch no longer exists
-    const mr = await getMr(a.id as string);
+    const mr = await getMr(a.number as number);
     expect(mr.source).toBe("a");
     expect((mr.queue as { status: string }).status).toBe("merged");
 
     // …and it shows in the Closed list, tagged `merged`, not `closed`
     const terminal = (await j(
       await app.request("/api/merge-requests?state=closed", { headers: grace }),
-    )) as unknown as Array<{ id: string; source: string; status: string; mergedOn?: string }>;
+    )) as unknown as Array<{ number: number; source: string; status: string; mergedOn?: string }>;
     expect(terminal).toEqual([
-      expect.objectContaining({ id: a.id, source: "a", status: "merged", mergedOn: expect.any(String) }),
+      expect.objectContaining({ number: a.number, source: "a", status: "merged", mergedOn: expect.any(String) }),
     ]);
   });
 
   it("frees the branch name for a fresh cut", async () => {
     await branch("a");
     const a = await openMr("a");
-    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+    expect((await j(await mergeMr(a.number as number))).status).toBe("merged");
 
     expect((await branch("a")).status).toBe(201);
     expect((await app.request("/api/branches/a", { headers: grace })).status).toBe(200);
@@ -408,9 +408,9 @@ describe("a merge deletes its source branch (ADR 0013 §6)", () => {
     await branch("b");
     const a = await openMr("a");
     const b = await openMr("b");
-    expect((await j(await mergeMr(a.id as string))).status).toBe("merged");
+    expect((await j(await mergeMr(a.number as number))).status).toBe("merged");
 
-    expect((await getMr(b.id as string)).queue).toMatchObject({ status: "open", position: 1, ahead: 0 });
+    expect((await getMr(b.number as number)).queue).toMatchObject({ status: "open", position: 1, ahead: 0 });
     expect((await app.request("/api/branches/a", { headers: grace })).status).toBe(404);
     expect((await app.request("/api/branches/b", { headers: grace })).status).toBe(200);
   });

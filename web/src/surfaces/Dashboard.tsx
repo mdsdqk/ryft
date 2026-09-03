@@ -289,8 +289,8 @@ export function Dashboard() {
               ) : (
                 merges.map((m) => (
                   <Row
-                    key={m.id}
-                    to={`/merge/${encodeURIComponent(m.id)}`}
+                    key={m.number}
+                    to={`/merge/${m.number}`}
                     primary={arrowLabel(m)}
                     meta={mergeMeta(m)}
                     trailing={

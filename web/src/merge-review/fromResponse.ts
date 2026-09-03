@@ -5,9 +5,10 @@
  * from literals now." This is that transform.
  *
  * Scope (pragmatic & honest, not full fixture parity):
- *  - `revisions`/`rows` are scoped to one "primary" table — the one most ops
- *    touch — matching the model's single-table screen (`MergeReview.table`).
- *    An op on a different table (rare) is dropped rather than mis-rendered.
+ *  - A merge request is whole-schema, so `revisions`/`rows` span every table the
+ *    two deltas touch. Each carries its `table`; Zone A renders one section per
+ *    entry in `MergeReview.tables` (busiest first). `createTable`/`dropTable`/
+ *    `renameTable` become `tableChanges` banners, not object rows.
  *  - No per-op author/timestamp exists server-side; every `RevisionRef` carries
  *    `res.author`/`res.openedAt`. `theirs`-side revisions have no attributable
  *    author (they landed via whatever merged into `target` before this MR was
@@ -25,7 +26,6 @@
 
 import type { SchemaDocument, ColumnType } from "@engine/schema.js";
 import type { Operation } from "@engine/operations.js";
-import { diffSnapshots } from "@engine/diff.js";
 import { serialize } from "@engine/emit.js";
 import type { Migration } from "@engine/emit.js";
 import type {
@@ -64,11 +64,12 @@ import type {
   RowResolution,
   RowWarning,
   SideChange,
+  TableChange,
 } from "./model.ts";
 
 /** The `GET /merge-requests/:id` (and every resolution-mutation) response body. */
 export type MergeRequestResponseBody = {
-  id: string;
+  number: number;
   source: string;
   target: string;
   author: string;
@@ -136,6 +137,22 @@ function buildNameOf(...docs: SchemaDocument[]): NameOf {
     }
   }
   return (id) => names.get(id) ?? id;
+}
+
+/** objectId (column / index / unique / fk / pk / table) → owning table's name. */
+function buildTableOf(...docs: SchemaDocument[]): (id: string) => string {
+  const owner = new Map<string, string>();
+  for (const doc of docs) {
+    for (const t of doc.tables) {
+      owner.set(t.id, t.name);
+      for (const c of t.columns) owner.set(c.id, t.name);
+      for (const ix of t.indexes) owner.set(ix.id, t.name);
+      for (const u of t.uniques) owner.set(u.id, t.name);
+      for (const fk of t.foreignKeys) owner.set(fk.id, t.name);
+      if (t.primaryKey) owner.set(t.primaryKey.id, t.name);
+    }
+  }
+  return (id) => owner.get(id) ?? id;
 }
 
 // ── op → table / group / SideChange ─────────────────────────────────────
@@ -327,23 +344,24 @@ function dependentsOf(columnId: string, doc: SchemaDocument): Array<{ id: string
 
 export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeReview {
   const nameOf = buildNameOf(res.base, res.theirs, res.ours);
+  const tableOf = buildTableOf(res.base, res.theirs, res.ours);
 
-  const allOurs = diffSnapshots(res.base, res.ours);
-  const allTheirs = diffSnapshots(res.base, res.theirs);
+  // A merge request is whole-schema, so every op on both deltas is in scope.
+  // Rows / revisions carry their table; Zone A renders one section per table,
+  // ordered by how much of the combined delta touches it (busiest first). The
+  // engine already diffed `base` against each side for the merge — take those
+  // deltas off the report rather than re-running `diffSnapshots` here.
+  const oursOps = res.report.deltaOurs;
+  const theirsOps = res.report.deltaTheirs;
 
-  // The primary table is whichever most of the combined delta touches — the
-  // screen is single-table (`MergeReview.table`); an op on any other table is
-  // dropped from `rows`/`revisions` rather than mis-rendered.
-  const tableCounts = new Map<string, number>();
-  for (const op of [...allOurs, ...allTheirs]) {
+  const tableWeight = new Map<string, number>();
+  for (const op of [...oursOps, ...theirsOps]) {
     const id = tableIdOf(op);
-    tableCounts.set(id, (tableCounts.get(id) ?? 0) + 1);
+    tableWeight.set(id, (tableWeight.get(id) ?? 0) + 1);
   }
-  const tableId =
-    [...tableCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? res.theirs.tables[0]?.id ?? res.ours.tables[0]?.id ?? "";
-
-  const oursOps = allOurs.filter((op) => tableIdOf(op) === tableId);
-  const theirsOps = allTheirs.filter((op) => tableIdOf(op) === tableId);
+  const tables = [...tableWeight.entries()]
+    .sort((a, b) => b[1] - a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])))
+    .map(([id]) => nameOf(id));
 
   // Destructive / risk advisories (ADR 0008 §6). Each side's delta is validated
   // against the common ancestor; a row shows the union of both sides' warnings.
@@ -368,13 +386,37 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
   let n = 0;
   for (const op of oursOps) {
     n += 1;
-    revisions.push({ n, side: "ours", author: oursParty, at: res.openedAt, op, summary: summarizeOp(op, nameOf) });
+    revisions.push({ n, side: "ours", author: oursParty, at: res.openedAt, op, table: nameOf(tableIdOf(op)), summary: summarizeOp(op, nameOf) });
   }
   for (const op of theirsOps) {
     n += 1;
-    revisions.push({ n, side: "theirs", author: theirsParty, at: res.openedAt, op, summary: summarizeOp(op, nameOf) });
+    revisions.push({ n, side: "theirs", author: theirsParty, at: res.openedAt, op, table: nameOf(tableIdOf(op)), summary: summarizeOp(op, nameOf) });
   }
   const revisionOf = new Map(revisions.map((r) => [r.op, r.n]));
+
+  // ── table-level changes (create / drop / rename) — a banner at the head of
+  //    that table's section, not an object row (`TableChange`) ──
+  const TABLE_OP_KIND = {
+    createTable: "create-table",
+    dropTable: "drop-table",
+    renameTable: "rename-table",
+  } as const;
+  const tableChanges: TableChange[] = [];
+  for (const [ops, side] of [
+    [oursOps, "ours"],
+    [theirsOps, "theirs"],
+  ] as const) {
+    for (const op of ops) {
+      if (op.type !== "createTable" && op.type !== "dropTable" && op.type !== "renameTable") continue;
+      tableChanges.push({
+        table: nameOf(tableIdOf(op)),
+        revision: revisionOf.get(op)!,
+        side,
+        kind: TABLE_OP_KIND[op.type],
+        detail: op.type === "renameTable" ? `${op.from} → ${op.to}` : "",
+      });
+    }
+  }
 
   // ── conflict lookups (report.conflicts already excludes anything resolved —
   //    resolveMerge on the server re-runs threeWayMerge with the stored
@@ -420,13 +462,13 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
   }
 
   // ── rows ──
-  type Bucket = { group: ObjectGroup; ours?: Operation; theirs?: Operation };
+  type Bucket = { group: ObjectGroup; tableId: string; ours?: Operation; theirs?: Operation };
   const buckets = new Map<string, Bucket>();
   for (const op of oursOps) {
     const group = objectGroupOf(op);
     if (!group) continue;
     const id = changedObjectId(op);
-    const b = buckets.get(id) ?? { group };
+    const b = buckets.get(id) ?? { group, tableId: tableIdOf(op) };
     b.ours = op;
     buckets.set(id, b);
   }
@@ -434,7 +476,7 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
     const group = objectGroupOf(op);
     if (!group) continue;
     const id = changedObjectId(op);
-    const b = buckets.get(id) ?? { group };
+    const b = buckets.get(id) ?? { group, tableId: tableIdOf(op) };
     b.theirs = op;
     buckets.set(id, b);
   }
@@ -466,7 +508,8 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
 
     return {
       objectId,
-      objectLabel: `${nameOf(tableId)}.${nameOf(objectId)}`,
+      objectLabel: `${nameOf(b.tableId)}.${nameOf(objectId)}`,
+      table: nameOf(b.tableId),
       group: b.group,
       ours,
       theirs,
@@ -484,6 +527,7 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
       id: c.id,
       cls,
       severity: c.severity,
+      table: c.object.table ?? tableOf(c.object.id),
       objectId: c.object.id,
       objectLabel,
       title: conflictTitle(cls, objectLabel),
@@ -503,6 +547,7 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
       id: a.conflictId,
       cls,
       severity: engineCls === "dependency-conflict" ? "subtle" : "clear",
+      table: tableOf(objectIds[0]!),
       objectId: objectIds[0]!,
       objectLabel,
       title: conflictTitle(cls, objectLabel),
@@ -551,10 +596,11 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
   ).length;
 
   return {
+    number: res.number,
     source: res.source,
     target: res.target,
     base: res.target,
-    table: nameOf(tableId),
+    tables,
     openedBy: oursParty,
     openedAt: res.openedAt,
     status,
@@ -567,6 +613,7 @@ export function mergeReviewFromResponse(res: MergeRequestResponseBody): MergeRev
     rows,
     conflicts,
     revisions,
+    tableChanges,
     autoMergedCount,
     destructiveCount,
     fabricationOrder: { statements, blocked, transactional: true },

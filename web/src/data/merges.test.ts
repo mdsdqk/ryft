@@ -8,7 +8,7 @@ import { mergeStatusLabel, mergeStatusTone } from "./merges.ts";
 import type { MergeSummary } from "./types.ts";
 
 const row = (over: Partial<MergeSummary>): MergeSummary => ({
-  id: "1",
+  number: 1,
   source: "contact-fields",
   target: "main",
   author: "grace",
