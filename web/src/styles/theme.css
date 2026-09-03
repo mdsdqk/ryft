@@ -46,6 +46,8 @@
 
   --ff-display: "Saira Condensed", "Arial Narrow", system-ui, sans-serif;
   --ff-mono: "Spline Sans Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  /* the front-door nameplate only — the marketing wordmark on the signed-out gate */
+  --ff-mark: "Fraunces", "Iowan Old Style", Georgia, "Times New Roman", serif;
 
   --step: 4px;
 

@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ryft — sign in (draw-in)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Saira+Condensed:wght@600;700&family=Spline+Sans+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+:root{
+  color-scheme: light;
+  --bg:#e4ded0; --sheet:#faf7ef; --sheet-2:#f0ebdd; --panel:#fffdf7;
+  --ink:#1e1b16; --ink-soft:#4a4438; --ink-faint:#635a46;
+  --line:#c9bfa6; --line-strong:#a89a78;
+  --ours:#153a5e; --theirs:#9a3c0b;
+  --conflict:#8f1a17; --conflict-edge:#b52621;
+  --ok:#2f6a3c; --focus:#0b5cff;
+  --shadow-sheet: 0 24px 60px -34px rgba(30,27,22,.55);
+  --ff-display:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --ff-mono:"Spline Sans Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --ff-mark:"Fraunces","Georgia","Times New Roman",serif;
+  --ease-mark:cubic-bezier(.16,1,.3,1);
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#0a121d; --sheet:#0f1b2b; --sheet-2:#132539; --panel:#0c1826;
+  --ink:#e4eef8; --ink-soft:#a7bccf; --ink-faint:#8299ac;
+  --line:#284159; --line-strong:#3a5670;
+  --ours:#78c1ec; --theirs:#e2b782;
+  --conflict:#ff9385; --conflict-edge:#ff7a68;
+  --ok:#8fd6a4; --focus:#9cc8ff;
+  --shadow-sheet: 0 24px 70px -30px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#0a121d; --sheet:#0f1b2b; --sheet-2:#132539; --panel:#0c1826;
+    --ink:#e4eef8; --ink-soft:#a7bccf; --ink-faint:#8299ac;
+    --line:#284159; --line-strong:#3a5670;
+    --ours:#78c1ec; --theirs:#e2b782;
+    --conflict:#ff9385; --conflict-edge:#ff7a68;
+    --ok:#8fd6a4; --focus:#9cc8ff;
+    --shadow-sheet: 0 24px 70px -30px rgba(0,0,0,.7);
+  }
+}
+
+*,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+html{ -webkit-text-size-adjust:100%; }
+body{
+  min-height:100vh; background:var(--bg); color:var(--ink);
+  font-family:var(--ff-display); font-size:15px; line-height:1.42;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+::selection{ background:var(--ours); color:var(--sheet); }
+:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+:focus:not(:focus-visible){ outline:none; }
+*{ scrollbar-width:thin; scrollbar-color:var(--line-strong) transparent; }
+*::-webkit-scrollbar{ width:10px; height:10px; }
+*::-webkit-scrollbar-thumb{ background:var(--line-strong); border:2px solid var(--sheet); border-radius:0; }
+*::-webkit-scrollbar-track{ background:transparent; }
+button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+
+.skip-link{
+  position:absolute; inset-inline-start:-9999px; top:8px; z-index:50;
+  background:var(--ink); color:var(--sheet); padding:8px 14px;
+  font-family:var(--ff-mono); font-size:12px;
+}
+.skip-link:focus{ inset-inline-start:14px; }
+
+/* ── app bar (shared chrome, from app.css) ─────────────────────────────── */
+.app-bar{
+  position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:16px;
+  padding:10px clamp(16px,4vw,40px); background:var(--bg);
+  border-bottom:1px solid var(--line-strong);
+}
+.app-bar__brand{
+  font-family:var(--ff-display); font-weight:700; font-size:18px;
+  letter-spacing:.12em; text-transform:lowercase;
+}
+.app-bar__spacer{ flex:1; }
+.app-bar__theme{ display:flex; align-items:center; border:1px solid var(--line-strong); }
+.app-bar__theme-icon{ flex:0 0 auto; margin-inline:8px 2px; color:var(--ink-faint); }
+.app-bar__theme button{
+  padding:6px 11px; font-family:var(--ff-mono); font-size:11px;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft);
+  border-inline-end:1px solid var(--line-strong);
+}
+.app-bar__theme button:last-child{ border-inline-end:none; }
+.app-bar__theme button[aria-pressed="true"]{ background:var(--ink); color:var(--sheet); }
+@media (hover:hover){
+  .app-bar__theme button:not([aria-pressed="true"]):hover{ color:var(--ink); }
+}
+
+/* ── stage + field ────────────────────────────────────────────────────── */
+.stage{
+  position:relative;
+  min-height:calc(100vh - 47px);
+  padding:clamp(72px,15vh,184px) clamp(24px,6vw,96px) 72px;
+  display:flex;
+}
+#field{
+  position:fixed; inset:47px 0 0 0; width:100%; height:calc(100vh - 47px);
+  z-index:0; display:block; pointer-events:none;
+}
+.field-label{
+  position:fixed; z-index:1; pointer-events:none;
+  font-family:var(--ff-mono); font-size:11px; letter-spacing:.16em;
+  text-transform:lowercase;
+}
+.field-label--ours{ color:var(--ours); top:15%; left:clamp(380px,45%,820px); }
+.field-label--theirs{ color:var(--theirs); top:58%; right:12%; }
+@media (max-width:720px){ .field-label{ display:none; } }
+
+/* ── the sign-in sheet ───────────────────────────────────────────────── */
+.si{
+  position:relative; z-index:2;
+  width:min(430px,92vw);
+  align-self:flex-start;
+  background:var(--sheet); border:2px solid var(--ink);
+  box-shadow:var(--shadow-sheet);
+}
+.si::before{
+  content:""; position:absolute; inset:7px; border:1px solid var(--line-strong);
+  pointer-events:none;
+}
+.si__plate{ padding:26px 30px 20px; }
+.si__mark{
+  font-family:var(--ff-mark); font-weight:700; font-size:clamp(58px,7vw,82px);
+  line-height:.82; letter-spacing:-.022em; color:var(--ink);
+  font-optical-sizing:auto;
+}
+.si__tag{
+  font-family:var(--ff-display); font-weight:700; font-size:19px;
+  letter-spacing:.005em; color:var(--ink); margin-top:16px;
+}
+.si__body{ padding:0 30px 28px; display:flex; flex-direction:column; }
+.si__lede{
+  font-family:var(--ff-mono); font-size:12px; line-height:1.7;
+  color:var(--ink-soft); padding-bottom:18px;
+}
+.si__facts{
+  list-style:none; font-family:var(--ff-mono); font-size:12px; line-height:1.72;
+  color:var(--ink); padding:16px 0 18px; border-top:1px solid var(--line-strong);
+}
+.si__how{ padding:16px 0 18px; border-top:1px solid var(--line-strong); }
+.si__how h2{
+  font-family:var(--ff-display); font-weight:700; font-size:15px;
+  letter-spacing:.02em; color:var(--ink); margin-bottom:9px;
+}
+.si__steps{ list-style:none; display:flex; flex-direction:column; gap:5px; }
+.si__step{
+  display:grid; grid-template-columns:16px 1fr; gap:10px;
+  font-family:var(--ff-mono); font-size:12px; line-height:1.5; color:var(--ink);
+}
+.si__step b{ color:var(--ink-faint); font-weight:400; font-feature-settings:"tnum" 1; }
+.si__field{
+  display:flex; flex-direction:column; gap:7px;
+  padding:18px 0 0; border-top:1px solid var(--line-strong);
+}
+.si__label{
+  font-family:var(--ff-mono); font-size:10px; font-weight:600;
+  letter-spacing:.2em; text-transform:uppercase; color:var(--ink-soft);
+}
+.si__input{
+  width:100%; min-width:0; font-family:var(--ff-mono);
+  font-feature-settings:"tnum" 1; font-size:16px; line-height:1.2;
+  color:var(--ink); background:var(--panel);
+  border:1px solid var(--line-strong); border-radius:0;
+  padding:10px 12px; caret-color:var(--ink);
+}
+.si__input::placeholder{ color:var(--ink-faint); }
+@media (hover:hover){ .si__input:hover{ border-color:var(--ink); } }
+.si__go{
+  align-self:flex-start; margin-top:14px;
+  font-family:var(--ff-mono); font-size:12px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--sheet); background:var(--ink);
+  border:1.5px solid var(--ink); padding:10px 20px;
+}
+@media (hover:hover){ .si__go:hover{ background:var(--ink-soft); } }
+.si__note{
+  font-family:var(--ff-mono); font-size:10.5px; line-height:1.7;
+  color:var(--ink-soft); max-width:46ch;
+  margin-top:18px; padding-top:14px; border-top:1px dashed var(--line);
+}
+
+@media (max-width:480px){
+  .si__plate{ padding:20px 18px 16px; }
+  .si__body{ padding:0 18px 22px; }
+}
+@media (max-width:640px){
+  .app-bar{ flex-wrap:wrap; row-gap:10px; }
+  .app-bar__theme button{ padding:10px 13px; }
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:1ms !important; animation-iteration-count:1 !important;
+    transition-duration:90ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<!--
+  SIGN-IN MOCKUP — reproduction of docs/design/sketches/signin-comp-c-two-fronts.png
+  Motion variant: one draw-in, then settle
+  Everything else (composition, palette, type, copy) is held identical between the
+  two variants. Copy is verbatim from the pinned comp. Chrome (app bar + theme
+  switch) is the shipped shared component, unchanged.
+-->
+<a class="skip-link" href="#si">Skip to sign in</a>
+
+<header class="app-bar">
+  <span class="app-bar__brand">ryft</span>
+  <div class="app-bar__spacer"></div>
+  <div class="app-bar__theme" role="group" aria-label="Colour theme">
+    <svg class="app-bar__theme-icon" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+      <circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.3" />
+      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M13 3l-1.4 1.4M4.4 11.6L3 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+    </svg>
+    <button data-choice="light" aria-pressed="false">Light</button>
+    <button data-choice="dark" aria-pressed="false">Dark</button>
+    <button data-choice="system" aria-pressed="true">System</button>
+  </div>
+</header>
+
+<main class="stage">
+  <canvas id="field" aria-hidden="true"></canvas>
+  <span class="field-label field-label--ours">ours</span>
+  <span class="field-label field-label--theirs">theirs</span>
+
+  <article class="si" id="si">
+    <header class="si__plate">
+      <div class="si__mark">ryft</div>
+      <p class="si__tag">A schema version control system</p>
+    </header>
+    <form class="si__body" onsubmit="return false">
+      <p class="si__lede">Branch a Postgres schema, edit it in a structured editor, and merge it back into main.</p>
+
+      <ul class="si__facts">
+        <li>A rename keeps the column.</li>
+        <li>A merge is a typed report.</li>
+        <li>main is the schema of record.</li>
+      </ul>
+
+      <section class="si__how">
+        <h2>How it works</h2>
+        <ol class="si__steps">
+          <li class="si__step"><b>1</b><span>Give a username</span></li>
+          <li class="si__step"><b>2</b><span>Land in the seeded database</span></li>
+          <li class="si__step"><b>3</b><span>Create a branch, edit, open a merge request</span></li>
+        </ol>
+      </section>
+
+      <div class="si__field">
+        <label class="si__label" for="u">Username</label>
+        <input class="si__input" id="u" name="username" type="text" autocomplete="username"
+               autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="grace" />
+      </div>
+
+      <button class="si__go" type="submit">Sign in</button>
+
+      <p class="si__note">A name this workspace has seen resumes that user. A new name creates one. There is no separate sign up. No password.</p>
+    </form>
+  </article>
+</main>
+
+<script>
+(function(){
+  var MOTION = "drawin"; // "drawin" | "drift"
+  var cv = document.getElementById("field");
+  var ctx = cv.getContext("2d");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var W = 0, H = 0, DPR = 1;
+  var strands = [], NP = 84;
+  var col = { ours:"#153a5e", theirs:"#9a3c0b", line:"#a89a78" };
+  var raf = 0, animStart = 0, driftStart = 0, lastTs = 0;
+  var DRAW_MS = 2200;
+
+  function lerp(a,b,t){ return a+(b-a)*t; }
+  function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+  function smoothstep(a,b,x){ var t=clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); }
+  function easeOutCubic(t){ return 1-Math.pow(1-t,3); }
+  function frac(x){ return x-Math.floor(x); }
+  function bump(k,a,b){ // 0 at edges, 1 in the middle of [a,b]
+    if(k<=a||k>=b) return 0;
+    var t=(k-a)/(b-a); return Math.sin(t*Math.PI);
+  }
+
+  function readColors(){
+    var cs = getComputedStyle(document.documentElement);
+    col.ours = cs.getPropertyValue("--ours").trim() || col.ours;
+    col.theirs = cs.getPropertyValue("--theirs").trim() || col.theirs;
+    col.line = cs.getPropertyValue("--line-strong").trim() || col.line;
+  }
+
+  // A woven band that spans the width. Blue ("ours") strands own the upper half,
+  // oxide ("theirs") the lower; through a central turbulence zone their wavy
+  // paths swing into each other's territory and cross — that weave IS the merge.
+  var TAU = Math.PI*2;
+  var COUNT = 156;
+  var BAND_T = 0.055, BAND_B = 0.945;
+
+  function rnd(i){ return frac(Math.sin(i*127.1 + 11.3)*43758.5); }
+
+  function build(){
+    strands = [];
+    for(var i=0;i<COUNT;i++){
+      var s = i/(COUNT-1);                 // 0 = top of band, 1 = bottom
+      var fam;
+      if(s < 0.455) fam = "ours";
+      else if(s > 0.545) fam = "theirs";
+      else fam = (i % 2 === 0) ? "ours" : "theirs";
+      strands.push({
+        fam: fam, s: s,
+        y0: lerp(BAND_T, BAND_B, s) * H,
+        w1: 0.7 + 1.5*rnd(i*2+1),          // primary wavelength (cycles across width)
+        w2: 2.1 + 3.6*rnd(i*2+7),          // secondary
+        ph1: s*13 + rnd(i)*TAU + (fam==="ours"?0:1.7),
+        ph2: rnd(i*3+4)*TAU,
+        seed: (fam==="ours"?0:200) + i*1.3
+      });
+    }
+  }
+
+  // amplitude along the width: quiet at the left edge, swelling to a turbulence
+  // peak just past centre, easing but never flat toward the right.
+  function ampEnv(k){
+    var m = 0.14 + 0.94*Math.sin(Math.pow(clamp(k,0,1),0.82)*Math.PI);
+    if(k > 0.55) m = Math.max(m, 0.40);
+    return m;
+  }
+
+  function pointAt(st,k,dT){
+    var x = k*W;
+    var amp = ampEnv(k) * H * 0.042;
+    var dy = Math.sin(k*TAU*st.w1 + st.ph1 + dT*0.45) * amp
+           + Math.sin(k*TAU*st.w2 + st.ph2 + dT*0.90) * amp*0.42
+           + Math.sin(k*TAU*0.6 + st.s*3.0 + dT*0.18) * amp*0.55;
+    return [x, st.y0 + dy];
+  }
+
+  // fade strands toward the top and bottom lips of the band
+  function dens(st){
+    var e = smoothstep(0,0.12,st.s) * smoothstep(0,0.12,1-st.s);
+    return 0.10 + 0.20*e;
+  }
+
+  function guides(reveal){
+    var a = MOTION==="drift" ? 1 : clamp((reveal-0.3)*1.9, 0, 1);
+    if(a<=0) return;
+    ctx.save();
+    ctx.strokeStyle = col.line;
+    ctx.lineWidth = 1;
+    var gap = 154, r = 3, gx, gy, seed;
+    for(gx=gap*0.8; gx<W; gx+=gap){
+      for(gy=gap*0.7; gy<H; gy+=gap){
+        seed = frac(Math.sin(gx*12.9 + gy*78.2)*43758.5);
+        if(seed>0.42) continue;
+        ctx.globalAlpha = (0.26 + 0.20*seed) * a;
+        ctx.beginPath();
+        ctx.moveTo(gx-r,gy); ctx.lineTo(gx+r,gy);
+        ctx.moveTo(gx,gy-r); ctx.lineTo(gx,gy+r);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function render(reveal, dT){
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.clearRect(0,0,W,H);
+    guides(reveal);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for(var n=0;n<strands.length;n++){
+      var st = strands[n];
+      // ours rushes in from the top lip, theirs from the bottom lip; they meet
+      // last along the centre seam
+      var fromEdge = st.fam==="ours" ? clamp(st.s/0.5,0,1) : clamp((1-st.s)/0.5,0,1);
+      var delay = 0.44*fromEdge + 0.08*rnd(st.seed);
+      var tp = clamp((reveal - delay)/(1 - delay - 0.05), 0, 1);
+      tp = easeOutCubic(tp);
+      if(tp<=0) continue;
+      var last = Math.max(1, Math.floor(tp*(NP-1)));
+      ctx.beginPath();
+      for(var j=0;j<=last;j++){
+        var p = pointAt(st, j/(NP-1), dT);
+        if(j===0) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
+      }
+      ctx.strokeStyle = st.fam==="ours" ? col.ours : col.theirs;
+      ctx.globalAlpha = dens(st);
+      ctx.lineWidth = 0.75;
+      ctx.stroke();
+      if(reveal<1 && tp<1){
+        var hp = pointAt(st, last/(NP-1), dT);
+        ctx.beginPath();
+        ctx.arc(hp[0],hp[1],1.2,0,Math.PI*2);
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+    build();
+  }
+
+  function start(){
+    readColors(); resize();
+    if(reduce){ render(1,0); return; }
+    if(MOTION==="drawin"){
+      animStart = 0;
+      raf = requestAnimationFrame(function step(ts){
+        if(!animStart) animStart = ts;
+        var p = Math.min(1,(ts-animStart)/DRAW_MS);
+        render(p, 0);
+        if(p<1) raf = requestAnimationFrame(step);
+        else render(1,0);
+      });
+    } else {
+      driftStart = 0; lastTs = 0;
+      raf = requestAnimationFrame(function loop(ts){
+        if(!driftStart) driftStart = ts;
+        if(ts-lastTs >= 24){ lastTs = ts; render(1, (ts-driftStart)/1000); }
+        raf = requestAnimationFrame(loop);
+      });
+    }
+  }
+
+  var rz;
+  window.addEventListener("resize", function(){
+    clearTimeout(rz);
+    rz = setTimeout(function(){
+      cancelAnimationFrame(raf);
+      if(reduce){ resize(); render(1,0); return; }
+      if(MOTION==="drawin"){ resize(); render(1,0); }
+      else start();
+    }, 150);
+  });
+
+  document.addEventListener("visibilitychange", function(){
+    if(MOTION!=="drift" || reduce) return;
+    if(document.hidden){ cancelAnimationFrame(raf); }
+    else { driftStart = 0; lastTs = 0; raf = requestAnimationFrame(function loop(ts){
+      if(!driftStart) driftStart = ts;
+      if(ts-lastTs >= 24){ lastTs = ts; render(1,(ts-driftStart)/1000); }
+      raf = requestAnimationFrame(loop);
+    }); }
+  });
+
+  // theme switch
+  var buttons = document.querySelectorAll(".app-bar__theme button");
+  buttons.forEach(function(b){
+    b.addEventListener("click", function(){
+      var v = b.dataset.choice;
+      if(v==="system") document.documentElement.removeAttribute("data-theme");
+      else document.documentElement.setAttribute("data-theme", v);
+      buttons.forEach(function(x){ x.setAttribute("aria-pressed", String(x===b)); });
+      readColors();
+      if(reduce || MOTION==="drawin"){ render(1,0); }
+    });
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function(){
+    readColors();
+    if(reduce || MOTION==="drawin") render(1,0);
+  });
+
+  if(document.fonts && document.fonts.ready){ document.fonts.ready.then(start); }
+  else { window.addEventListener("load", start); }
+})();
+</script>
+</body>
+</html>
