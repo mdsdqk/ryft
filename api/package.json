@@ -7,9 +7,9 @@
   "scripts": {
     "dev": "tsx watch _server/dev.ts",
     "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push",
-    "db:migrate": "drizzle-kit migrate"
+    "db:generate": "drizzle-kit generate --config=_server/drizzle.config.ts",
+    "db:push": "drizzle-kit push --config=_server/drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=_server/drizzle.config.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

@@ -93,9 +93,11 @@ serverless function: `api/index.ts` exports one Web handler (`(request: Request)
 `app.fetch`) per HTTP method — `GET`, `POST`, … A bare default export is misclassified on the
 `nodejs` runtime as the Node `(req, res) => void` form and its returned `Response` dropped
 with a build warning; per-method exports are routed by verb and honour their return. A root
-`vercel.json` sets the build command to build `@ryft/web`, the output directory to
+`vercel.json` sets the build command to apply pending Drizzle migrations to Neon
+(`pnpm --filter @ryft/api db:migrate`) and then build `@ryft/web`, the output directory to
 `web/dist`, and rewrites `/api/(.*)` to the function so every API path lands on the one
-handler and Hono routes internally. `DATABASE_URL` is a Vercel project env var.
+handler and Hono routes internally. `DATABASE_URL` is a Vercel project env var — the same one
+the migrate step reads.
 
 **Neon on serverless.** `api/_server/db/client.ts` sets `neonConfig.poolQueryViaFetch = true`
 so one-shot queries go over Neon's stateless HTTP endpoint. A `Pool` cached at module scope
@@ -109,9 +111,11 @@ transaction via `pool.connect()`.
 `app.ts` + `routes/*` + `db/*` tree blew past that. The fix keeps the single-function design
 intact: `api/index.ts` is the lone file directly under `api/`, and the whole app moved to
 `api/_server/` — an underscore-prefixed dir is a *support* dir that a function may import but
-that Vercel never turns into functions. The one stray, `api/drizzle.config.ts` (a drizzle-kit
-CLI config, never imported at runtime), is listed in a root `.vercelignore`. `@vercel/node`
-traces `index.ts`'s imports and bundles `_server/**` into that one function.
+that Vercel never turns into functions. The drizzle-kit CLI config (never imported at runtime)
+sits at `api/_server/drizzle.config.ts` for the same reason — under `_server/` it is neither a
+function nor stripped from the build, so `pnpm --filter @ryft/api db:migrate` in the build
+command can still read it; the `db:*` scripts pass `--config=_server/drizzle.config.ts`.
+`@vercel/node` traces `index.ts`'s imports and bundles `_server/**` into that one function.
 
 `api/package.json` also pins `typescript` so `@vercel/node`'s function typecheck uses the
 workspace compiler (5.9) rather than its older bundled one, which mis-inferred Drizzle's

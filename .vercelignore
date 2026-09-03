@@ -1,6 +1,0 @@
-# Vercel turns every code file directly under `api/` into its own Serverless
-# Function. `api/index.ts` is the one function we want; the app lives in
-# `api/_server/` (underscore dirs are excluded from function creation). This
-# file only has to keep the stray `drizzle.config.ts` — a drizzle-kit CLI
-# config, never imported at runtime — from becoming a thirteenth function.
-api/drizzle.config.ts
