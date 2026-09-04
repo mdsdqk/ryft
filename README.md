@@ -1,56 +1,88 @@
 # ryft
 
-Version control for a Postgres schema: branch it, change it through a structured editor that
-records edits, see exactly what diverged, and merge it back with a **semantic
-three-way merge** that follows changes by stable ids — so an index added on
-one branch rebases onto a column the other branch renamed, instead of erroring or being
-dropped.
+**Version control for a Postgres schema.** Branch it, change it through a structured editor,
+see what diverged, and merge it back with a semantic three-way merge.
 
-Row data is out of scope. The schema document is the artifact under version control; the
-generated Postgres DDL is a *rendering* of what a merge does.
+ryft versions the schema document itself, not a SQL dump and not the migration files. It
+merges on schema semantics: it knows a column has a type, that an index depends on it, and
+that a column keeps its identity through a rename.
 
-Full framing, the load-bearing calls, and everything deliberately cut: **`decisions.md`**
-(its brief answers the problem statement). The blow-by-blow — every ticket pass and reversal —
-is in **`decisions.log.md`**. Design is locked in **`docs/adr/`**.
+Row data is out of scope.
 
-## Layout
+[Try the working demo](https://ryft-db.vercel.app)
 
-| Path | What | Build unit |
-|---|---|---|
-| `engine/` | the merge engine — `diff → classify → threeWayMerge → emit → replay`, plus `validateOperation` / `applyOperation`. Pure TypeScript, zero framework imports, zero runtime deps. | root `tsconfig` |
-| `src/domain/` | app primitives the engine must not know about — `User`, `Organization`, the branch operation log. | root `tsconfig` |
-| `api/` | the Hono API on Neon + Drizzle. `docs/build.md` is its reference. | `@ryft/api` |
-| `web/` | React SPA — app shell, `/branches`, `/merges`, the merge-review screen. Fixture-bound today (see below). | `@ryft/web` |
-| `examples/` | the worked seed schema, the branched example, the first-run workspace. |
-| `docs/` | `adr/` (design locks), `build.md`, `backend-contract.md`, `robustness.md`, `first-run.md`, `engine-test-catalog.md`, `scope.md`. |
+### The hard case
 
-## Run it
+Branch A renames `email` to `email_address`. Branch B adds a unique index on `email`. Applied
+together the naive way, the index points at a column that is no longer there.
 
-```
+ryft produces an index on `email_address`. Every object carries a stable id, so the rename and
+the index compose instead of colliding. Other tools either raise a conflict here or drop the
+index. Neither is right.
+
+## Quickstart
+
+Node 20+ and pnpm 11+ (`corepack enable` installs pnpm).
+
+```bash
 pnpm install
-pnpm test          # engine + api, all in-process (pglite) — no database needed
-pnpm typecheck     # root; api and web have their own: pnpm --filter @ryft/api typecheck
+pnpm test        # ~350 tests across engine, API, and the web view-model
 ```
 
-Local API:
+Tests run in-process against `pglite` (real Postgres compiled to WebAssembly). No database to
+set up.
 
+Run the API and the app against a real Postgres:
+
+```bash
+cp api/.env.example api/.env         # set DATABASE_URL: a free Neon branch or local pg
+pnpm --filter @ryft/api db:push      # create the tables
+pnpm --filter @ryft/api dev          # API on http://localhost:8787/api
+pnpm --filter @ryft/web dev          # app on http://localhost:5180
 ```
-cp api/.env.example api/.env          # set DATABASE_URL (free Neon branch or local pg)
-pnpm --filter @ryft/api db:push       # apply the schema
-pnpm --filter @ryft/api dev           # http://localhost:8787/api
+
+Seed a workspace, then follow the golden path in the app:
+
+```bash
 curl -sX POST localhost:8787/api/workspace/reset | jq
 ```
 
-The golden-path `curl` walk and the deploy steps are in **`docs/build.md`**.
+The full `curl` walkthrough and the Vercel deploy steps are in
+[`docs/build.md`](docs/build.md).
 
-## Status
+## What's inside
 
-The engine is finished (**223 tests** — the rename-rebase edge case, a typed conflict report
-usable from CI or an agent, an exhaustive scenario catalogue). Ticket 0010 adds the engine's
-server surface and the **V0 backend**: a Hono API persisting the golden-path demo on Neon,
-with a 15-test in-process integration suite (`docs/scope.md` for the band breakdown).
+| Path | What |
+|---|---|
+| `engine/` | The merge engine: `diff → classify → merge → emit → replay`, plus `validateOperation` and `applyOperation`. Pure TypeScript, no runtime dependencies. |
+| `src/domain/` | App primitives the engine never sees: `User`, `Organization`, the branch operation log. |
+| `api/` | The Hono API, on Neon and Drizzle. `@ryft/api`. |
+| `web/` | The React app: shell, `/branches`, the structured editor, `/merges`, and the merge-review screen. `@ryft/web`. |
+| `examples/` | The seed schema, a worked branch, the first-run workspace. |
+| `docs/adr/` | One ADR per design session. The `docs/*.md` files are their companions. |
 
-Wired now: `web/src/data/` reads the API through an HTTP `DataSource` (`web/src/data/http.ts`)
-and the sign-in gate calls `POST /api/session` — the dashboard, `/branches`, `/merges`, and the
-rail run on real persisted data (`VITE_DATA_SOURCE=fixture` restores the offline fixture). Still
-a placeholder: the structured editor screen (`docs/adr/0010-the-build.md` §7).
+## How a merge works
+
+A branch is a schema document plus a snapshot of `main` taken when the branch was cut. A merge
+is a three-way operation over those snapshots:
+
+1. **diff** each side against the common ancestor, by object id rather than by name.
+2. **classify** every change. An identical change on both sides is an overlap; a real
+   disagreement is one of seven typed conflict classes.
+3. **merge** the changes that do not conflict, then **check commutativity**: apply both sides
+   in both orders and confirm the results match. A rule-based taxonomy can miss a case; this
+   check does not depend on the taxonomy.
+4. **emit** the merged document as ordered Postgres DDL, and **replay** it one statement at a
+   time to confirm every prefix leaves a valid schema.
+
+The merged document is the source of truth. The DDL is a rendering of the change.
+
+## Docs
+
+| | |
+|---|---|
+| [`decisions.md`](decisions.md) | The choices that shaped ryft, in impact order. Start here. |
+| [`decisions.log.md`](decisions.log.md) | The full working log: every reversal, every implementation note. |
+| [`docs/adr/`](docs/adr/) | Per-session design locks. |
+| [`docs/build.md`](docs/build.md) | Setup, the golden-path `curl` walk, and deploy. |
+| [`docs/scope.md`](docs/scope.md) | Delivery bands and what each one contains. |
