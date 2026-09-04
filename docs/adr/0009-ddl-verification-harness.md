@@ -46,7 +46,7 @@ delivered by pure tests, and the introspection round-trip it requires is a large
 
 **Consequences.** No introspection round-trip exists, so the raw-SQL import path (stretch)
 does not get "a free SQL importer" out of this harness — it would need its own
-Postgres→document introspection (`decisions.md` § SQL console; map § Not yet specified).
+Postgres→document introspection (`decisions.md` § "Deliberately cut" — the SQL console; map § Not yet specified).
 
 ## 2. Triggered by a manual "Validate" button, never automatically
 
@@ -56,8 +56,8 @@ screen shows a **Validate** button; pressing it calls the endpoint synchronously
 button shows a spinner until the verdict returns.
 
 The dry run is **not a merge gate**. A merge request can be merged with no verification run,
-or with a stale or failed one — the check is advisory evidence (`decisions.md` § "Merge
-requests are dry-run against a real Postgres"), and it is stretch.
+or with a stale or failed one — the check is advisory evidence (`decisions.log.md` § "Merge
+requests are dry-run against a real Postgres before you merge"), and it is stretch.
 
 **Why manual and synchronous.** With the shadow branch already warm (§4) the whole run is
 sub-second, so an explicit button with a spinner is the honest, simplest model. It removes

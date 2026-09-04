@@ -2,7 +2,8 @@
 
 Ticket 0005. What a reviewer lands in on a fresh instance and how they move through the
 product without being told anything. `docs/adr/0005-first-run-and-seed.md` is the structured
-rationale; `decisions.md` carries the narrative.
+rationale; `decisions.log.md` carries the running narrative (`decisions.md` is the curated
+record).
 
 - **Seed schema document:** `examples/seed.schema.ts` (final).
 - **First-run workspace:** `examples/seed.workspace.ts` — the object `POST /workspace/reset`

@@ -164,7 +164,8 @@ and inherit its visual world (`DESIGN.md`).
   `src/domain/`.
 - **Prior-art research** against ten schema tools in
   `.scratch/schema-vcs/tickets/0000-prior-art-renames-and-merge.md` and its findings file.
-- **Decision record**: `decisions.md` (running log with the required brief at the top),
+- **Decision record**: `decisions.md` (curated record with the required brief at the top),
+  `decisions.log.md` (the full running log),
   `CONTEXT.md` (glossary), `docs/adr/0001-core-representation.md` and
   `docs/adr/0002-semantic-merge-engine.md`, and the wayfinding map and ticket tree under
   `.scratch/schema-vcs/`.

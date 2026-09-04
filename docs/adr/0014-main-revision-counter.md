@@ -2,8 +2,8 @@
 
 Status: accepted. The counter and the list are assembled in `api/_server/views.ts`
 (`assembleOverview`); the shapes are in `api/_server/types.ts` and mirrored in
-`web/src/data/types.ts`; the surface is the `/db` dashboard's Revisions zone. `decisions.md`
-carries the narrative.
+`web/src/data/types.ts`; the surface is the `/db` dashboard's Revisions zone. `decisions.log.md`
+carries the running narrative (`decisions.md` is the curated record).
 
 Builds on ADR 0004 (`GET /overview` / `Overview`; the `operations` table; `head_version` on
 `branches`), ADR 0010 §5 (the merge transaction: write the head, bump `head_version`, append
@@ -26,7 +26,7 @@ has no history and `main` is never edited directly (`POST /branches/main/operati
 transaction bumps it by one per merge, and nothing else writes `main`'s row. But `head_version`
 is a **per-edit** counter on working branches (`POST .../operations` and the undo route each
 bump it once), kept on the row so a merge-request `GET` can say "you previewed against
-`main@v3`, it is now `v5`" (see `decisions.md`, "The merge is one transaction with a row
+`main@v3`, it is now `v5`" (see `decisions.log.md`, "The merge is one transaction with a row
 lock"). `main`'s value matching the merge count is a consequence of `main` being uneditable,
 not a guarantee the field carries. Deriving from the markers makes the counter and the list
 below consistent by construction and needs no migration.

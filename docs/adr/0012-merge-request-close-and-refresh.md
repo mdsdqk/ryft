@@ -2,8 +2,8 @@
 
 Status: accepted. Prompted by the same usability review as ADR 0011
 (`docs/usability-review-triage.md`, themes D-12 and F1+F3), but this one is not a naming
-call: both items are functional gaps in the merge-request lifecycle. `decisions.md` carries
-the narrative.
+call: both items are functional gaps in the merge-request lifecycle. `decisions.log.md`
+carries the running narrative (`decisions.md` is the curated record).
 
 Builds on ADR 0004 §3 (the merge queue is a stored status, strict FIFO), §4 (the merge
 transaction re-runs against live heads under a row lock), §5 (the MR row freezes the triple;

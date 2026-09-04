@@ -1,7 +1,8 @@
 # Robustness — validation rules, quoting, defaults, destructive warnings
 
 Ticket 0008. The companion reference to `docs/adr/0008-robustness-validation-and-warnings.md`
-(rationale, one section per call). `decisions.md` carries the narrative.
+(rationale, one section per call). `decisions.log.md` carries the running narrative
+(`decisions.md` is the curated record).
 
 Owns: the per-operation validation rule table, the typed error / warning shapes, the
 identifier-quoting rule, the default allowlist, and the destructive-warning list with where

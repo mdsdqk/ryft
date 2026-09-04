@@ -9,8 +9,9 @@ dropped.
 Row data is out of scope. The schema document is the artifact under version control; the
 generated Postgres DDL is a *rendering* of what a merge does.
 
-Full framing, the alternatives weighed, and everything deliberately cut: **`decisions.md`**
-(its brief answers the problem statement). Design is locked in **`docs/adr/`**.
+Full framing, the load-bearing calls, and everything deliberately cut: **`decisions.md`**
+(its brief answers the problem statement). The blow-by-blow — every ticket pass and reversal —
+is in **`decisions.log.md`**. Design is locked in **`docs/adr/`**.
 
 ## Layout
 

@@ -2,7 +2,8 @@
 
 Status: accepted. The seed schema document is `examples/seed.schema.ts` (promoted from
 provisional); the full first-run workspace is `examples/seed.workspace.ts`. The empty-state
-copy and the demo script are in `docs/first-run.md`. `decisions.md` carries the narrative.
+copy and the demo script are in `docs/first-run.md`. `decisions.log.md` carries the running
+narrative (`decisions.md` is the curated record).
 
 Builds on ADR 0001 (the seed document; `User` / `Organization`; the `contact-fields` worked
 branch), ADR 0002 (that branch is the rename-rebase fixture) and ADR 0004 (the `branches` /
