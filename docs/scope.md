@@ -5,8 +5,9 @@ reconciliation call, and the risk register. It does **not** restate what other d
 
 - **Product truth** — `PRODUCT.md` (users, purpose, capabilities, constraints).
 - **Demo script** — `docs/first-run.md` §4–5 (golden path + full-coverage appendix).
-- **The decisions and their reasoning** — `decisions.md` (the running log; the brief at its
-  top answers the problem statement's four questions).
+- **The decisions and their reasoning** — `decisions.md` (the curated record; the brief at its
+  top answers the problem statement's four questions) and `decisions.log.md` (the full running
+  log).
 - **The engine, persistence, robustness, verification designs** — ADRs 0001–0009.
 
 ## Where the budget went

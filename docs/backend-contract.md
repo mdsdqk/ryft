@@ -3,7 +3,7 @@
 Ticket 0004. The Drizzle schema and the endpoint table the API/persistence out-of-band track
 and the `web/src/data/` seam build against. This is the companion reference;
 `docs/adr/0004-backend-contract.md` is the structured rationale (one section per call) and
-`decisions.md` carries the narrative.
+`decisions.log.md` carries the running narrative (`decisions.md` is the curated record).
 
 Builds on `engine/schema.ts` (`SchemaDocument`), `engine/operations.ts` (`Operation`),
 `src/domain/operations.ts` (`LogEntry`, `LogOp`, `MergeMarker`), `src/domain/users.ts`

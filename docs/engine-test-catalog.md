@@ -1,7 +1,8 @@
 # Engine test catalogue and merge invariants
 
 Ticket 0006. The scenario catalogue and invariant list that doubles as the engine's
-executable spec — the "meaningful tests" evidence. `decisions.md` carries the narrative.
+executable spec — the "meaningful tests" evidence. `decisions.log.md` carries the running
+narrative (`decisions.md` is the curated record).
 
 Runner: **vitest** (`pnpm test` → `vitest run`, `pnpm test:watch` → `vitest`). One root
 `vitest.config.ts` covers `engine/**`, `src/**`, and `web/src/**/*.test.ts` (the pure

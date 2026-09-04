@@ -6,8 +6,9 @@ written. This ADR records the design, not a shipped implementation.
 
 The load-bearing modelling calls made while designing the semantic three-way merge — the
 headline artifact of the submission. One section per call. `docs/merge-engine.md` is the
-full algorithm write-up; `decisions.md` is the fine-grained running log. This is the
-structured companion a reviewer reads for context, alternatives, and consequences. It
+full algorithm write-up; `decisions.log.md` is the fine-grained running log (`decisions.md` is
+the curated record). This is the structured companion a reviewer reads for context,
+alternatives, and consequences. It
 builds directly on ADR 0001 (stable ids; the operation log is audit + undo only).
 
 ## 1. The merge builds `merged` by replaying a derived delta, not by a field-walk
@@ -234,7 +235,7 @@ from the review screen. A stateful engine that remembers "conflict 3 is resolved
 session, an instance lifecycle, and a story for concurrent callers — all of which leak into
 every consumer. A pure function that takes the resolutions as an argument has none of that:
 the same call is reproducible, cacheable, and testable, and the merge queue re-running it
-against a moved `main` (`decisions.md`) is just another call with the same resolutions.
+against a moved `main` (`decisions.log.md`) is just another call with the same resolutions.
 Re-running the whole classification each time also means a resolution that changed shape
 because `theirs` moved is detected — the conflict it referenced is simply no longer in the
 report, and the domain layer drops the stale resolution with a notice.

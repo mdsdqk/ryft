@@ -4,8 +4,8 @@ Status: accepted
 
 The load-bearing modelling calls made while defining the two data structures the schema-VCS
 engine is built on: the schema document and the branch operation log. One section per call.
-`decisions.md` is the fine-grained running log. This is the structured companion a reviewer
-reads for context, alternatives, and consequences.
+`decisions.log.md` is the fine-grained running log (`decisions.md` is the curated record).
+This is the structured companion a reviewer reads for context, alternatives, and consequences.
 
 ## 1. Object identity is a stable synthetic id, not a name
 

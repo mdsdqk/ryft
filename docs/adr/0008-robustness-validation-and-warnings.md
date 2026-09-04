@@ -3,8 +3,8 @@
 Status: accepted (design lock). No code ships here — this is the single owner for the
 "real world, not happy path" concerns that ADRs 0001–0004 each left a seam pointing at.
 `docs/robustness.md` is the companion: the per-operation validation rule table, the quoting
-rules, the default allowlist, and the destructive-warning list with surfaces. `decisions.md`
-carries the narrative.
+rules, the default allowlist, and the destructive-warning list with surfaces. `decisions.log.md`
+carries the running narrative (`decisions.md` is the curated record).
 
 Consolidates seams from ADR 0001 §3 (drops block on dependents; PK members are `NOT NULL`),
 ADR 0002 (structural validity of a merged document deferred here), ADR 0003 §4–§5

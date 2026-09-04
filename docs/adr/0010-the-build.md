@@ -6,8 +6,8 @@ the API code lives, what datastore backs it, how it deploys, and which slice of 
 endpoint table V0 actually ships. Those are recorded here, one section each.
 
 `docs/build.md` is the companion: the setup steps, the endpoint subset table with
-request/response shapes, and the local + deployed `curl` walk. `decisions.md` carries the
-narrative.
+request/response shapes, and the local + deployed `curl` walk. `decisions.log.md` carries the
+running narrative (`decisions.md` is the curated record).
 
 Builds on ADR 0004 (the Drizzle schema, the endpoint table, the merge lifecycle), ADR 0005 +
 `examples/seed.workspace.ts` (seed content — already written as typed objects), ADR 0008

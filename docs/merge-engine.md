@@ -6,7 +6,7 @@ prompt, so the engine is usable from an API, an agent, or CI.
 
 This is the algorithm write-up. `docs/adr/0002-semantic-merge-engine.md` is the structured
 companion (one section per load-bearing call, with alternatives and consequences).
-`decisions.md` carries the narrative.
+`decisions.log.md` carries the running narrative (`decisions.md` is the curated record).
 
 Implemented so far in `engine/`: `diff.ts` (`diffSnapshots`) and `apply.ts` (`applyDelta`),
 on top of 0001's `schema.ts` and `operations.ts`. Still to build: `classify.ts`, `merge.ts`
@@ -203,7 +203,7 @@ non-conflicting, non-overlapping subset of `Δ_ours`, plus any ops synthesised b
 
 Onto `theirs` and not `base`, because `theirs` is the live target the merge request lands on,
 it already contains `Δ_theirs`, and the merge queue re-runs the whole computation against
-`theirs` = `main`'s head at the moment the request reaches the front (see `decisions.md`).
+`theirs` = `main`'s head at the moment the request reaches the front (see `decisions.log.md`).
 Replaying only `Δ_ours`'s independent ops is the minimal delta.
 
 `applyDelta` (`engine/apply.ts`) never mutates its input and replays in four phases — a fixed

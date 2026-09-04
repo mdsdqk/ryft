@@ -7,8 +7,8 @@ the schema of record and a merge updates it directly (ticket 0009; `decisions.md
 generated DDL is a rendering of the merge, not a deliverable").
 
 This is the algorithm write-up. `docs/adr/0003-sql-generation-and-ordering.md` is the
-structured companion (one section per load-bearing call). `decisions.md` carries the
-narrative.
+structured companion (one section per load-bearing call). `decisions.log.md` carries the
+running narrative (`decisions.md` is the curated record).
 
 Built on 0001 (`schema.ts`, `operations.ts`), 0002 (`diff.ts`'s `diffSnapshots`,
 `apply.ts`'s phase model). Implemented in `engine/`: `emit.ts` (`emitMigration`, the
@@ -293,8 +293,8 @@ Two safety nets, both kept:
 - the **intermediate-state check** (§5) turns it into an error at generation time, before
   any SQL is handed over.
 
-**No down-migrations.** Forward-only is a confirmed cut (`decisions.md`, "Forward-only
-migrations"). The generated file states this in its header comment. Down-paths are rarely
+**No down-migrations.** Forward-only is a confirmed cut (`decisions.md` § "The generated DDL
+is a rendering of the merge, not a deliverable"; full history in `decisions.log.md`). The generated file states this in its header comment. Down-paths are rarely
 tested and a schema rollback loses data anyway; PlanetScale's real answer to this is a
 data-plane feature (reverse replication) that is out of scope by definition. `emitMigration`
 has no `direction` parameter and never will in V0/V1.

@@ -3,8 +3,8 @@
 Status: accepted (design lock). No code ships with this ticket — the Drizzle schema and the
 endpoint table are a contract for the API/persistence out-of-band track and the `web/src/data/`
 seam to build against. `docs/backend-contract.md` is the full companion: the Drizzle schema
-listing and the endpoint table with request/response shapes. `decisions.md` carries the
-narrative.
+listing and the endpoint table with request/response shapes. `decisions.log.md` carries the
+running narrative (`decisions.md` is the curated record).
 
 Builds on ADR 0001 (stable synthetic ids; the schema document; users/orgs modelled without
 auth; drops blocked on dependents), ADR 0002 (`threeWayMerge`, the seven conflict classes,
@@ -67,7 +67,7 @@ merge_request_resolutions
 made after ticket 0004 was written:
 
 1. **No "base operation-log reference" on `branches`.** The ticket asks for one. The
-   stable-id decision (`decisions.md` §"The operation log is a UI feature") demoted the op
+   stable-id decision (`decisions.log.md` §"The operation log is a UI feature, not the merge's source of truth") demoted the op
    log to non-load-bearing for merge: the base is fully specified by `base_snapshot` alone.
    `operations` exists only for the History sub-sheet (V1) and undo, keyed per branch.
 2. **`main` is an ordinary `branches` row.** It has no parent, so its `base_snapshot` equals

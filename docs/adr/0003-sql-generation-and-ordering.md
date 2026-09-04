@@ -7,8 +7,8 @@ Status: accepted. `engine/emit.ts` (`emitMigration`, the `DdlStatement` IR, `exp
 
 The load-bearing calls made while designing migration generation — the step that renders a
 merged (or branch-head) schema document as ordered Postgres DDL. One section per call.
-`docs/migration-generation.md` is the full algorithm write-up; `decisions.md` carries the
-narrative. Builds on ADR 0001 (stable ids; references held by id, resolved to names only at
+`docs/migration-generation.md` is the full algorithm write-up; `decisions.log.md` carries the
+running narrative (`decisions.md` is the curated record). Builds on ADR 0001 (stable ids; references held by id, resolved to names only at
 render time) and ADR 0002 (the derived-delta model; `apply.ts`'s four-phase replay).
 
 **Framing note (ticket 0009).** This ADR originally described the output as "runnable Postgres

@@ -2,7 +2,8 @@
 
 Status: accepted. Prompted by a usability review with a real user (`docs/usability-review-triage.md`,
 theme A). No engine or API change — this is a naming call for the web UI, plus the small
-visual tweaks the same review named. `decisions.md` carries the narrative.
+visual tweaks the same review named. `decisions.log.md` carries the running narrative
+(`decisions.md` is the curated record).
 
 ## Context
 
